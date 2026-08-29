@@ -427,25 +427,99 @@
 @media (max-width: 480px) {
 
   .login-page {
-    padding: 75px 20px 30px;
+    padding: 60px 4% 30px;
   }
 
   .login-back-btn {
-    left: 20px;
+    top: 20px;
+    left: 4%;
+    font-size: 12px;
+  }
+
+  .login-container {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+    min-height: auto;
+    margin-top: 30px;
+    border-radius: 16px;
+  }
+
+  .login-info {
+    display: none;
   }
 
   .login-card {
-    padding: 35px 22px;
+    padding: 30px 20px;
   }
 
   .login-heading h2 {
-    font-size: 28px;
+    font-size: 20px;
+    margin-bottom: 25px;
+  }
+
+  .login-heading p {
+    font-size: 13px;
+  }
+
+  .login-field {
+    margin-bottom: 16px;
+  }
+
+  .login-field label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .input-wrapper {
+    height: 42px;
+    padding: 0 12px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+
+  .input-wrapper input {
+    font-size: 14px;
+  }
+
+  .input-wrapper input::placeholder {
+    font-size: 13px;
   }
 
   .login-options {
     align-items: flex-start;
+    gap: 10px;
+    margin: 2px 0 16px;
+  }
 
-    gap: 12px;
+  .remember-me {
+    font-size: 12px;
+  }
+
+  .forgot-password {
+    font-size: 12px;
+  }
+
+  .login-submit-btn {
+    height: 42px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+
+  .register-text {
+    margin-top: 18px;
+    font-size: 12px;
+  }
+
+  .register-text button {
+    font-size: 12px;
+    margin-left: 3px;
+  }
+
+  .login-message {
+    padding: 9px 11px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    border-radius: 6px;
   }
 
 }

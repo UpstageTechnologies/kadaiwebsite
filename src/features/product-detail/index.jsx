@@ -6,11 +6,11 @@ import {
   FiStar,
 } from "react-icons/fi";
 
-import { products } from "../data/category";
-import { useCart } from "../components/CardContext";
+import { products } from "../../data/category";
+import { useCart } from "../../components/CardContext";
 
-import "./ProductCard.css";
-import Navbar from "../components/Navbar";
+import "./product-detail.css";
+import Navbar from "../../components/Navbar";
 
 const ProductCard = () => {
   const { id } = useParams();

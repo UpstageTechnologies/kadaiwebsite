@@ -7,10 +7,10 @@ import {
 } from "react-icons/fi";
 
 import { useNavigate } from "react-router-dom";
-import { useCart } from "../components/CardContext";
+import { useCart } from "../../components/CardContext";
 
-import "./Cart.css";
-import Navbar from "../components/Navbar";
+import "./cart.css";
+import Navbar from "../../components/Navbar";
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -45,7 +45,7 @@ const Cart = () => {
           Continue Shopping
         </button>
 
-        <div>
+        <div className="card-header">
           <h1>Shopping Cart</h1>
 
           <p>

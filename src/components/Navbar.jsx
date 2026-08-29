@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   FiSearch,
   FiShoppingCart,
@@ -45,7 +45,7 @@ const Navbar = () => {
     return "";
   });
 
-  const [showMenu, setShowMenu] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
@@ -55,16 +55,22 @@ const Navbar = () => {
   // Categories
   const [showCategories, setShowCategories] = useState(false);
 
+  // Close mobile menu when navigating
+  useEffect(() => {
+    const handleNavigation = () => {
+      setIsMobileMenuOpen(false);
+      setShowSearch(false);
+    };
+
+    window.addEventListener("navigate", handleNavigation);
+    return () => window.removeEventListener("navigate", handleNavigation);
+  }, []);
+
   const handleLogout = () => {
     setIsLoggedIn(false);
     setShowProfile(false);
     localStorage.removeItem("isLoggedIn");
   };
-
-  // =========================================
-  // CATEGORY IMAGES
-  // First product image from each category
-  // =========================================
 
   const categoryItems = useMemo(() => {
     return categories.map((category) => {
@@ -80,10 +86,6 @@ const Navbar = () => {
       };
     });
   }, []);
-
-  // =========================================
-  // LIVE SEARCH
-  // =========================================
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -355,6 +357,7 @@ const Navbar = () => {
             onClick={() =>
               setShowSearch(!showSearch)
             }
+            aria-label="Search"
           >
             <FiSearch />
           </button>
@@ -362,7 +365,7 @@ const Navbar = () => {
 
           {/* Wishlist */}
 
-          <button className="icon-btn wishlist-btn">
+          <button className="icon-btn wishlist-btn" aria-label="Wishlist">
 
             <FiHeart />
 
@@ -380,6 +383,7 @@ const Navbar = () => {
               navigate("/cart")
             }
             className="icon-btn cart-btn"
+            aria-label="Shopping Cart"
           >
 
             <FiShoppingCart />
@@ -413,6 +417,7 @@ const Navbar = () => {
                 onClick={() =>
                   setShowProfile(!showProfile)
                 }
+                aria-label="User Profile"
               >
                 <FiUser />
               </button>
@@ -474,19 +479,21 @@ const Navbar = () => {
           )}
 
 
-          {/* Mobile Menu */}
+          {/* Mobile Menu Toggle */}
 
           <button
-            className="menu-btn"
+            className="mobile-menu-toggle"
             onClick={() =>
-              setShowMenu(!showMenu)
+              setIsMobileMenuOpen(!isMobileMenuOpen)
             }
+            aria-label="Toggle menu"
+            aria-expanded={isMobileMenuOpen}
           >
 
-            {showMenu ? (
-              <FiX />
+            {isMobileMenuOpen ? (
+              <FiX size={24} />
             ) : (
-              <FiMenu />
+              <FiMenu size={24} />
             )}
 
           </button>
@@ -524,6 +531,7 @@ const Navbar = () => {
                   onClick={() =>
                     setSearchQuery("")
                   }
+                  aria-label="Clear search"
                 >
                   <FiX />
                 </button>
@@ -538,6 +546,7 @@ const Navbar = () => {
                   setSearchQuery("");
                   setShowSearch(false);
                 }}
+                aria-label="Close search"
               >
                 <FiX />
               </button>
@@ -629,39 +638,58 @@ const Navbar = () => {
 
       )}
 
-      {showMenu && (
+      {/* Mobile Navigation Menu */}
 
-        <div className="mobile-menu">
+      {isMobileMenuOpen && (
 
-          <Link to={"/"}>
-            Home
-          </Link>
+        <div className="mobile-nav-drawer">
 
-          <Link to={"/products"}>
-            Products
-          </Link>
+          <nav className="mobile-nav-links">
 
-          <Link to={"/offers"}>
-            Offers
-          </Link>
-
-          <a href="orders">
-            Orders
-          </a>
-
-
-          {!isLoggedIn && (
-
-            <button
-              className="mobile-login"
-              onClick={() =>
-                navigate("/login")
-              }
+            <Link 
+              to="/" 
+              onClick={() => setIsMobileMenuOpen(false)}
             >
-              Login
-            </button>
+              Home
+            </Link>
 
-          )}
+            <Link 
+              to="/products" 
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Products
+            </Link>
+
+            <Link 
+              to="/offers" 
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Offers
+            </Link>
+
+            <a 
+              href="#orders"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Orders
+            </a>
+
+
+            {!isLoggedIn && (
+
+              <button
+                className="mobile-nav-login"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  navigate("/login");
+                }}
+              >
+                Login
+              </button>
+
+            )}
+
+          </nav>
 
         </div>
 

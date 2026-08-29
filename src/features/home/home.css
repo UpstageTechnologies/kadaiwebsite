@@ -1,0 +1,29 @@
+.home-page {
+  height: auto;
+  padding-bottom: 30px;
+  background: #dfe4e7;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Responsive: 1024px (Tablet Landscape) */
+@media (max-width: 1024px) {
+  .home-page {
+    padding-bottom: 25px;
+  }
+}
+
+/* Responsive: 768px (Tablet) */
+@media (max-width: 768px) {
+  .home-page {
+    padding-bottom: 20px;
+  }
+}
+
+/* Responsive: 480px (Mobile) */
+@media (max-width: 480px) {
+  .home-page {
+    padding-bottom: 15px;
+    background: #dfe4e7;
+  }
+}

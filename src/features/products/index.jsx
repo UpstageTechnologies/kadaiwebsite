@@ -9,15 +9,15 @@ import {
   FiShoppingCart,
 } from "react-icons/fi";
 
-import { useCart } from "../components/CardContext";
+import { useCart } from "../../components/CardContext";
 
 import {
   categories,
   products,
-} from "../data/category";
+} from "../../data/category";
 
-import "./Products.css";
-import Navbar from "../components/Navbar";
+import "./products.css";
+import Navbar from "../../components/Navbar";
 
 
 const Products = () => {
@@ -316,16 +316,6 @@ const Products = () => {
                       {/* DETAILS */}
 
                       <div className="product-details">
-
-
-                        {/* CATEGORY */}
-
-                        <span className="product-category">
-
-                          {product.category}
-
-                        </span>
-
 
                         {/* NAME */}
 

@@ -388,33 +388,133 @@
 @media (max-width: 480px) {
 
   .offers-page {
-    padding: 25px 15px 45px;
+    padding: 8px 3% 40px;
+  }
+
+  .offers-small-title {
+    font-size: 12px;
+    margin-top: 15px;
+    margin-bottom: 6px;
   }
 
   .offers-header h1 {
-    font-size: 28px;
+    font-size: 20px;
+    margin-bottom: 10px;
   }
 
   .offers-header p {
-    font-size: 13px;
+    font-size: 12px;
+    line-height: 1.5;
   }
 
   .offers-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
+  }
 
-    gap: 18px;
+  .offer-card {
+    border-radius: 12px;
   }
 
   .offer-image-box {
-    height: 220px;
+    height: 160px;
+  }
+
+  .offer-image-box img {
+    height: 100%;
+  }
+
+  .offer-badge {
+    top: 10px;
+    left: 10px;
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .offer-content {
+    padding: 14px;
+  }
+
+  .offer-category {
+    font-size: 11px;
+    margin-bottom: 5px;
   }
 
   .offer-content h3 {
-    font-size: 17px;
+    font-size: 15px;
+    line-height: 1.3;
+    margin-bottom: 5px;
   }
 
   .offer-description {
+    font-size: 12px;
     min-height: auto;
+    line-height: 1.4;
+  }
+
+  .offer-rating {
+    font-size: 12px;
+    margin-top: 8px;
+    gap: 4px;
+  }
+
+  .offer-rating span {
+    font-size: 11px;
+  }
+
+  .offer-bottom {
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .offer-price {
+    gap: 5px;
+  }
+
+  .offer-price strong {
+    font-size: 16px;
+  }
+
+  .offer-price del {
+    font-size: 12px;
+  }
+
+  .offer-price small {
+    font-size: 11px;
+  }
+
+  .offer-cart-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+
+  .offer-quantity-control {
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .offer-quantity-control button {
+    width: 32px;
+    font-size: 18px;
+  }
+
+  .offer-quantity-control span {
+    min-width: 28px;
+    font-size: 12px;
+  }
+
+  .no-offers {
+    min-height: 300px;
+  }
+
+  .no-offers h2 {
+    font-size: 18px;
+  }
+
+  .no-offers p {
+    font-size: 12px;
   }
 
 }

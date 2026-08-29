@@ -11,7 +11,7 @@ import {
   FiCheck,
 } from "react-icons/fi";
 
-import "./Register.css";
+import "./register.css";
 
 const Register = () => {
   const navigate = useNavigate();

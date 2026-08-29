@@ -8,7 +8,7 @@ import {
   FiArrowLeft,
 } from "react-icons/fi";
 
-import "./Login.css";
+import "./login.css";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -198,7 +198,6 @@ const Login = () => {
 
             </div>
 
-
             {/* Password */}
 
             <div className="login-field">
@@ -229,81 +228,87 @@ const Login = () => {
 
                 <button
                   type="button"
-                  className="password-toggle"
                   onClick={() =>
                     setShowPassword(
                       !showPassword
                     )
                   }
                 >
+
                   {showPassword ? (
                     <FiEyeOff />
                   ) : (
                     <FiEye />
                   )}
+
                 </button>
 
               </div>
 
             </div>
 
-            <div className="login-options">
+            {/* Remember Me Checkbox */}
 
-              <label className="remember-me">
+            <div className="login-checkbox">
 
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(event) =>
-                    setRememberMe(
-                      event.target.checked
-                    )
-                  }
-                />
-
-                <span>
-                  Remember me
-                </span>
-
-              </label>
-
-              <button
-                type="button"
-                className="forgot-password"
-                onClick={() =>
-                  alert(
-                    "Password reset will be available soon."
+              <input
+                id="rememberMe"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(event) =>
+                  setRememberMe(
+                    event.target.checked
                   )
                 }
-              >
-                Forgot Password?
-              </button>
+              />
+
+              <label htmlFor="rememberMe">
+                Remember me
+              </label>
 
             </div>
 
+            {/* Error Message */}
+
             {error && (
-              <div className="login-message error">
+
+              <div className="message error-message">
+
                 {error}
+
               </div>
+
             )}
 
+            {/* Success Message */}
 
             {success && (
-              <div className="login-message success">
+
+              <div className="message success-message">
+
                 {success}
+
               </div>
+
             )}
+
+            {/* Submit Button */}
 
             <button
               type="submit"
               className="login-submit-btn"
             >
+
               Login
+
             </button>
 
-            <div className="register-text">
+          </form>
 
-              Don't have an account?
+          <div className="login-footer">
+
+            <p>
+              Don't have an account?{" "}
 
               <button
                 type="button"
@@ -311,12 +316,14 @@ const Login = () => {
                   navigate("/register")
                 }
               >
-                Create Account
+
+                Create one now
+
               </button>
 
-            </div>
+            </p>
 
-          </form>
+          </div>
 
         </section>
 

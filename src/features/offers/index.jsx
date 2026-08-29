@@ -4,11 +4,11 @@ import {
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 
-import { offers } from "../data/offers";
-import { useCart } from "../components/CardContext";
+import { offers } from "../../data/offers";
+import { useCart } from "../../components/CardContext";
 
-import "./Offers.css";
-import Navbar from "../components/Navbar";
+import "./offers.css";
+import Navbar from "../../components/Navbar";
 
 const Offers = () => {
   const navigate = useNavigate();
