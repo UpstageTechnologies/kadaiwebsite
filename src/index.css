@@ -781,7 +781,7 @@
     height: 56px;
     gap: 8px;
     border-radius: 0 0 28px 28px;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .logo {
@@ -920,10 +920,6 @@
   .mobile-search-results {
     max-height: 300px;
   }
-
-  .profile-dropdown {
-    width: 200px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -933,7 +929,7 @@
     border-radius: 0 0 20px 20px;
     height: 52px;
     gap: 4px;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .logo {
@@ -1141,8 +1137,8 @@
   }
 
   .profile-dropdown {
-    width: 160px;
-    right: -50px;
+    width: 190px;
+
   }
 
   .profile-title strong {
@@ -1397,10 +1393,6 @@
     margin-right: 130px;
   }
 
-  .background{
-    display: none;
-  }
-
   .hero-image-area {
     height: 450px;
   }
@@ -1465,6 +1457,10 @@
 
   .hero-dots {
     bottom: 15px;
+  }
+
+  .background {
+    display: none;
   }
 }
 
