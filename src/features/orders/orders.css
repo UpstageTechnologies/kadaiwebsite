@@ -1,0 +1,22 @@
+.orders-page { min-height: 100vh; padding: 28px 6% 70px; background: #f8faf9; }
+.orders-header { margin: 20px 0 30px; }
+.orders-header span { color: #65a91a; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; }
+.orders-header h1 { margin: 8px 0; color: #1f2937; font-size: 34px; }
+.orders-header p { margin: 0; color: #6b7280; }
+.orders-list { display: grid; gap: 16px; max-width: 850px; }
+.order-card, .orders-empty { padding: 24px; background: #fff; border-radius: 16px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05); }
+.order-card-heading, .order-card-footer { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+.order-card-heading div { display: grid; gap: 5px; }
+.order-card-heading strong { color: #29332a; }
+.order-card-heading span, .order-card small { color: #879087; font-size: 12px; }
+.order-card-heading b { padding: 6px 10px; border-radius: 20px; background: #eef8e6; color: #4f8611; font-size: 12px; }
+.order-card p { margin: 20px 0; color: #5f6860; font-size: 14px; }
+.order-card-footer { padding-top: 15px; border-top: 1px solid #edf0ed; color: #6b726a; font-size: 13px; }
+.order-card-footer strong { color: #1f2937; font-size: 17px; }
+.order-card small { display: block; margin-top: 12px; line-height: 1.5; }
+.orders-empty { display: grid; justify-items: center; max-width: 500px; text-align: center; }
+.orders-empty > svg { width: 40px; height: 40px; color: #65a91a; }
+.orders-empty h2 { margin: 16px 0 6px; color: #1f2937; }
+.orders-empty p { margin: 0; color: #6b7280; }
+.orders-empty button { margin-top: 20px; padding: 12px 20px; border: 0; border-radius: 9px; background: #65a91a; color: #fff; font-weight: 700; cursor: pointer; }
+@media (max-width: 600px) { .orders-page { padding-inline: 5%; } .orders-header h1 { font-size: 28px; } .order-card { padding: 18px; } }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   FiArrowLeft,
   FiArrowRight,
@@ -88,27 +88,6 @@ const Category = () => {
     );
 
   };
-
-  useEffect(() => {
-
-    const timer = setInterval(() => {
-
-      setActiveIndex((prev) => {
-
-        return (
-          (prev + 1) %
-          categories.length
-        );
-
-      });
-
-    }, 2000);
-
-    return () => {
-      clearInterval(timer);
-    };
-
-  }, []);
 
   const visibleCategories = [];
 

@@ -1,6 +1,9 @@
 .register-page {
   min-height: 100vh;
-  background: #f5f8f6;
+  background:
+    radial-gradient(circle at 10% 15%, rgba(131, 210, 28, 0.14), transparent 28%),
+    radial-gradient(circle at 90% 85%, rgba(23, 22, 29, 0.08), transparent 30%),
+    #f5f8f6;
   padding: 35px 6%;
   box-sizing: border-box;
   position: relative;
@@ -18,7 +21,7 @@
   gap: 8px;
   border: none;
   background: transparent;
-  color: green;
+  color: #4f8611;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -35,8 +38,7 @@
   background: #ffffff;
   border-radius: 24px;
   overflow: hidden;
-  box-shadow:
-    0 15px 45px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 24px 65px rgba(23, 22, 29, 0.12);
   display: grid;
   margin-top: 50px;
   grid-template-columns: 1fr 1fr;
@@ -44,7 +46,7 @@
 
 .register-info {
   padding: 65px 60px;
-  background: green;
+  background: linear-gradient(145deg, #19351d 0%, #2f7d32 58%, #65a91a 100%);
   color: #ffffff;
   display: flex;
   flex-direction: column;
@@ -71,6 +73,7 @@
 .register-info > p {
   max-width: 390px;
   margin: 0;
+  color: #1f2937;
   font-size: 16px;
   line-height: 1.7;
   opacity: 0.9;
@@ -149,7 +152,7 @@
 }
 
 .register-input-wrapper:focus-within {
-  border-color: green;
+  border-color: #65a91a;
   box-shadow:
     0 0 0 3px rgba(47, 125, 50, 0.08);
 }
@@ -185,7 +188,7 @@
 }
 
 .register-password-toggle:hover {
-  color: green;
+  color: #4f8611;
 }
 
 .terms-checkbox {
@@ -201,7 +204,7 @@
 
 .terms-checkbox input {
   margin-top: 2px;
-  accent-color: green;
+  accent-color: #65a91a;
   cursor: pointer;
 }
 
@@ -209,7 +212,7 @@
   border: none;
   background: transparent;
   padding: 0;
-  color: green;
+  color: #4f8611;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -224,13 +227,13 @@
 
 .register-message.error {
   background: #fff1f1;
-  color: red;
+  color: #a33a3a;
   border: 1px solid #ffd2d2;
 }
 
 .register-message.success {
   background: #eef9ef;
-  color: green;
+  color: #397b3e;
   border: 1px solid #cce8ce;
 }
 
@@ -239,7 +242,7 @@
   height: 46px;
   border: none;
   border-radius: 9px;
-  background: green;
+  background: #65a91a;
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
@@ -248,7 +251,7 @@
 }
 
 .register-submit-btn:hover {
-  background: rgb(6, 75, 6);
+  background: #4f8611;
   transform: translateY(-1px);
 }
 
@@ -262,7 +265,7 @@
 .login-link-text button {
   border: none;
   background: transparent;
-  color: green;
+  color: #4f8611;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -271,6 +274,19 @@
 
 .login-link-text button:hover {
   text-decoration: underline;
+}
+
+.register-card form {
+  width: 100%;
+}
+
+.register-input-wrapper button:focus-visible,
+.register-submit-btn:focus-visible,
+.register-back-btn:focus-visible,
+.login-link-text button:focus-visible,
+.terms-checkbox button:focus-visible {
+  outline: 3px solid rgba(101, 169, 26, 0.3);
+  outline-offset: 3px;
 }
 
 @media (max-width: 1024px) {

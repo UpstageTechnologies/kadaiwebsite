@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   FiMail,
   FiLock,
@@ -12,15 +12,19 @@ import "./login.css";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(
+    () => localStorage.getItem("rememberedEmail") || ""
+  );
   const [password, setPassword] = useState("");
 
   const [showPassword, setShowPassword] =
     useState(false);
 
-  const [rememberMe, setRememberMe] =
-    useState(false);
+  const [rememberMe, setRememberMe] = useState(() =>
+    Boolean(localStorage.getItem("rememberedEmail"))
+  );
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -64,8 +68,19 @@ const Login = () => {
     return;
   }
 
-  const registeredUser =
-    JSON.parse(savedUser);
+  let registeredUser;
+
+  try {
+    registeredUser = JSON.parse(savedUser);
+  } catch {
+    setError("Your saved account data is invalid. Please register again.");
+    return;
+  }
+
+  if (!registeredUser?.email || !registeredUser?.password) {
+    setError("Your saved account data is incomplete. Please register again.");
+    return;
+  }
   const emailMatches =
     email.trim().toLowerCase() ===
     registeredUser.email.trim().toLowerCase();
@@ -94,7 +109,9 @@ const Login = () => {
   setSuccess("Login successful!");
 
   setTimeout(() => {
-    navigate("/");
+    const redirectPath =
+      new URLSearchParams(location.search).get("redirect") || "/";
+    navigate(redirectPath);
   }, 800);
 };
 
@@ -104,6 +121,7 @@ const Login = () => {
       {/* Back */}
 
       <button
+        type="button"
         className="login-back-btn"
         onClick={() => navigate("/")}
       >
@@ -187,6 +205,8 @@ const Login = () => {
                 <input
                   id="email"
                   type="email"
+                  autoComplete="email"
+                  required
                   placeholder="Enter your email"
                   value={email}
                   onChange={(event) =>
@@ -217,6 +237,8 @@ const Login = () => {
                       ? "text"
                       : "password"
                   }
+                  autoComplete="current-password"
+                  required
                   placeholder="Enter your password"
                   value={password}
                   onChange={(event) =>
@@ -228,6 +250,8 @@ const Login = () => {
 
                 <button
                   type="button"
+                  className="password-toggle"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() =>
                     setShowPassword(
                       !showPassword
@@ -249,7 +273,7 @@ const Login = () => {
 
             {/* Remember Me Checkbox */}
 
-            <div className="login-checkbox">
+            <div className="login-options">
 
               <input
                 id="rememberMe"
@@ -262,7 +286,7 @@ const Login = () => {
                 }
               />
 
-              <label htmlFor="rememberMe">
+              <label className="remember-me" htmlFor="rememberMe">
                 Remember me
               </label>
 
@@ -272,7 +296,7 @@ const Login = () => {
 
             {error && (
 
-              <div className="message error-message">
+              <div className="login-message error">
 
                 {error}
 
@@ -284,7 +308,7 @@ const Login = () => {
 
             {success && (
 
-              <div className="message success-message">
+              <div className="login-message success">
 
                 {success}
 
@@ -305,7 +329,7 @@ const Login = () => {
 
           </form>
 
-          <div className="login-footer">
+          <div className="register-text">
 
             <p>
               Don't have an account?{" "}

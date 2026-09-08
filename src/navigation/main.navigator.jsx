@@ -6,6 +6,8 @@ import Login from "../features/auth/login";
 import Register from "../features/auth/register";
 import ProductDetail from "../features/product-detail";
 import Offers from "../features/offers";
+import Checkout from "../features/checkout";
+import Orders from "../features/orders";
 
 /**
  * Main Navigator
@@ -22,6 +24,8 @@ const MainNavigator = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/offers" element={<Offers />} />
       <Route path="/product/:id" element={<ProductDetail />} />
+      <Route path="/checkout" element={<Checkout />} />
+      <Route path="/orders" element={<Orders />} />
       
       {/* Fallback route */}
       <Route path="*" element={<Home />} />

@@ -228,9 +228,16 @@ const Cart = () => {
 
             <button
               className="checkout-btn"
-              onClick={() =>
-                navigate("/checkout")
-              }
+              onClick={() => {
+                const isLoggedIn =
+                  localStorage.getItem("isLoggedIn") === "true";
+
+                navigate(
+                  isLoggedIn
+                    ? "/checkout"
+                    : "/login?redirect=/checkout"
+                );
+              }}
             >
               Proceed to Checkout
             </button>

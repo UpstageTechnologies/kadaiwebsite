@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiUser,
@@ -121,10 +121,26 @@ const Register = () => {
       return;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const existingUser = localStorage.getItem("registeredUser");
+
+    if (existingUser) {
+      try {
+        const savedUser = JSON.parse(existingUser);
+
+        if (savedUser.email?.toLowerCase() === normalizedEmail) {
+          setError("An account with this email already exists. Please login.");
+          return;
+        }
+      } catch {
+        localStorage.removeItem("registeredUser");
+      }
+    }
+
     // Save basic user data
     const user = {
-      fullName,
-      email,
+      fullName: fullName.trim(),
+      email: normalizedEmail,
       phone,
       password,
     };
@@ -149,6 +165,7 @@ const Register = () => {
       {/* Back Button */}
 
       <button
+        type="button"
         className="register-back-btn"
         onClick={() => navigate("/")}
       >
@@ -229,6 +246,8 @@ const Register = () => {
                 <input
                   id="fullName"
                   type="text"
+                  autoComplete="name"
+                  required
                   placeholder="Enter your full name"
                   value={fullName}
                   onChange={(event) =>
@@ -258,6 +277,8 @@ const Register = () => {
                 <input
                   id="registerEmail"
                   type="email"
+                  autoComplete="email"
+                  required
                   placeholder="Enter your email"
                   value={email}
                   onChange={(event) =>
@@ -287,6 +308,8 @@ const Register = () => {
                 <input
                   id="phone"
                   type="tel"
+                  autoComplete="tel"
+                  required
                   placeholder="Enter 10-digit phone number"
                   value={phone}
                   maxLength={10}
@@ -326,6 +349,8 @@ const Register = () => {
                       ? "text"
                       : "password"
                   }
+                  autoComplete="new-password"
+                  required
                   placeholder="Create a password"
                   value={password}
                   onChange={(event) =>
@@ -375,6 +400,8 @@ const Register = () => {
                       ? "text"
                       : "password"
                   }
+                  autoComplete="new-password"
+                  required
                   placeholder="Confirm your password"
                   value={confirmPassword}
                   onChange={(event) =>

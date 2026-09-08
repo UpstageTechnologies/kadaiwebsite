@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   FiSearch,
   FiShoppingCart,
@@ -11,6 +11,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import "../index.css";
 import { useCart } from "./CardContext";
+import { useLocation } from "./LocationContext";
 
 import { products } from "../data/category";
 
@@ -29,12 +30,18 @@ const categories = [
 const Navbar = () => {
   const navigate = useNavigate();
   const { cartCount } = useCart();
+  const {
+    location,
+    status: locationStatus,
+    error: locationError,
+    requestLocation,
+  } = useLocation();
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return localStorage.getItem("isLoggedIn") === "true";
   });
 
-  const [userName, setUserName] = useState(() => {
+  const [userName] = useState(() => {
     const savedUser = localStorage.getItem("registeredUser");
 
     if (savedUser) {
@@ -54,6 +61,28 @@ const Navbar = () => {
 
   // Categories
   const [showCategories, setShowCategories] = useState(false);
+
+  useEffect(() => {
+    if (!isLoggedIn || !location) {
+      return;
+    }
+
+    const savedUser = localStorage.getItem("registeredUser");
+
+    if (!savedUser) {
+      return;
+    }
+
+    try {
+      const user = JSON.parse(savedUser);
+      localStorage.setItem(
+        "registeredUser",
+        JSON.stringify({ ...user, address: location })
+      );
+    } catch {
+      // Keep the navbar usable if legacy user data is malformed.
+    }
+  }, [isLoggedIn, location]);
 
   // Close mobile menu when navigating
   useEffect(() => {
@@ -230,12 +259,9 @@ const Navbar = () => {
 
           {/* Orders */}
 
-          <a
-            href="#orders"
-            className="menu-dropdown"
-          >
+          <Link to="/orders" className="menu-dropdown">
             Orders
-          </a>
+          </Link>
 
         </div>
 
@@ -452,8 +478,39 @@ const Navbar = () => {
                     My Profile
                   </button>
 
+                  <div className="profile-address">
+                    <strong>Address</strong>
 
-                  <button>
+                    {locationStatus === "loading" && (
+                      <span>Detecting your current location...</span>
+                    )}
+
+                    {locationStatus === "success" && location && (
+                      <span>{location.address}</span>
+                    )}
+
+                    {locationStatus === "error" && (
+                      <>
+                        <span>{locationError}</span>
+                        <button
+                          type="button"
+                          className="location-retry-btn"
+                          onClick={requestLocation}
+                        >
+                          Try Again
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfile(false);
+                      navigate("/orders");
+                    }}
+                  >
                     My Orders
                   </button>
 
@@ -667,12 +724,12 @@ const Navbar = () => {
               Offers
             </Link>
 
-            <a 
-              href="#orders"
+            <Link
+              to="/orders"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Orders
-            </a>
+            </Link>
 
 
             {!isLoggedIn && (

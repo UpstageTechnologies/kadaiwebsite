@@ -1,4 +1,4 @@
-import React, {
+import {
   createContext,
   useContext,
   useEffect,
@@ -103,6 +103,10 @@ export const CartProvider = ({ children }) => {
 
   };
 
+  const clearCart = () => {
+    setCartItems([]);
+  };
+
   const cartCount = cartItems.reduce(
     (total, item) =>
       total + item.quantity,
@@ -123,6 +127,8 @@ export const CartProvider = ({ children }) => {
 
         removeFromCart,
 
+        clearCart,
+
         cartCount,
       }}
     >
@@ -133,6 +139,7 @@ export const CartProvider = ({ children }) => {
 };
 
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useCart = () => {
   return useContext(CartContext);
 };
