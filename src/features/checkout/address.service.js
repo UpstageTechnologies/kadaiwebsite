@@ -85,6 +85,38 @@ export const saveAddress = (address) => {
   }
 };
 
+export const updateAddress = (address) => {
+  const addresses = getSavedAddresses();
+  const existingAddressIndex = addresses.findIndex((savedAddress) => savedAddress.id === address.id);
+
+  const updatedAddresses = [...addresses];
+
+  if (existingAddressIndex >= 0) {
+    updatedAddresses[existingAddressIndex] = address;
+  } else {
+    updatedAddresses.unshift(address);
+  }
+
+  localStorage.setItem(
+    getAddressStorageKey(),
+    JSON.stringify(updatedAddresses)
+  );
+  localStorage.setItem("selectedKadaiAddress", JSON.stringify(address));
+
+  try {
+    const user = JSON.parse(localStorage.getItem("registeredUser") || "null");
+
+    if (user) {
+      localStorage.setItem(
+        "registeredUser",
+        JSON.stringify({ ...user, address })
+      );
+    }
+  } catch {
+    // Keep checkout usable if legacy user data is malformed.
+  }
+};
+
 export const getSelectedAddress = (addresses) => {
   try {
     const selectedAddress = JSON.parse(

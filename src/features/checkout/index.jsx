@@ -4,13 +4,15 @@ import { useLocation as useRouteLocation, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import { useCart } from "../../components/CardContext";
 import { useLocation } from "../../components/LocationContext";
-import { calculateSubtotal, calculateDeliveryCharge } from "../cart/cart.service";
-import { getSavedOrders, saveOrder } from "../orders/orders.service";
+import { calculateSubtotal } from "../cart/cart.service";
+import { getPaymentMethodLabel, placeOrder } from "../orders/orders.service";
 import {
   getSavedAddresses,
   getSelectedAddress,
   saveAddress,
+  updateAddress,
 } from "./address.service";
+import { openRazorpayCheckout } from "./payment.service";
 
 import "./checkout.css";
 
@@ -27,12 +29,15 @@ const Checkout = () => {
   const { location } = useLocation();
   const [paymentMethod, setPaymentMethod] = useState("");
   const [error, setError] = useState("");
+  const [successOrder, setSuccessOrder] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [addresses, setAddresses] = useState(() => getSavedAddresses(location));
   const [address, setAddress] = useState(() =>
     getSelectedAddress(getSavedAddresses(location))
   );
   const [showAddressOptions, setShowAddressOptions] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(null);
   const [newAddressLabel, setNewAddressLabel] = useState("");
   const [newAddressText, setNewAddressText] = useState("");
 
@@ -40,8 +45,7 @@ const Checkout = () => {
 
   const summary = useMemo(() => {
     const subtotal = calculateSubtotal(cartItems);
-    const delivery = calculateDeliveryCharge(subtotal);
-    return { subtotal, delivery, total: subtotal + delivery };
+    return { subtotal, delivery: 0, total: subtotal };
   }, [cartItems]);
 
   useEffect(() => {
@@ -59,11 +63,41 @@ const Checkout = () => {
     setError("");
   };
 
+  const handleEditAddress = (selectedAddress) => {
+    setShowAddressOptions(true);
+    setShowAddressForm(true);
+    setEditingAddress(selectedAddress || null);
+    setNewAddressLabel(selectedAddress?.label || "");
+    setNewAddressText(selectedAddress?.address || "");
+    setError("");
+  };
+
   const handleAddAddress = (event) => {
     event.preventDefault();
 
     if (!newAddressText.trim()) {
       setError("Please enter a delivery address.");
+      return;
+    }
+
+    if (editingAddress) {
+      const editedAddress = {
+        ...editingAddress,
+        id: editingAddress.id,
+        label: newAddressLabel.trim() || "Home address",
+        address: newAddressText.trim(),
+      };
+
+      updateAddress(editedAddress);
+      const updatedAddresses = getSavedAddresses(location);
+      setAddresses(updatedAddresses);
+      setAddress(editedAddress);
+      setEditingAddress(null);
+      setNewAddressLabel("");
+      setNewAddressText("");
+      setShowAddressForm(false);
+      setShowAddressOptions(false);
+      setError("");
       return;
     }
 
@@ -95,26 +129,103 @@ const Checkout = () => {
       return;
     }
 
-    const savedOrders = getSavedOrders();
-    const order = {
-      id: `KADAI-${String(savedOrders.length + 1).padStart(4, "0")}`,
-      items: cartItems,
-      address,
-      paymentMethod,
-      subtotal: summary.subtotal,
-      delivery: summary.delivery,
-      total: summary.total,
-      status: "Placed",
-      createdAt: new Date().toISOString(),
-    };
+    if (!summary.total || summary.total <= 0) {
+      setError("Invalid or missing checkout amount.");
+      return;
+    }
 
-    saveOrder(order);
-    clearCart();
-    navigate("/orders");
+    if (paymentMethod === "cod") {
+      const order = placeOrder({
+        cartItems,
+        address,
+        paymentMethod,
+        summary,
+        paymentStatus: "Pending",
+      });
+
+      if (!order) {
+        setError("Order creation failed. Please try again.");
+        return;
+      }
+
+      clearCart();
+      setSuccessOrder(order);
+      setError("");
+      return;
+    }
+
+    if (["razorpay", "google-pay"].includes(paymentMethod)) {
+      setIsProcessing(true);
+      setError("");
+
+      openRazorpayCheckout({
+        amount: summary.total,
+        order: { id: "KADAI-ORDER" },
+        paymentMethod,
+        onSuccess: (paymentResponse) => {
+          const gatewayReference = paymentResponse?.razorpay_payment_id || "";
+          const order = placeOrder({
+            cartItems,
+            address,
+            paymentMethod,
+            summary,
+            paymentStatus: "Paid",
+            paymentGatewayReference: gatewayReference,
+          });
+
+          if (!order) {
+            setError("Order creation failed. Please try again.");
+            setIsProcessing(false);
+            return;
+          }
+
+          clearCart();
+          setSuccessOrder(order);
+          setError("");
+          setIsProcessing(false);
+        },
+        onCancel: (message) => {
+          setError(message || "Payment cancelled. No order was placed.");
+          setIsProcessing(false);
+        },
+        onError: (message) => {
+          setError(message || "Payment failed. Please try again.");
+          setIsProcessing(false);
+        },
+      });
+    }
   };
 
   if (!isLoggedIn) {
     return null;
+  }
+
+  if (successOrder) {
+    return (
+      <>
+        <Navbar />
+        <main className="checkout-page checkout-success-page">
+          <section className="checkout-success">
+            <div className="checkout-success-icon">
+              <FiCheck />
+            </div>
+            <h1>Order Placed Successfully!</h1>
+            <div className="checkout-success-details">
+              <div><span>Order ID:</span> <strong>{successOrder.id}</strong></div>
+              <div><span>Payment Method:</span> <strong>{getPaymentMethodLabel(successOrder.paymentMethod)}</strong></div>
+              <div><span>Amount:</span> <strong>₹{Number(successOrder.total || summary.total).toFixed(2)}</strong></div>
+            </div>
+            <button
+              className="checkout-success-button"
+              type="button"
+              onClick={() => navigate("/products")}
+            >
+              Continue Shopping
+            </button>
+          </section>
+        </main>
+      </>
+    );
   }
 
   if (cartItems.length === 0) {
@@ -163,13 +274,22 @@ const Checkout = () => {
                     <strong>{address.label || "Selected address"}</strong>
                     <span>{address.address}</span>
                   </div>
-                  <button
-                    className="change-address-btn"
-                    type="button"
-                    onClick={() => setShowAddressOptions(true)}
-                  >
-                    Change address
-                  </button>
+                  <div className="address-preview-actions">
+                    <button
+                      className="change-address-btn"
+                      type="button"
+                      onClick={() => setShowAddressOptions(true)}
+                    >
+                      Change address
+                    </button>
+                    <button
+                      className="edit-address-btn"
+                      type="button"
+                      onClick={() => handleEditAddress(address)}
+                    >
+                      Edit
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -196,6 +316,17 @@ const Checkout = () => {
                           </small>
                         )}
                       </span>
+                      <button
+                        className="inline-edit-address-btn"
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleEditAddress(savedAddress);
+                        }}
+                      >
+                        Edit
+                      </button>
                     </label>
                   ))}
                 </div>
@@ -232,7 +363,25 @@ const Checkout = () => {
                     required
                     rows={3}
                   />
-                  <button type="submit">Save Address</button>
+                  <div className="address-form-actions">
+                    <button type="submit">{editingAddress ? "Update Address" : "Save Address"}</button>
+                    {editingAddress && (
+                      <button
+                        className="cancel-address-edit-btn"
+                        type="button"
+                        onClick={() => {
+                          setShowAddressForm(false);
+                          setShowAddressOptions(false);
+                          setEditingAddress(null);
+                          setNewAddressLabel("");
+                          setNewAddressText("");
+                          setError("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </form>
               )}
             </div>
@@ -284,7 +433,6 @@ const Checkout = () => {
               ))}
             </div>
             <div className="summary-row"><span>Subtotal</span><strong>₹{summary.subtotal.toFixed(2)}</strong></div>
-            <div className="summary-row"><span>Delivery</span><strong>₹{summary.delivery.toFixed(2)}</strong></div>
             <div className="summary-total"><span>Total</span><strong>₹{summary.total.toFixed(2)}</strong></div>
             <button className="place-order-btn" type="button" onClick={handlePlaceOrder}>
               Continue / Place Order

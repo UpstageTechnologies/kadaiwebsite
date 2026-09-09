@@ -152,6 +152,95 @@ body {
 .transition-normal { transition: var(--transition-normal); }
 .transition-slow { transition: var(--transition-slow); }
 
+/* GPS location prompt */
+.gps-location-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: transparent;
+}
+
+.gps-location-prompt-card {
+  position: relative;
+  pointer-events: auto;
+  width: min(640px, calc(100vw - 56px));
+  min-height: 220px;
+  padding: var(--spacing-xl);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-success);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  text-align: center;
+}
+
+.gps-location-prompt-card.loading {
+  border-left-color: var(--color-info);
+}
+
+.gps-location-prompt-card.error {
+  border-left-color: var(--color-error);
+}
+
+.gps-location-close {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-white);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.gps-location-close:hover {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.gps-location-prompt-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-secondary);
+}
+
+.gps-location-prompt-copy {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.gps-location-prompt-button {
+  align-self: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-bg-white);
+  font-weight: 700;
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.gps-location-prompt-button:hover {
+  background: var(--color-primary-dark);
+}
+
 /* Responsive Utilities */
 @media (max-width: 1024px) {
   .container {

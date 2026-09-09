@@ -28,9 +28,81 @@
 .checkout-section-heading h2, .checkout-summary h2 { margin: 0 0 5px; color: #1f2937; font-size: 19px; }
 .checkout-section-heading p { margin: 0; color: #7b837b; font-size: 13px; }
 .address-list { display: grid; gap: 10px; margin-top: 18px; }
-.selected-address-preview { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 16px; border: 1px solid #dce9d4; border-radius: 10px; background: #f7fbf3; }
-.change-address-btn { flex: 0 0 auto; padding: 8px 0; border: 0; background: transparent; color: #4f8611; font-size: 13px; font-weight: 700; cursor: pointer; }
-.saved-address { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1px solid #dce9d4; border-radius: 10px; background: #f7fbf3; cursor: pointer; }
+.selected-address-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #dce9d4;
+  border-radius: 10px;
+  background: #f7fbf3;
+}
+.selected-address-preview .address-copy {
+  flex: 1;
+}
+.address-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.change-address-btn,
+.edit-address-btn {
+  flex: 0 0 auto;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: #4f8611;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.edit-address-btn {
+  color: #4f8611;
+}
+.saved-address {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dce9d4;
+  border-radius: 10px;
+  background: #f7fbf3;
+  cursor: pointer;
+}
+.saved-address .address-copy {
+  flex: 1;
+  min-width: 0;
+}
+.saved-address .address-copy strong,
+.saved-address .address-copy span {
+  display: block;
+}
+.inline-edit-address-btn {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border: 1px solid #65a91a;
+  border-radius: 7px;
+  background: transparent;
+  color: #4f8611;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.inline-edit-address-btn:hover {
+  background: #f1f8ea;
+}
+.address-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cancel-address-edit-btn {
+  background: #eef4ea;
+  color: #315b1b;
+}
 .saved-address.selected { border-color: #65a91a; box-shadow: 0 0 0 2px rgba(101, 169, 26, 0.1); }
 .saved-address input { position: absolute; opacity: 0; }
 .address-radio { width: 18px; height: 18px; flex: 0 0 auto; border: 2px solid #b7c0b6; border-radius: 50%; }
@@ -70,6 +142,83 @@
 .checkout-empty h1 { color: #1f2937; }
 .checkout-empty p { color: #6b7280; }
 .checkout-empty button { width: auto; padding-inline: 25px; }
+
+.checkout-success-page {
+  min-height: 70vh;
+  display: grid;
+  place-items: center;
+}
+
+.checkout-success {
+  max-width: 560px;
+  width: min(100%, 560px);
+  display: grid;
+  justify-items: center;
+  padding: 38px 30px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.checkout-success-icon {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: #65a91a;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+}
+
+.checkout-success h1 {
+  margin: 16px 0 12px;
+  color: #1f2937;
+  font-size: 34px;
+}
+
+.checkout-success-details {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  background: #f8faf9;
+  border-radius: 12px;
+  padding: 16px 20px;
+  text-align: left;
+}
+
+.checkout-success-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #6b726a;
+  font-size: 14px;
+}
+
+.checkout-success-details span {
+  color: #7b837b;
+}
+
+.checkout-success-details strong {
+  color: #29332a;
+}
+
+.checkout-success-button {
+  margin-top: 24px;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #65a91a;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.checkout-success-button:hover {
+  background: #4f8611;
+}
 @media (max-width: 760px) {
   .checkout-page { padding-inline: 5%; }
   .checkout-header h1 { font-size: 28px; }
