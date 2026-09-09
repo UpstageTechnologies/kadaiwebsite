@@ -76,6 +76,13 @@
   flex: 1;
   min-width: 0;
 }
+.address-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .saved-address .address-copy strong,
 .saved-address .address-copy span {
   display: block;
@@ -93,6 +100,20 @@
 }
 .inline-edit-address-btn:hover {
   background: #f1f8ea;
+}
+.inline-delete-address-btn {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border: 1px solid #c05a43;
+  border-radius: 7px;
+  background: transparent;
+  color: #b8433d;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.inline-delete-address-btn:hover {
+  background: #fff1ee;
 }
 .address-form-actions {
   display: flex;
@@ -225,4 +246,12 @@
   .checkout-layout { grid-template-columns: 1fr; }
   .checkout-summary { position: static; }
   .selected-address-preview { align-items: flex-start; flex-direction: column; }
+  .saved-address {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .address-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }

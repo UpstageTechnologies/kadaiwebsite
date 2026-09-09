@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -74,8 +75,10 @@ const getLocationErrorMessage = (geolocationError) => {
 };
 
 export const LocationProvider = ({ children }) => {
-  const [location, setLocation] = useState(null);
-  const [status, setStatus] = useState("idle");
+  const [location, setLocation] = useState(() => readStoredLocation());
+  const [status, setStatus] = useState(
+    readStoredLocation() ? "success" : "idle"
+  );
   const [error, setError] = useState("");
   const hasRequestedLocation = useRef(false);
 
@@ -89,7 +92,9 @@ export const LocationProvider = ({ children }) => {
 
     if (!navigator.geolocation) {
       setStatus("error");
-      setError("Location is not supported by this browser. Turn on GPS support or use a browser that allows GPS detection.");
+      setError(
+        "Location is not supported by this browser. Turn on GPS support or use a browser that allows GPS detection."
+      );
       return;
     }
 
@@ -141,6 +146,18 @@ export const LocationProvider = ({ children }) => {
     );
   }, []);
 
+  useEffect(() => {
+    const savedLocation = readStoredLocation();
+
+    if (savedLocation) {
+      setLocation(savedLocation);
+      setStatus("success");
+      return;
+    }
+
+    requestLocation();
+  }, [requestLocation]);
+
   const handleEnableGPS = useCallback(() => {
     openLocationSettings();
     requestLocation();
@@ -150,70 +167,27 @@ export const LocationProvider = ({ children }) => {
     <LocationContext.Provider
       value={{ location, status, error, requestLocation }}
     >
-      {status !== "success" && status !== "dismissed" && (
+      {status === "error" && (
         <div className="gps-location-prompt">
-          {status === "idle" && (
-            <div className="gps-location-prompt-card">
-              <button
-                type="button"
-                className="gps-location-close"
-                aria-label="Close location prompt"
-                onClick={dismissPrompt}
-              >
-                <FiX size={16} />
-              </button>
-              <span className="gps-location-prompt-title">Turn on location</span>
-              <span className="gps-location-prompt-copy">
-                Enable GPS / location on your device to predict your current location.
-              </span>
-              <button
-                type="button"
-                className="gps-location-prompt-button"
-                onClick={handleEnableGPS}
-              >
-                Enable GPS
-              </button>
-            </div>
-          )}
-
-          {status === "loading" && (
-            <div className="gps-location-prompt-card loading">
-              <button
-                type="button"
-                className="gps-location-close"
-                aria-label="Close location prompt"
-                onClick={dismissPrompt}
-              >
-                <FiX size={16} />
-              </button>
-              <span className="gps-location-prompt-title">Detecting your current location...</span>
-              <span className="gps-location-prompt-copy">
-                Please allow GPS / location access to predict the nearest delivery location.
-              </span>
-            </div>
-          )}
-
-          {status === "error" && (
-            <div className="gps-location-prompt-card error">
-              <button
-                type="button"
-                className="gps-location-close"
-                aria-label="Close location prompt"
-                onClick={dismissPrompt}
-              >
-                <FiX size={16} />
-              </button>
-              <span className="gps-location-prompt-title">Turn on location</span>
-              <span className="gps-location-prompt-copy">{error}</span>
-              <button
-                type="button"
-                className="gps-location-prompt-button"
-                onClick={handleEnableGPS}
-              >
-                Try Again
-              </button>
-            </div>
-          )}
+          <div className="gps-location-prompt-card error">
+            <button
+              type="button"
+              className="gps-location-close"
+              aria-label="Close location prompt"
+              onClick={dismissPrompt}
+            >
+              <FiX size={16} />
+            </button>
+            <span className="gps-location-prompt-title">Turn on location</span>
+            <span className="gps-location-prompt-copy">{error}</span>
+            <button
+              type="button"
+              className="gps-location-prompt-button"
+              onClick={handleEnableGPS}
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       )}
 

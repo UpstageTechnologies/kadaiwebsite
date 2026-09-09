@@ -12,6 +12,17 @@ const getAddressStorageKey = () => {
   }
 };
 
+const SELECTED_ADDRESS_KEY = "selectedKadaiAddress";
+
+const setSelectedAddressId = (id) => {
+  if (!id) {
+    localStorage.removeItem(SELECTED_ADDRESS_KEY);
+    return;
+  }
+
+  localStorage.setItem(SELECTED_ADDRESS_KEY, id);
+};
+
 export const getSavedAddresses = (currentLocation) => {
   let savedAddresses = [];
 
@@ -58,18 +69,13 @@ export const getSavedAddresses = (currentLocation) => {
   return savedAddresses;
 };
 
-export const saveAddress = (address) => {
-  const addresses = getSavedAddresses();
-  const updatedAddresses = [
-    address,
-    ...addresses.filter((savedAddress) => savedAddress.id !== address.id),
-  ];
+export const selectAddress = (address) => {
+  if (!address) {
+    setSelectedAddressId(null);
+    return;
+  }
 
-  localStorage.setItem(
-    getAddressStorageKey(),
-    JSON.stringify(updatedAddresses)
-  );
-  localStorage.setItem("selectedKadaiAddress", JSON.stringify(address));
+  setSelectedAddressId(address.id);
 
   try {
     const user = JSON.parse(localStorage.getItem("registeredUser") || "null");
@@ -85,9 +91,25 @@ export const saveAddress = (address) => {
   }
 };
 
+export const saveAddress = (address) => {
+  const addresses = getSavedAddresses();
+  const updatedAddresses = [
+    address,
+    ...addresses.filter((savedAddress) => savedAddress.id !== address.id),
+  ];
+
+  localStorage.setItem(
+    getAddressStorageKey(),
+    JSON.stringify(updatedAddresses)
+  );
+  selectAddress(address);
+};
+
 export const updateAddress = (address) => {
   const addresses = getSavedAddresses();
-  const existingAddressIndex = addresses.findIndex((savedAddress) => savedAddress.id === address.id);
+  const existingAddressIndex = addresses.findIndex(
+    (savedAddress) => savedAddress.id === address.id
+  );
 
   const updatedAddresses = [...addresses];
 
@@ -101,15 +123,30 @@ export const updateAddress = (address) => {
     getAddressStorageKey(),
     JSON.stringify(updatedAddresses)
   );
-  localStorage.setItem("selectedKadaiAddress", JSON.stringify(address));
+  selectAddress(address);
+};
+
+export const deleteAddress = (addressId) => {
+  const storageKey = getAddressStorageKey();
+  const savedAddresses = getSavedAddresses();
+  const updatedAddresses = savedAddresses.filter(
+    (savedAddress) => savedAddress.id !== addressId
+  );
+
+  localStorage.setItem(storageKey, JSON.stringify(updatedAddresses));
+
+  const selectedAddressId = localStorage.getItem("selectedKadaiAddress");
+  if (selectedAddressId === addressId) {
+    localStorage.removeItem("selectedKadaiAddress");
+  }
 
   try {
     const user = JSON.parse(localStorage.getItem("registeredUser") || "null");
 
-    if (user) {
+    if (user?.address?.id === addressId) {
       localStorage.setItem(
         "registeredUser",
-        JSON.stringify({ ...user, address })
+        JSON.stringify({ ...user, address: null })
       );
     }
   } catch {
@@ -119,14 +156,17 @@ export const updateAddress = (address) => {
 
 export const getSelectedAddress = (addresses) => {
   try {
-    const selectedAddress = JSON.parse(
-      localStorage.getItem("selectedKadaiAddress") || "null"
-    );
-    return (
-      addresses.find((address) => address.id === selectedAddress?.id) ||
-      addresses[0] ||
-      null
-    );
+    const selectedAddressId = localStorage.getItem("selectedKadaiAddress") || "";
+
+    if (selectedAddressId) {
+      return (
+        addresses.find((address) => address.id === selectedAddressId) ||
+        addresses[0] ||
+        null
+      );
+    }
+
+    return addresses[0] || null;
   } catch {
     return addresses[0] || null;
   }

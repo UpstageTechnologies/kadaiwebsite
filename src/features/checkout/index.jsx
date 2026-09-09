@@ -7,9 +7,11 @@ import { useLocation } from "../../components/LocationContext";
 import { calculateSubtotal } from "../cart/cart.service";
 import { getPaymentMethodLabel, placeOrder } from "../orders/orders.service";
 import {
+  deleteAddress,
   getSavedAddresses,
   getSelectedAddress,
   saveAddress,
+  selectAddress,
   updateAddress,
 } from "./address.service";
 import { openRazorpayCheckout } from "./payment.service";
@@ -32,7 +34,7 @@ const Checkout = () => {
   const [successOrder, setSuccessOrder] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [addresses, setAddresses] = useState(() => getSavedAddresses(location));
-  const [address, setAddress] = useState(() =>
+  const [selectedAddress, setSelectedAddress] = useState(() =>
     getSelectedAddress(getSavedAddresses(location))
   );
   const [showAddressOptions, setShowAddressOptions] = useState(false);
@@ -56,10 +58,32 @@ const Checkout = () => {
     }
   }, [isLoggedIn, navigate, routeLocation.pathname]);
 
-  const handleSelectAddress = (selectedAddress) => {
-    setAddress(selectedAddress);
-    saveAddress(selectedAddress);
+  const handleSelectAddress = (nextAddress) => {
+    if (!nextAddress) {
+      return;
+    }
+
+    setSelectedAddress(nextAddress);
     setShowAddressOptions(false);
+    selectAddress(nextAddress);
+    setError("");
+  };
+
+  const handleDeleteAddress = (selectedAddressId) => {
+    if (!selectedAddressId) {
+      return;
+    }
+
+    deleteAddress(selectedAddressId);
+
+    const refreshedAddresses = getSavedAddresses(location);
+    setAddresses(refreshedAddresses);
+
+    const refreshedSelectedAddress = getSelectedAddress(refreshedAddresses);
+    setSelectedAddress(refreshedSelectedAddress);
+
+    setShowAddressOptions(false);
+    setShowAddressForm(false);
     setError("");
   };
 
@@ -91,7 +115,7 @@ const Checkout = () => {
       updateAddress(editedAddress);
       const updatedAddresses = getSavedAddresses(location);
       setAddresses(updatedAddresses);
-      setAddress(editedAddress);
+      setSelectedAddress(editedAddress);
       setEditingAddress(null);
       setNewAddressLabel("");
       setNewAddressText("");
@@ -110,7 +134,7 @@ const Checkout = () => {
 
     saveAddress(newAddress);
     setAddresses((previousAddresses) => [newAddress, ...previousAddresses]);
-    setAddress(newAddress);
+    setSelectedAddress(newAddress);
     setNewAddressLabel("");
     setNewAddressText("");
     setShowAddressForm(false);
@@ -124,8 +148,8 @@ const Checkout = () => {
       return;
     }
 
-    if (!address) {
-      setError("Please add a delivery address to continue.");
+    if (!selectedAddress) {
+      setError("Please select a delivery address.");
       return;
     }
 
@@ -137,7 +161,7 @@ const Checkout = () => {
     if (paymentMethod === "cod") {
       const order = placeOrder({
         cartItems,
-        address,
+        address: selectedAddress,
         paymentMethod,
         summary,
         paymentStatus: "Pending",
@@ -166,7 +190,7 @@ const Checkout = () => {
           const gatewayReference = paymentResponse?.razorpay_payment_id || "";
           const order = placeOrder({
             cartItems,
-            address,
+            address: selectedAddress,
             paymentMethod,
             summary,
             paymentStatus: "Paid",
@@ -268,11 +292,11 @@ const Checkout = () => {
                 </div>
               </div>
 
-              {address && !showAddressOptions && (
+              {selectedAddress && !showAddressOptions && (
                 <div className="selected-address-preview">
                   <div className="address-copy">
-                    <strong>{address.label || "Selected address"}</strong>
-                    <span>{address.address}</span>
+                    <strong>{selectedAddress.label || "Selected address"}</strong>
+                    <span>{selectedAddress.address}</span>
                   </div>
                   <div className="address-preview-actions">
                     <button
@@ -285,7 +309,7 @@ const Checkout = () => {
                     <button
                       className="edit-address-btn"
                       type="button"
-                      onClick={() => handleEditAddress(address)}
+                      onClick={() => handleEditAddress(selectedAddress)}
                     >
                       Edit
                     </button>
@@ -293,17 +317,17 @@ const Checkout = () => {
                 </div>
               )}
 
-              {(!address || showAddressOptions) && addresses.length > 0 && (
+              {(!selectedAddress || showAddressOptions) && addresses.length > 0 && (
                 <div className="address-list">
                   {addresses.map((savedAddress) => (
                     <label
-                      className={`saved-address ${address?.id === savedAddress.id ? "selected" : ""}`}
+                      className={`saved-address ${selectedAddress?.id === savedAddress.id ? "selected" : ""}`}
                       key={savedAddress.id}
                     >
                       <input
                         type="radio"
                         name="deliveryAddress"
-                        checked={address?.id === savedAddress.id}
+                        checked={selectedAddress?.id === savedAddress.id}
                         onChange={() => handleSelectAddress(savedAddress)}
                       />
                       <span className="address-radio" />
@@ -316,23 +340,36 @@ const Checkout = () => {
                           </small>
                         )}
                       </span>
-                      <button
-                        className="inline-edit-address-btn"
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleEditAddress(savedAddress);
-                        }}
-                      >
-                        Edit
-                      </button>
+                      <span className="address-actions">
+                        <button
+                          className="inline-edit-address-btn"
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleEditAddress(savedAddress);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="inline-delete-address-btn"
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleDeleteAddress(savedAddress.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </span>
                     </label>
                   ))}
                 </div>
               )}
 
-              {!address && addresses.length === 0 && (
+              {!selectedAddress && addresses.length === 0 && (
                 <div className="address-missing">
                   <p>No delivery address saved yet.</p>
                 </div>
