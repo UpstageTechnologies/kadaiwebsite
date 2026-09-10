@@ -29,16 +29,21 @@ const Checkout = () => {
   const routeLocation = useRouteLocation();
   const { cartItems, clearCart } = useCart();
   const { location } = useLocation();
+  const initialAddresses = getSavedAddresses(location);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [error, setError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [addresses, setAddresses] = useState(() => getSavedAddresses(location));
+  const [addresses, setAddresses] = useState(initialAddresses);
   const [selectedAddress, setSelectedAddress] = useState(() =>
-    getSelectedAddress(getSavedAddresses(location))
+    getSelectedAddress(initialAddresses)
   );
-  const [showAddressOptions, setShowAddressOptions] = useState(false);
-  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [showAddressOptions, setShowAddressOptions] = useState(
+    initialAddresses.length === 0
+  );
+  const [showAddressForm, setShowAddressForm] = useState(
+    initialAddresses.length === 0
+  );
   const [editingAddress, setEditingAddress] = useState(null);
   const [newAddressLabel, setNewAddressLabel] = useState("");
   const [newAddressText, setNewAddressText] = useState("");
@@ -379,30 +384,47 @@ const Checkout = () => {
                 <button
                   className="add-address-btn"
                   type="button"
-                  onClick={() => setShowAddressForm(!showAddressForm)}
+                  onClick={() => {
+                    setShowAddressForm(!showAddressForm);
+                    setError("");
+                  }}
                 >
                   {showAddressForm ? "Close" : "+ Add New Address"}
                 </button>
               )}
 
-              {showAddressOptions && showAddressForm && (
+              {(showAddressOptions || showAddressForm || !selectedAddress) && (
                 <form className="address-form" onSubmit={handleAddAddress}>
-                  <input
-                    type="text"
-                    placeholder="Label (Home, Work...)"
-                    value={newAddressLabel}
-                    onChange={(event) => setNewAddressLabel(event.target.value)}
-                  />
-                  <textarea
-                    placeholder="Enter complete delivery address"
-                    value={newAddressText}
-                    onChange={(event) => setNewAddressText(event.target.value)}
-                    required
-                    rows={3}
-                  />
+                  <div className="address-form-grid">
+                    <div className="address-form-field address-form-label-field">
+                      <label className="address-form-label" htmlFor="newAddressLabel">
+                        Address label
+                      </label>
+                      <input
+                        id="newAddressLabel"
+                        type="text"
+                        placeholder="Label (Home, Work...)"
+                        value={newAddressLabel}
+                        onChange={(event) => setNewAddressLabel(event.target.value)}
+                      />
+                    </div>
+                    <div className="address-form-field address-form-address-field">
+                      <label className="address-form-label" htmlFor="newAddressText">
+                        Delivery address
+                      </label>
+                      <textarea
+                        id="newAddressText"
+                        placeholder="Enter your full delivery address"
+                        value={newAddressText}
+                        onChange={(event) => setNewAddressText(event.target.value)}
+                        required
+                        rows={4}
+                      />
+                    </div>
+                  </div>
                   <div className="address-form-actions">
                     <button type="submit">{editingAddress ? "Update Address" : "Save Address"}</button>
-                    {editingAddress && (
+                    {(editingAddress || showAddressForm) && (
                       <button
                         className="cancel-address-edit-btn"
                         type="button"

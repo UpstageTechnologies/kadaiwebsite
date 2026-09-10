@@ -28,6 +28,22 @@
 .checkout-section-heading h2, .checkout-summary h2 { margin: 0 0 5px; color: #1f2937; font-size: 19px; }
 .checkout-section-heading p { margin: 0; color: #7b837b; font-size: 13px; }
 .address-list { display: grid; gap: 10px; margin-top: 18px; }
+.address-form-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(280px, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+.address-form-field {
+  display: grid;
+  gap: 8px;
+}
+.address-form-label {
+  color: #375c24;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+}
 .selected-address-preview {
   display: flex;
   align-items: center;
@@ -140,6 +156,10 @@
 .address-form input, .address-form textarea { width: 100%; padding: 11px; border: 1px solid #d8ded7; border-radius: 7px; outline: none; font: inherit; font-size: 13px; resize: vertical; }
 .address-form input:focus, .address-form textarea:focus { border-color: #65a91a; box-shadow: 0 0 0 3px rgba(101, 169, 26, 0.1); }
 .address-form button { justify-self: start; padding: 10px 14px; border: 0; border-radius: 7px; background: #65a91a; color: #fff; font-weight: 700; cursor: pointer; }
+.address-form-address-field textarea { min-height: 116px; }
+@media (max-width: 760px) {
+  .address-form-grid { grid-template-columns: 1fr; }
+}
 .payment-options { display: grid; gap: 10px; margin-top: 18px; }
 .payment-option { display: flex; align-items: center; gap: 12px; padding: 15px; border: 1px solid #e0e5df; border-radius: 10px; cursor: pointer; }
 .payment-option.selected { border-color: #65a91a; background: #f7fbf3; }
