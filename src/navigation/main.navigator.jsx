@@ -8,6 +8,7 @@ import ProductDetail from "../features/product-detail";
 import Offers from "../features/offers";
 import Checkout from "../features/checkout";
 import Orders from "../features/orders";
+import LocationPicker from "../features/location-picker";
 
 /**
  * Main Navigator
@@ -22,11 +23,16 @@ const MainNavigator = () => {
       <Route path="/cart" element={<Cart />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/register/otp" element={<Register />} />
+      <Route path="/register/password" element={<Register />} />
+      <Route path="/register/address" element={<Register />} />
+      <Route path="/register/details" element={<Register />} />
       <Route path="/offers" element={<Offers />} />
       <Route path="/product/:id" element={<ProductDetail />} />
       <Route path="/checkout" element={<Checkout />} />
       <Route path="/orders" element={<Orders />} />
-      
+      <Route path="/location-picker" element={<LocationPicker />} />
+
       {/* Fallback route */}
       <Route path="*" element={<Home />} />
     </Routes>

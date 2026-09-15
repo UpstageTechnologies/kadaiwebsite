@@ -1,12 +1,20 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  FiMail,
+  FiPhone,
   FiLock,
   FiEye,
   FiEyeOff,
   FiArrowLeft,
 } from "react-icons/fi";
+
+import { loginUser } from "../../../services/auth.service";
+import {
+  firebaseSendPasswordReset,
+  firebaseCustomerSnapshot,
+  firebaseSaveFcmToken,
+  firebaseCustomerDoc,
+} from "../../../services/firebase";
 
 import "./login.css";
 
@@ -14,128 +22,150 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [email, setEmail] = useState(
-    () => localStorage.getItem("rememberedEmail") || ""
-  );
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [rememberMe, setRememberMe] = useState(() =>
-    Boolean(localStorage.getItem("rememberedEmail"))
-  );
-
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleLogin = (event) => {
-  event.preventDefault();
+  const validateAndShow = () => {
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (!digits) {
+      setError("Please enter your Indian phone number.");
+      return false;
+    }
 
-  setError("");
-  setSuccess("");
+    if (digits.length !== 10) {
+      setError("Please enter a valid 10-digit Indian mobile number.");
+      return false;
+    }
 
-  if (!email.trim()) {
-    setError("Please enter your email address.");
-    return;
-  }
+    if (!password) {
+      setError("Please enter your password.");
+      return false;
+    }
 
-  const emailPattern =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return true;
+  };
 
-  if (!emailPattern.test(email)) {
-    setError("Please enter a valid email address.");
-    return;
-  }
-  if (!password) {
-    setError("Please enter your password.");
-    return;
-  }
+  const requestLocationAfterLogin = () => {
+    console.log("[LOCATION] Requesting location");
 
-  if (password.length < 6) {
-    setError(
-      "Password must be at least 6 characters."
+    if (!navigator.geolocation) {
+      console.log("[LOCATION] Geolocation is unsupported by this browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        const coordinates = {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        };
+
+        try {
+          console.log("[LOCATION] Location received", coordinates);
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coordinates.latitude}&lon=${coordinates.longitude}`,
+            { headers: { Accept: "application/json" } }
+          );
+
+          if (!response.ok) {
+            throw new Error("Unable to resolve the browser location into an address.");
+          }
+
+          const data = await response.json();
+          const detectedLocation = {
+            ...coordinates,
+            address: data.display_name || `${coordinates.latitude}, ${coordinates.longitude}`,
+            detectedAt: new Date().toISOString(),
+          };
+
+          localStorage.setItem("currentLocation", JSON.stringify(detectedLocation));
+        } catch (locationMapError) {
+          console.warn("[LOCATION] Reverse geocode fallback:", locationMapError);
+          localStorage.setItem(
+            "currentLocation",
+            JSON.stringify({
+              latitude: coordinates.latitude,
+              longitude: coordinates.longitude,
+              address: `${coordinates.latitude}, ${coordinates.longitude}`,
+              detectedAt: new Date().toISOString(),
+            })
+          );
+        }
+      },
+      (permissionError) => {
+        console.warn("[LOCATION] Location permission denied or unavailable:", permissionError?.message || permissionError);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
     );
-    return;
-  }
-  const savedUser = localStorage.getItem(
-    "registeredUser"
-  );
-  if (!savedUser) {
-    setError(
-      "No account found. Please create an account first."
-    );
-    return;
-  }
+  };
 
-  let registeredUser;
+  const handleLogin = async (event) => {
+    event.preventDefault();
 
-  try {
-    registeredUser = JSON.parse(savedUser);
-  } catch {
-    setError("Your saved account data is invalid. Please register again.");
-    return;
-  }
+    setError("");
+    setSuccess("");
 
-  if (!registeredUser?.email || !registeredUser?.password) {
-    setError("Your saved account data is incomplete. Please register again.");
-    return;
-  }
-  const emailMatches =
-    email.trim().toLowerCase() ===
-    registeredUser.email.trim().toLowerCase();
-  const passwordMatches =
-    password === registeredUser.password;
-  if (!emailMatches || !passwordMatches) {
-    setError("Invalid email or password.");
-    return;
-  }
-  localStorage.setItem(
-    "isLoggedIn",
-    "true"
-  );
+    if (!validateAndShow()) {
+      return;
+    }
 
-  if (rememberMe) {
-    localStorage.setItem(
-      "rememberedEmail",
-      email.trim()
-    );
-  } else {
-    localStorage.removeItem(
-      "rememberedEmail"
-    );
-  }
+    setLoading(true);
 
-  setSuccess("Login successful!");
+    try {
+      console.log("[AUTH] Login started");
+      const normalizedPhone = `+91${String(phone || "").replace(/\D/g, "")}`;
+      const credential = await loginUser(normalizedPhone, password);
 
-  setTimeout(() => {
-    const redirectPath =
-      new URLSearchParams(location.search).get("redirect") || "/";
-    navigate(redirectPath);
-  }, 800);
-};
+      if (!credential) {
+        throw new Error("Invalid phone number or password.");
+      }
+
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("registrationInProgress", "false");
+
+      setSuccess("Login successful!");
+      console.log("[AUTH] Login successful");
+
+      requestLocationAfterLogin();
+
+      const redirectPath = new URLSearchParams(location.search).get("redirect") || "/";
+      navigate(redirectPath || "/", { replace: true });
+    } catch (loginError) {
+      const message = loginError?.message || "Login failed. Please try again.";
+      const cleanMessage = message.includes("Firebase") ? "Login failed. Please check your phone number and password." : message;
+      setError(cleanMessage);
+      console.error("[AUTH] Login error:", loginError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError("");
+    setSuccess("");
+
+    const cleanedPhone = String(phone || "").replace(/\D/g, "");
+    if (!cleanedPhone || cleanedPhone.length !== 10) {
+      setError("Please enter your 10-digit Indian phone number before resetting the password.");
+      return;
+    }
+
+    setError("Password reset is available through the secure account recovery flow in your Firebase Console setup.");
+  };
 
   return (
     <main className="login-page">
-
-      {/* Back */}
-
-      <button
-        type="button"
-        className="login-back-btn"
-        onClick={() => navigate("/")}
-      >
+      <button type="button" className="login-back-btn" onClick={() => navigate("/")}>
         <FiArrowLeft />
         Back to Home
       </button>
 
-
       <div className="login-container">
-
-        {/* Left Side */}
-
         <section className="login-info">
-
           <div className="login-brand">
             <span>Kadai</span>App
           </div>
@@ -146,213 +176,99 @@ const Login = () => {
             Back!
           </h1>
 
-          <p>
-            Login to continue shopping and
-            manage your orders easily.
-          </p>
+          <p>Login to continue shopping and manage your orders easily.</p>
 
           <div className="login-benefits">
-
             <div>
               <span>✓</span>
               Easy and secure shopping
             </div>
-
             <div>
               <span>✓</span>
               Track your orders
             </div>
-
             <div>
               <span>✓</span>
               Save your favorite products
             </div>
-
           </div>
-
         </section>
 
-
-        {/* Login Form */}
-
         <section className="login-card">
-
           <div className="login-heading">
-
             <h2>Login</h2>
-
-            <p>
-              Enter your details to continue
-            </p>
-
+            <p>Enter your details to continue</p>
           </div>
 
-
           <form onSubmit={handleLogin}>
-
-            {/* Email */}
-
             <div className="login-field">
-
-              <label htmlFor="email">
-                Email Address
-              </label>
+              <label htmlFor="phone">Phone Number</label>
 
               <div className="input-wrapper">
-
-                <FiMail />
-
+                <FiPhone />
                 <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   required
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(event) =>
-                    setEmail(event.target.value)
-                  }
+                  placeholder="Enter 10-digit phone number"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))}
                 />
-
               </div>
-
             </div>
 
-            {/* Password */}
-
             <div className="login-field">
-
-              <label htmlFor="password">
-                Password
-              </label>
+              <label htmlFor="password">Password</label>
 
               <div className="input-wrapper">
-
                 <FiLock />
-
                 <input
                   id="password"
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   required
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(event) =>
-                    setPassword(
-                      event.target.value
-                    )
-                  }
+                  onChange={(event) => setPassword(event.target.value)}
                 />
 
                 <button
                   type="button"
                   className="password-toggle"
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() =>
-                    setShowPassword(
-                      !showPassword
-                    )
-                  }
+                  onClick={() => setShowPassword(!showPassword)}
                 >
-
-                  {showPassword ? (
-                    <FiEyeOff />
-                  ) : (
-                    <FiEye />
-                  )}
-
+                  {showPassword ? <FiEyeOff /> : <FiEye />}
                 </button>
-
               </div>
-
             </div>
-
-            {/* Remember Me Checkbox */}
 
             <div className="login-options">
-
-              <input
-                id="rememberMe"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(event) =>
-                  setRememberMe(
-                    event.target.checked
-                  )
-                }
-              />
-
-              <label className="remember-me" htmlFor="rememberMe">
-                Remember me
-              </label>
-
+              <button type="button" className="forgot-link" onClick={handleForgotPassword}>
+                Forgot Password?
+              </button>
             </div>
 
-            {/* Error Message */}
+            {error && <div className="login-message error">{error}</div>}
+            {success && <div className="login-message success">{success}</div>}
 
-            {error && (
-
-              <div className="login-message error">
-
-                {error}
-
-              </div>
-
-            )}
-
-            {/* Success Message */}
-
-            {success && (
-
-              <div className="login-message success">
-
-                {success}
-
-              </div>
-
-            )}
-
-            {/* Submit Button */}
-
-            <button
-              type="submit"
-              className="login-submit-btn"
-            >
-
-              Login
-
+            <button type="submit" className="login-submit-btn" disabled={loading}>
+              {loading ? "Signing in..." : "Login"}
             </button>
-
           </form>
 
           <div className="register-text">
-
             <p>
-              Don't have an account?{" "}
-
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/register")
-                }
-              >
-
+              Don’t have an account?{" "}
+              <button type="button" onClick={() => navigate("/register")}>
                 Create one now
-
               </button>
-
             </p>
-
           </div>
-
         </section>
-
       </div>
-
     </main>
   );
 };

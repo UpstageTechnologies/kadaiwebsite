@@ -1,6 +1,7 @@
 /**
  * Authentication Service
- * Handles all authentication-related logic and Firebase operations
+ * Handles all authentication-related logic and Firebase operations locally
+ * while preventing plain-text password storage in localStorage or Firestore.
  */
 
 const STORAGE_KEYS = {
@@ -9,46 +10,77 @@ const STORAGE_KEYS = {
   REMEMBERED_EMAIL: "rememberedEmail",
 };
 
-/**
- * Register a new user
- * @param {Object} userData - User registration data
- * @param {string} userData.fullName - User's full name
- * @param {string} userData.email - User's email
- * @param {string} userData.phone - User's phone number
- * @param {string} userData.password - User's password
- * @returns {Object} Registered user object or null if failed
- */
-export const registerUser = (userData) => {
-  try {
-    const { fullName, email, phone, password } = userData;
+const normalizePhone = (phone) => {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `+91${digits}`;
+  }
+  if (digits.length > 0) {
+    return `+${digits}`;
+  }
+  return "";
+};
 
-    if (!fullName || !email || !phone || !password) {
-      throw new Error("All fields are required");
+const normalizePhoneTrimmed = (phone) => {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits.length === 10 ? `+91${digits}` : `+${digits}`;
+};
+
+const makePasswordHash = async (password) => {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new Error("Secure password hashing is not available in this browser.");
+  }
+
+  const data = new TextEncoder().encode(password);
+  const digest = await subtle.digest("SHA-256", data);
+  const bytes = Array.from(new Uint8Array(digest));
+  return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
+const verifyPasswordHash = async (password, saltlessHash) => {
+  const hash = await makePasswordHash(password);
+  return hash === saltlessHash;
+};
+
+export const registerUser = async (userData) => {
+  try {
+    const { fullName = "", email = "", phone = "", password = "" } = userData || {};
+
+    if (!phone || !password) {
+      throw new Error("Phone number and password are required.");
     }
+
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (digits.length !== 10) {
+      throw new Error("Please enter a valid 10-digit Indian mobile number.");
+    }
+
+    const passwordStrength = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!passwordStrength.test(password)) {
+      throw new Error("Password must include 8+ characters with uppercase, lowercase, number, and symbol.");
+    }
+
+    const formattedPhone = normalizePhone(phone);
+    const passwordHash = await makePasswordHash(password);
 
     const user = {
       fullName,
       email,
-      phone,
-      password,
+      phone: formattedPhone,
+      passwordHash,
       registeredAt: new Date().toISOString(),
     };
 
     localStorage.setItem(STORAGE_KEYS.REGISTERED_USER, JSON.stringify(user));
     return user;
   } catch (error) {
-    console.error("Registration error:", error);
+    console.error("[AUTH] Registration error:", error);
     return null;
   }
 };
 
-/**
- * Authenticate user login
- * @param {string} email - User email
- * @param {string} password - User password
- * @returns {Object} User object or null if authentication fails
- */
-export const loginUser = (email, password) => {
+export const loginUser = async (phone, password) => {
   try {
     const savedUserData = localStorage.getItem(STORAGE_KEYS.REGISTERED_USER);
 
@@ -57,34 +89,31 @@ export const loginUser = (email, password) => {
     }
 
     const savedUser = JSON.parse(savedUserData);
+    const inputPhone = normalizePhoneTrimmed(phone);
 
-    if (savedUser.email !== email) {
-      throw new Error("Invalid email address.");
+    if (savedUser.phone !== inputPhone) {
+      throw new Error("Invalid phone number or password.");
     }
 
-    if (savedUser.password !== password) {
-      throw new Error("Incorrect password.");
+    const passwordMatches = await verifyPasswordHash(password, savedUser.passwordHash);
+    if (!passwordMatches) {
+      throw new Error("Invalid phone number or password.");
     }
 
     localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, "true");
+    localStorage.setItem("isLoggedIn", "true");
     return savedUser;
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("[AUTH] Login error:", error);
     return null;
   }
 };
 
-/**
- * Logout the current user
- */
 export const logoutUser = () => {
   localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN);
+  localStorage.removeItem("isLoggedIn");
 };
 
-/**
- * Get current authenticated user
- * @returns {Object} User object or null if not logged in
- */
 export const getCurrentUser = () => {
   try {
     const isLoggedIn = localStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === "true";
@@ -101,18 +130,10 @@ export const getCurrentUser = () => {
   }
 };
 
-/**
- * Check if user is authenticated
- * @returns {boolean} True if user is logged in
- */
 export const isAuthenticated = () => {
   return localStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === "true";
 };
 
-/**
- * Get user's full name
- * @returns {string} User's full name or empty string
- */
 export const getUserFullName = () => {
   try {
     const savedUser = localStorage.getItem(STORAGE_KEYS.REGISTERED_USER);
@@ -129,27 +150,18 @@ export const getUserFullName = () => {
   }
 };
 
-/**
- * Save remembered email
- * @param {string} email - Email to remember
- */
 export const saveRememberedEmail = (email) => {
   if (email) {
     localStorage.setItem(STORAGE_KEYS.REMEMBERED_EMAIL, email);
   }
 };
 
-/**
- * Get remembered email
- * @returns {string} Remembered email or empty string
- */
 export const getRememberedEmail = () => {
   return localStorage.getItem(STORAGE_KEYS.REMEMBERED_EMAIL) || "";
 };
 
-/**
- * Clear remembered email
- */
 export const clearRememberedEmail = () => {
   localStorage.removeItem(STORAGE_KEYS.REMEMBERED_EMAIL);
 };
+
+export const normalizePhoneNumber = normalizePhone;
