@@ -1,19 +1,9 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {
-  FiPhone,
-  FiLock,
-  FiEye,
-  FiEyeOff,
-  FiArrowLeft,
-} from "react-icons/fi";
+import { FiPhone, FiArrowLeft } from "react-icons/fi";
 
-import { loginUser } from "../../../services/auth.service";
 import {
-  firebaseSendPasswordReset,
-  firebaseCustomerSnapshot,
-  firebaseSaveFcmToken,
-  firebaseCustomerDoc,
+  firebaseFindCustomerByMobile,
 } from "../../../services/firebase";
 
 import "./login.css";
@@ -23,8 +13,6 @@ const Login = () => {
   const location = useLocation();
 
   const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -38,11 +26,6 @@ const Login = () => {
 
     if (digits.length !== 10) {
       setError("Please enter a valid 10-digit Indian mobile number.");
-      return false;
-    }
-
-    if (!password) {
-      setError("Please enter your password.");
       return false;
     }
 
@@ -118,14 +101,16 @@ const Login = () => {
     try {
       console.log("[AUTH] Login started");
       const normalizedPhone = `+91${String(phone || "").replace(/\D/g, "")}`;
-      const credential = await loginUser(normalizedPhone, password);
+      const customer = await firebaseFindCustomerByMobile(normalizedPhone);
 
-      if (!credential) {
-        throw new Error("Invalid phone number or password.");
+      if (!customer) {
+        setError("Invalid phone number. This phone number is not registered.");
+        return;
       }
 
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("registrationInProgress", "false");
+      localStorage.setItem("registeredUser", JSON.stringify(customer));
 
       setSuccess("Login successful!");
       console.log("[AUTH] Login successful");
@@ -136,25 +121,11 @@ const Login = () => {
       navigate(redirectPath || "/", { replace: true });
     } catch (loginError) {
       const message = loginError?.message || "Login failed. Please try again.";
-      const cleanMessage = message.includes("Firebase") ? "Login failed. Please check your phone number and password." : message;
-      setError(cleanMessage);
+      setError(message);
       console.error("[AUTH] Login error:", loginError);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleForgotPassword = async () => {
-    setError("");
-    setSuccess("");
-
-    const cleanedPhone = String(phone || "").replace(/\D/g, "");
-    if (!cleanedPhone || cleanedPhone.length !== 10) {
-      setError("Please enter your 10-digit Indian phone number before resetting the password.");
-      return;
-    }
-
-    setError("Password reset is available through the secure account recovery flow in your Firebase Console setup.");
   };
 
   return (
@@ -219,38 +190,6 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="login-field">
-              <label htmlFor="password">Password</label>
-
-              <div className="input-wrapper">
-                <FiLock />
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  required
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-
-                <button
-                  type="button"
-                  className="password-toggle"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <FiEyeOff /> : <FiEye />}
-                </button>
-              </div>
-            </div>
-
-            <div className="login-options">
-              <button type="button" className="forgot-link" onClick={handleForgotPassword}>
-                Forgot Password?
-              </button>
-            </div>
-
             {error && <div className="login-message error">{error}</div>}
             {success && <div className="login-message success">{success}</div>}
 
@@ -261,9 +200,9 @@ const Login = () => {
 
           <div className="register-text">
             <p>
-              Don’t have an account?{" "}
+              Don't have an account?{" "}
               <button type="button" onClick={() => navigate("/register")}>
-                Create one now
+                Create Account
               </button>
             </p>
           </div>

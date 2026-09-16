@@ -39,6 +39,11 @@ const openLocationSettings = () => {
 };
 
 const LOCATION_KEY = "currentLocation";
+const LOCATION_ERROR_CODES = {
+  PERMISSION_DENIED: 1,
+  POSITION_UNAVAILABLE: 2,
+  TIMEOUT: 3,
+};
 const LocationContext = createContext(null);
 
 const readStoredLocation = () => {
@@ -59,15 +64,15 @@ const getLocationErrorMessage = (geolocationError) => {
     return "Turn on location/GPS and allow this website to predict your current location.";
   }
 
-  if (geolocationError.code === geolocationError.PERMISSION_DENIED) {
+  if (geolocationError.code === LOCATION_ERROR_CODES.PERMISSION_DENIED) {
     return "Location permission is disabled. Turn on location/GPS and allow this website to use GPS to predict your current location.";
   }
 
-  if (geolocationError.code === geolocationError.POSITION_UNAVAILABLE) {
+  if (geolocationError.code === LOCATION_ERROR_CODES.POSITION_UNAVAILABLE) {
     return "GPS/location is currently off. Turn on location/GPS and try again so we can predict your current location.";
   }
 
-  if (geolocationError.code === geolocationError.TIMEOUT) {
+  if (geolocationError.code === LOCATION_ERROR_CODES.TIMEOUT) {
     return "Location request timed out. Turn on location/GPS and allow access to predict your current location.";
   }
 

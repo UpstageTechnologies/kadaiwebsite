@@ -214,12 +214,12 @@
 .register-field input:focus,
 .register-field select:focus,
 .phone-input-wrap:focus-within,
-.password-wrap:focus-within {
+.username-wrap:focus-within {
   border-color: #65a91a;
   box-shadow: 0 0 0 3px rgba(47, 125, 50, 0.08);
 }
 
-.password-wrap {
+.username-wrap {
   display: flex;
   align-items: center;
   border-radius: 9px;
@@ -227,7 +227,7 @@
   background: #fff;
 }
 
-.password-wrap input {
+.username-wrap input {
   flex: 1;
   height: 50px;
   border: none;
@@ -282,12 +282,13 @@
 }
 
 #recaptcha-container {
-  position: absolute;
-  left: -9999px;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  pointer-events: none;
+  width: 304px;
+  min-height: 78px;
+  margin: 0 auto 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: visible;
 }
 
 .register-submit {

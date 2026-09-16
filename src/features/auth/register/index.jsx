@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FiPhone, FiArrowLeft, FiEye, FiEyeOff, FiLock, FiUser } from "react-icons/fi";
+import { FiPhone, FiArrowLeft, FiUser } from "react-icons/fi";
 import {
   auth,
   firebaseCreatePhoneVerifier,
@@ -12,7 +12,6 @@ import {
   firebaseUpsertCustomerProfile,
   updateProfile,
 } from "../../../services/firebase";
-import { registerUser } from "../../../services/auth.service";
 import { setConfirmation, getConfirmation, clearConfirmation } from "./phoneSession";
 import "./register.css";
 
@@ -21,7 +20,7 @@ const Register = () => {
   const location = useLocation();
   const routeStep = useMemo(() => {
     if (location.pathname === "/register/otp") return "otp";
-    if (location.pathname === "/register/password") return "password";
+    if (location.pathname === "/register/username") return "username";
     return "phone";
   }, [location.pathname]);
 
@@ -33,10 +32,6 @@ const Register = () => {
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(30);
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     setStep(routeStep);
@@ -68,10 +63,6 @@ const Register = () => {
     if (!digits) return { ok: false, message: "Please enter a mobile number." };
     if (digits.length !== 10) return { ok: false, message: "Please enter a valid 10-digit Indian mobile number." };
     return { ok: true };
-  };
-
-  const validatePasswordStrong = (value) => {
-    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(value || "");
   };
 
   const sendOtp = async () => {
@@ -143,8 +134,8 @@ const Register = () => {
       const uid = credential?.user?.uid || auth?.currentUser?.uid || "";
       clearConfirmation();
       sessionStorage.setItem("kadai.phone.verifiedUid", uid);
-      setStep("password");
-      navigate("/register/password", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}`, uid } });
+      setStep("username");
+      navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}`, uid } });
     } catch (verifyError) {
       const code = verifyError?.code || "";
       let message = "The verification code is incorrect or expired.";
@@ -190,31 +181,10 @@ const Register = () => {
       return;
     }
 
-    if (!password.trim()) {
-      setError("Password is required.");
-      return;
-    }
-
-    if (!confirmPassword.trim()) {
-      setError("Confirm Password is required.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords must match.");
-      return;
-    }
-
-    if (!validatePasswordStrong(password)) {
-      setError("Password must include 8+ characters with uppercase, lowercase, number, and symbol.");
-      return;
-    }
-
     setLoading(true);
     setError("");
 
     try {
-      console.log("[AUTH] Password creation started");
       console.log("[AUTH] Current Firebase user:", auth.currentUser?.uid);
       console.log("[AUTH] Verified Firebase phone:", auth.currentUser?.phoneNumber);
 
@@ -248,17 +218,6 @@ const Register = () => {
         displayName: trimmedUsername,
       });
 
-      const createdUser = await registerUser({
-        fullName: trimmedUsername,
-        email: "",
-        phone: mobileDigits,
-        password,
-      });
-
-      if (!createdUser) {
-        throw new Error("Unable to secure the account profile.");
-      }
-
       const uid = auth?.currentUser?.uid || sessionStorage.getItem("kadai.phone.verifiedUid") || "";
       if (uid) {
         await firebaseUpsertCustomerProfile(uid, {
@@ -266,7 +225,7 @@ const Register = () => {
           name: trimmedUsername,
           fullName: trimmedUsername,
           displayName: trimmedUsername,
-          mobile: auth.currentUser.phoneNumber,
+          mobile: finalPhone,
           country: "India",
         });
       }
@@ -392,17 +351,17 @@ const Register = () => {
             </>
           )}
 
-          {step === "password" && (
+          {step === "username" && (
             <>
               <div className="register-title">
-                <h1>Create Password</h1>
-                <p>Create a secure password for your Kadai account.</p>
+                <h1>Create your username</h1>
+                <p>Choose a username for your Kadai account.</p>
               </div>
 
               <div className="register-form-grid">
                 <div className="register-field">
                   <span>Username</span>
-                  <div className="password-wrap">
+                  <div className="username-wrap">
                     <FiUser />
                     <input
                       type="text"
@@ -417,50 +376,10 @@ const Register = () => {
                   </div>
                 </div>
 
-                <div className="register-field">
-                  <span>Create Password</span>
-                  <div className="password-wrap">
-                    <FiLock />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(event.target.value);
-                        setError("");
-                      }}
-                      placeholder="Create Password"
-                      disabled={loading}
-                    />
-                    <button className="icon-btn" type="button" onClick={() => setShowPassword(!showPassword)}>
-                      {showPassword ? <FiEyeOff /> : <FiEye />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="register-field">
-                  <span>Confirm Password</span>
-                  <div className="password-wrap">
-                    <FiLock />
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(event) => {
-                        setConfirmPassword(event.target.value);
-                        setError("");
-                      }}
-                      placeholder="Confirm Password"
-                      disabled={loading}
-                    />
-                    <button className="icon-btn" type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                      {showConfirmPassword ? <FiEyeOff /> : <FiEye />}
-                    </button>
-                  </div>
-                </div>
-
                 {error && <div className="error-message" role="alert">{error}</div>}
 
                 <button className="register-submit" type="button" onClick={createAccount} disabled={loading}>
-                  {loading ? "Creating..." : "Create Account"}
+                  {loading ? "Saving..." : "Create Account"}
                 </button>
               </div>
             </>

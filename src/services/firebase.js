@@ -1,23 +1,22 @@
 import { initializeApp, getApps } from "firebase/app";
 import {
   getAuth,
-  signInWithEmailAndPassword,
   signInWithPhoneNumber,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  fetchSignInMethodsForEmail,
   updateProfile,
   RecaptchaVerifier,
-  EmailAuthProvider,
-  linkWithCredential,
   setPersistence,
   browserLocalPersistence,
 } from "firebase/auth";
 import {
   getFirestore,
+  collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   setDoc,
+  serverTimestamp,
+  where,
   onSnapshot,
 } from "firebase/firestore";
 
@@ -82,34 +81,6 @@ export const requireFirebaseAuth = () => {
   return auth;
 };
 
-export const firebaseLogin = (email, password) => {
-  requireFirebaseAuth();
-  return signInWithEmailAndPassword(auth, email, password);
-};
-
-export const firebaseCreateAccount = (email, password) => {
-  requireFirebaseAuth();
-  return createUserWithEmailAndPassword(auth, email, password);
-};
-
-export const firebaseSendPasswordReset = (email) => {
-  requireFirebaseAuth();
-  return sendPasswordResetEmail(auth, email);
-};
-
-export const firebaseCheckEmailExists = async (email) => {
-  try {
-    requireFirebaseAuth();
-    const methods = await fetchSignInMethodsForEmail(auth, email);
-    return Array.isArray(methods) && methods.length > 0;
-  } catch (error) {
-    if (["auth/invalid-email", "auth/user-not-found"].includes(error?.code)) {
-      return false;
-    }
-    return false;
-  }
-};
-
 export const firebaseConfigDiagnosticMessage = () => {
   const missing = firebaseMissingConfig();
   if (!missing.length) {
@@ -137,46 +108,64 @@ export const firebaseSetPhoneOtpInProgress = (value) => {
 
 export const firebaseCreatePhoneVerifier = async () => {
   if (!isFirebaseConfigured() || !auth) {
-    throw new Error("Firebase auth is not configured. Check your VITE_FIREBASE_* environment variables.");
+    throw new Error(
+      "Firebase auth is not configured. Check your VITE_FIREBASE_* environment variables."
+    );
   }
 
   const container = getRecaptchaContainer();
+
   if (!container) {
     throw new Error("reCAPTCHA container is missing.");
   }
 
-  if (phoneVerifier && typeof phoneVerifier.render === "function" && typeof phoneVerifier.clear === "function") {
-    return phoneVerifier;
-  }
+  // Always remove an old verifier before creating a new one
+  firebaseClearPhoneVerifier();
 
   try {
-    if (phoneVerifier) {
-      try {
-        if (typeof phoneVerifier.clear === "function") {
-          phoneVerifier.clear();
-        }
-      } catch (clearError) {
-        console.warn("Phone verifier invalid cleanup warning:", clearError);
-      }
-    }
+    const verifier = new RecaptchaVerifier(auth, container, {
+      size: "normal",
 
-    phoneVerifier = new RecaptchaVerifier(auth, container, {
-      size: "invisible",
-      callback: () => {
-        return;
+      callback: (response) => {
+        console.log(
+          "[RECAPTCHA] Verification successful:",
+          Boolean(response)
+        );
       },
+
       "expired-callback": () => {
+        console.warn("[RECAPTCHA] Token expired.");
+        firebaseClearPhoneVerifier();
+      },
+
+      "error-callback": (error) => {
+        console.error("[RECAPTCHA] Verification error:", error);
         firebaseClearPhoneVerifier();
       },
     });
 
-    await phoneVerifier.render();
-    return phoneVerifier;
+    phoneVerifier = verifier;
+
+    const widgetId = await verifier.render();
+
+    console.log("[RECAPTCHA] Widget rendered successfully:", widgetId);
+
+    return verifier;
   } catch (error) {
-    console.error("Firebase ReCAPTCHA verifier initialization failed:", error);
+    console.error(
+      "[RECAPTCHA] Verifier initialization failed:",
+      error
+    );
+
     firebaseClearPhoneVerifier();
-    const wrapped = new Error("Unable to verify this device. Please try again.", { cause: error });
+
+    const wrapped = new Error(
+      "Unable to initialize device verification. Please refresh the page and try again.",
+      { cause: error }
+    );
+
     wrapped.code = error?.code || "";
+
     throw wrapped;
   }
 };
@@ -213,11 +202,19 @@ export const firebaseSendPhoneOtp = async (phoneNumber, verifier) => {
   phoneOtpInProgress = true;
 
   try {
+    console.log("[OTP] Starting signInWithPhoneNumber...");
+    console.log("[OTP] Phone:", phoneNumber);
+    console.log("[OTP] Verifier:", verifier);
     const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, verifier);
+    console.log("[OTP] SMS request completed successfully.");
+    console.log("[OTP] Confirmation result received:", !!confirmationResult);
     return confirmationResult;
   } catch (error) {
-    console.error("[OTP] Firebase error:", error);
-    console.error("Firebase phone OTP send failed:", error);
+      console.error("[OTP] Firebase error:", error);
+      console.error("[OTP] Firebase error code:", error?.code);
+      console.error("[OTP] Firebase error message:", error?.message);
+
+    firebaseClearPhoneVerifier();
 
     const mapped = normalizePhoneOtpError(error);
     if (mapped) {
@@ -283,6 +280,41 @@ export const firebaseCustomerDoc = (uid) => {
   }
 };
 
+export const firebaseFindCustomerByMobile = async (mobile) => {
+  if (!db) {
+    const unavailable = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
+    unavailable.code = "firestore/unavailable";
+    throw unavailable;
+  }
+
+  const normalizedMobile = String(mobile || "").replace(/\D/g, "");
+  if (normalizedMobile.length !== 10) {
+    throw new Error("Please enter a valid 10-digit Indian mobile number.");
+  }
+
+  try {
+    const customerQuery = query(
+      collection(db, "customers"),
+      where("mobile", "==", `+91${normalizedMobile}`)
+    );
+    const snapshot = await getDocs(customerQuery);
+    if (snapshot.empty) return null;
+
+    const customerDocument = snapshot.docs[0];
+    const customer = customerDocument.data() || {};
+    return {
+      ...customer,
+      uid: customer.uid || customerDocument.id,
+      mobile: customer.mobile || `+91${normalizedMobile}`,
+    };
+  } catch (error) {
+    console.error("[FIRESTORE] Customer mobile lookup failed:", error?.code || error?.message || error);
+    const friendly = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
+    friendly.code = error?.code || "firestore/read-failed";
+    throw friendly;
+  }
+};
+
 export const firebaseCustomerSnapshot = async (uid) => {
   if (!auth?.currentUser) {
     const expired = new Error("Your verification session has expired. Please verify your mobile number again.");
@@ -341,8 +373,8 @@ export const firebaseUpsertCustomerProfile = async (uid, data) => {
 
     const payload = {
       ...data,
-      createdAt: existingData.createdAt || data.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: existingData.createdAt || data.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
 
     return await setDoc(customerRef, payload, { merge: true });
@@ -389,5 +421,5 @@ export const firebaseSaveFcmToken = async () => {
   return "";
 };
 
-export { EmailAuthProvider, linkWithCredential, onSnapshot, doc, getDoc, setDoc };
+export { onSnapshot, doc, getDoc, setDoc };
 

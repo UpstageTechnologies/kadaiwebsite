@@ -24,7 +24,7 @@ const MainNavigator = () => {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/register/otp" element={<Register />} />
-      <Route path="/register/password" element={<Register />} />
+      <Route path="/register/username" element={<Register />} />
       <Route path="/register/address" element={<Register />} />
       <Route path="/register/details" element={<Register />} />
       <Route path="/offers" element={<Offers />} />
