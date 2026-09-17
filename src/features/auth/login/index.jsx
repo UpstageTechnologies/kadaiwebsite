@@ -16,21 +16,20 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+const validateAndShow = () => {
+  const digits = String(phone || "").replace(/\D/g, "");
 
-  const validateAndShow = () => {
-    const digits = String(phone || "").replace(/\D/g, "");
-    if (!digits) {
-      setError("Please enter your Indian phone number.");
-      return false;
-    }
+  console.log("[LOGIN] Raw phone:", phone);
+  console.log("[LOGIN] Normalized digits:", digits);
+  console.log("[LOGIN] Digit length:", digits.length);
 
-    if (digits.length !== 10) {
-      setError("Please enter a valid 10-digit Indian mobile number.");
-      return false;
-    }
+  if (digits.length !== 10) {
+    setError("Please enter a valid 10-digit Indian mobile number.");
+    return false;
+  }
 
-    return true;
-  };
+  return true;
+};
 
   const requestLocationAfterLogin = () => {
     console.log("[LOCATION] Requesting location");
@@ -100,7 +99,7 @@ const Login = () => {
 
     try {
       console.log("[AUTH] Login started");
-      const normalizedPhone = `+91${String(phone || "").replace(/\D/g, "")}`;
+     const normalizedPhone = String(phone || "").replace(/\D/g, "");
       const customer = await firebaseFindCustomerByMobile(normalizedPhone);
 
       if (!customer) {
