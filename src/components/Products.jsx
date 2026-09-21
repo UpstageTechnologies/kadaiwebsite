@@ -7,11 +7,10 @@ import {
   FiArrowRight,
 } from "react-icons/fi";
 
-import { products } from "../data/category";
-
 import "../index.css";
 import { useCart } from "./CardContext";
 import { useNavigate } from "react-router-dom";
+import { getMarketplaceCatalog } from "../services/marketplace.service";
 
 const Products = () => {
   const navigate = useNavigate();
@@ -28,8 +27,10 @@ const Products = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [showAll, setShowAll] = useState(false);
 
+  const liveProducts = getMarketplaceCatalog();
+
   const totalPages = Math.ceil(
-    products.length / productsPerPage
+    liveProducts.length / productsPerPage
   );
 
   const startIndex =
@@ -39,8 +40,8 @@ const Products = () => {
     startIndex + productsPerPage;
 
   const visibleProducts = showAll
-    ? products
-    : products.slice(startIndex, endIndex);
+    ? liveProducts
+    : liveProducts.slice(startIndex, endIndex);
 
   const getProductQuantity = (productId) => {
     const cartItem = cartItems.find(

@@ -8,6 +8,7 @@ import {
 
 import { products } from "../../data/category";
 import { useCart } from "../../components/CardContext";
+import { getMarketplaceCatalog } from "../../services/marketplace.service";
 
 import "./product-detail.css";
 import Navbar from "../../components/Navbar";
@@ -22,9 +23,9 @@ const ProductCard = () => {
     increaseQuantity,
     decreaseQuantity,
   } = useCart();
-  const product = products.find(
+  const product = getMarketplaceCatalog().find(
     (item) => String(item.id) === String(id)
-  );
+  ) || products.find((item) => String(item.id) === String(id));
 
   if (!product) {
     return (
@@ -174,7 +175,7 @@ const ProductCard = () => {
                   )
                 }
               >
-                −
+                -
               </button>
 
 

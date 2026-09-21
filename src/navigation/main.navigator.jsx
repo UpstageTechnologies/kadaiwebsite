@@ -5,7 +5,6 @@ import Cart from "../features/cart";
 import Login from "../features/auth/login";
 import Register from "../features/auth/register";
 import ProductDetail from "../features/product-detail";
-import Offers from "../features/offers";
 import Checkout from "../features/checkout";
 import Orders from "../features/orders";
 import LocationPicker from "../features/location-picker";
@@ -27,7 +26,6 @@ const MainNavigator = () => {
       <Route path="/register/username" element={<Register />} />
       <Route path="/register/address" element={<Register />} />
       <Route path="/register/details" element={<Register />} />
-      <Route path="/offers" element={<Offers />} />
       <Route path="/product/:id" element={<ProductDetail />} />
       <Route path="/checkout" element={<Checkout />} />
       <Route path="/orders" element={<Orders />} />

@@ -13,7 +13,7 @@ import "../index.css";
 import { useCart } from "./CardContext";
 import { useLocation } from "./LocationContext";
 
-import { products } from "../data/category";
+import { getMarketplaceCatalog } from "../services/marketplace.service";
 
 const categories = [
   "Fruits",
@@ -101,9 +101,11 @@ const Navbar = () => {
     localStorage.removeItem("isLoggedIn");
   };
 
+  const liveProducts = getMarketplaceCatalog();
+
   const categoryItems = useMemo(() => {
     return categories.map((category) => {
-      const categoryProduct = products.find(
+      const categoryProduct = liveProducts.find(
         (product) =>
           product.category?.toLowerCase() ===
           category.toLowerCase()
@@ -114,7 +116,7 @@ const Navbar = () => {
         image: categoryProduct?.image || null,
       };
     });
-  }, []);
+  }, [liveProducts]);
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -123,9 +125,13 @@ const Navbar = () => {
       return [];
     }
 
-    return products.filter((product) => {
+    const liveProducts = getMarketplaceCatalog();
+
+    return liveProducts.filter((product) => {
+      const itemNo = String(product.itemNo || "").toLowerCase();
       return (
         product.name?.toLowerCase().includes(query) ||
+        itemNo.includes(query) ||
         product.category?.toLowerCase().includes(query) ||
         product.description?.toLowerCase().includes(query)
       );
@@ -386,19 +392,6 @@ const Navbar = () => {
             aria-label="Search"
           >
             <FiSearch />
-          </button>
-
-
-          {/* Wishlist */}
-
-          <button className="icon-btn wishlist-btn" aria-label="Wishlist">
-
-            <FiHeart />
-
-            <span className="badge">
-              0
-            </span>
-
           </button>
 
 

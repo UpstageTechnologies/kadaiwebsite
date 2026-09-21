@@ -10,18 +10,24 @@ import {
 } from "react-icons/fi";
 
 import { useCart } from "../../components/CardContext";
-
 import {
-  categories,
-  products,
-} from "../../data/category";
+  db,
+} from "../../services/firebase";
+import {
+  DEFAULT_MARKET_MODE,
+  MARKET_MODES,
+  getAddressCoordinates,
+  getCurrentCustomerUid,
+  getNearbySellerIds,
+  subscribeMarketplaceProducts,
+  subscribeSellerLocations,
+} from "../../services/marketplace.service";
+import { doc, onSnapshot } from "firebase/firestore";
 
 import "./products.css";
 import Navbar from "../../components/Navbar";
 
-
 const Products = () => {
-
   const navigate = useNavigate();
 
   const {
@@ -31,511 +37,256 @@ const Products = () => {
     decreaseQuantity,
   } = useCart();
 
+  const [searchParams] = useSearchParams();
 
-  const [searchParams] =
-    useSearchParams();
+  const searchFromURL = searchParams.get("search") || "";
 
+  const [marketMode, setMarketMode] = useState(DEFAULT_MARKET_MODE);
+  const [inventoryProducts, setInventoryProducts] = useState([]);
+  const [globalProducts, setGlobalProducts] = useState([]);
+  const [customerLocation, setCustomerLocation] = useState(null);
+  const [sellerLocations, setSellerLocations] = useState({});
+  const [nearbySellerIds, setNearbySellerIds] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const categoryFromURL =
-    searchParams.get("category");
+  useEffect(() => {
+    const uid = getCurrentCustomerUid();
 
-  // SEARCH
-  const searchFromURL =
-    searchParams.get("search") || "";
+    if (!uid || !db) {
+      setCustomerLocation(null);
+      return undefined;
+    }
 
-
-  const [selectedCategory, setSelectedCategory] =
-    useState(
-      categoryFromURL || "All Products"
+    const customerRef = doc(db, "customers", uid);
+    const unsubscribe = onSnapshot(
+      customerRef,
+      (snapshot) => {
+        const customerData = snapshot.data() || {};
+        const coordinates = getAddressCoordinates(customerData);
+        setCustomerLocation(coordinates);
+      },
+      (listenerError) => {
+        console.error("[MARKET] Customer location listener failed:", listenerError);
+        setCustomerLocation(null);
+      }
     );
 
-    useEffect(()=>{
-      setSelectedCategory(
-        categoryFromURL|| "All Products"
-      )
-    }, [categoryFromURL])
+    return () => unsubscribe();
+  }, []);
 
+  useEffect(() => {
+    const unsubscribe = subscribeSellerLocations({
+      onLocations: setSellerLocations,
+      onError: (listenerError) => {
+        console.error("[MARKET] Seller locations failed:", listenerError);
+      },
+    });
 
-  // FILTER PRODUCTS
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (marketMode !== MARKET_MODES.LOCAL) {
+      setNearbySellerIds([]);
+      return;
+    }
+
+    if (!customerLocation) {
+      setNearbySellerIds([]);
+      return;
+    }
+
+    const ids = getNearbySellerIds(customerLocation, sellerLocations);
+    setNearbySellerIds(ids);
+  }, [marketMode, customerLocation, sellerLocations]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setError("");
+
+    const mode = marketMode === MARKET_MODES.GLOBAL ? MARKET_MODES.GLOBAL : MARKET_MODES.LOCAL;
+    const onProducts = mode === MARKET_MODES.GLOBAL ? setGlobalProducts : setInventoryProducts;
+
+    const unsubscribe = subscribeMarketplaceProducts({
+      marketMode: mode,
+      onProducts: (products) => {
+        onProducts(products);
+        setIsLoading(false);
+      },
+      onError: (listenerError) => {
+        setError("We couldn't load products right now. Please try again later.");
+        onProducts([]);
+        setIsLoading(false);
+        console.error("[MARKET] Product listener failed:", listenerError);
+      },
+    });
+
+    return () => unsubscribe();
+  }, [marketMode]);
+
+  const activeProducts = useMemo(() => {
+    const source = marketMode === MARKET_MODES.GLOBAL ? globalProducts : inventoryProducts;
+
+    if (marketMode === MARKET_MODES.LOCAL) {
+      if (!customerLocation || nearbySellerIds.length === 0) {
+        return [];
+      }
+
+      return source.filter((product) => nearbySellerIds.includes(product.shopId || product.sellerId));
+    }
+
+    return source;
+  }, [customerLocation, globalProducts, inventoryProducts, marketMode, nearbySellerIds]);
+
   const filteredProducts = useMemo(() => {
+    let result = activeProducts;
 
-    let result = products;
-
-
-    // CATEGORY FILTER
-    if (
-      selectedCategory !==
-      "All Products"
-    ) {
-
-      result = result.filter(
-        (product) =>
-          product.category ===
-          selectedCategory
-      );
-
-    }
-
-
-    // SEARCH FILTER
     if (searchFromURL.trim()) {
+      const searchText = searchFromURL.toLowerCase().trim();
 
-      const searchText =
-        searchFromURL
-          .toLowerCase()
-          .trim();
+      result = result.filter((product) => {
+        const name = String(product.name || "").toLowerCase();
+        const itemNo = String(product.itemNo || "").toLowerCase();
+        const category = String(product.category || "").toLowerCase();
+        const description = String(product.description || "").toLowerCase();
 
-
-      result = result.filter(
-        (product) =>
-          product.name
-            .toLowerCase()
-            .includes(searchText) ||
-
-          product.category
-            .toLowerCase()
-            .includes(searchText) ||
-
-          product.description
-            .toLowerCase()
-            .includes(searchText)
-      );
-
+        return (
+          name.includes(searchText) ||
+          itemNo.includes(searchText) ||
+          category.includes(searchText) ||
+          description.includes(searchText)
+        );
+      });
     }
-
 
     return result;
+  }, [activeProducts, searchFromURL]);
 
-  }, [
-    selectedCategory,
-    searchFromURL,
-  ]);
-
-
-  const handleCategoryChange = (
-    category
-  ) => {
-
-    setSelectedCategory(category);
-
-
-    if (
-      category ===
-      "All Products"
-    ) {
-
-      navigate("/products");
-
-    } else {
-
-      navigate(
-        `/products?category=${encodeURIComponent(
-          category
-        )}`
-      );
-
-    }
-
+  const handleMarketChange = (nextMode) => {
+    setMarketMode(nextMode);
   };
-
-
-  const handleProductClick = (id) => {
-
-    navigate(`/product/${id}`);
-
-  };
-
 
   return (
     <>
-    <Navbar/>
+      <Navbar />
 
-    <main className="products-page">
-
-      <div className="products-header">
-
-        <div>
-
-          <h1>
-            Our Products
-          </h1>
-
-          <p>
-            Find everything you need from your
-            local stores
-          </p>
-
+      <main className="products-page">
+        <div className="products-header">
+          <div>
+            <h1>Our Products</h1>
+            <p>Find everything you need from your local stores</p>
+          </div>
         </div>
 
-      </div>
+        <div className="products-layout">
+          <aside className="products-sidebar">
+            <h3>Select Market</h3>
 
+            <div className="category-list">
+              {Object.values(MARKET_MODES).map((mode) => (
+                <button
+                  key={mode}
+                  className={marketMode === mode ? "category-item active" : "category-item"}
+                  onClick={() => handleMarketChange(mode)}
+                >
+                  <span>{mode === MARKET_MODES.LOCAL ? "Nearby" : "All Stores"}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
 
-      <div className="products-layout">
+          <section className="products-content">
+            <div className="products-topbar">
+              <div>
+                <h2>{searchFromURL ? `Search results for "${searchFromURL}"` : marketMode === MARKET_MODES.LOCAL ? "Local" : "Global"}</h2>
+                <p>{filteredProducts.length} items available</p>
+              </div>
+            </div>
 
+            {error && <div className="no-products"><p>{error}</p></div>}
 
-        {/* SIDEBAR */}
-
-        <aside className="products-sidebar">
-
-          <h3>
-            Select Category
-          </h3>
-
-
-          <div className="category-list">
-
-            {categories.map(
-              (category) => {
-
-                const categoryCount =
-                  category ===
-                  "All Products"
-
-                    ? products.length
-
-                    : products.filter(
-                        (product) =>
-                          product.category ===
-                          category
-                      ).length;
-
-
-                return (
-
-                  <button
-                    key={category}
-
-                    className={
-                      selectedCategory ===
-                      category
-                        ? "category-item active"
-                        : "category-item"
-                    }
-
-                    onClick={() =>
-                      handleCategoryChange(
-                        category
-                      )
-                    }
-                  >
-
-                    <span>
-                      {category}
-                    </span>
-
-                  </button>
-
-                );
-
-              }
+            {!error && isLoading && (
+              <div className="no-products">
+                <h3>Loading products...</h3>
+              </div>
             )}
 
-          </div>
-
-        </aside>
-
-
-        {/* PRODUCTS CONTENT */}
-
-        <section className="products-content">
-
-
-          {/* TOP BAR */}
-
-          <div className="products-topbar">
-
-            <div>
-
-              <h2>
-
-                {searchFromURL
-                  ? `Search results for "${searchFromURL}"`
-                  : selectedCategory}
-
-              </h2>
-
-
-              <p>
-
-                {filteredProducts.length}{" "}
-                items available
-
-              </p>
-
-            </div>
-
-          </div>
-
-
-          {/* PRODUCTS */}
-
-          {filteredProducts.length > 0 ? (
-
-            <div className="products-grid">
-
-
-              {filteredProducts.map(
-                (product) => {
-
-                  const cartItem =
-                    cartItems.find(
-                      (item) =>
-                        item.id ===
-                        product.id
-                    );
-
+            {!error && !isLoading && filteredProducts.length > 0 ? (
+              <div className="products-grid">
+                {filteredProducts.map((product) => {
+                  const cartItem = cartItems.find((item) => item.id === product.id);
 
                   return (
-
                     <article
                       className="product-card"
-
                       key={product.id}
-
-                      onClick={() =>
-                        navigate(
-                          `/product/${product.id}`
-                        )
-                      }
+                      onClick={() => navigate(`/product/${product.id}`)}
                     >
-
-
-                      {/* IMAGE */}
-
                       <div className="product-image-wrapper">
-
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="product-image"
-                        />
-
+                        <img src={product.image} alt={product.name} className="product-image" />
                       </div>
-
-
-                      {/* DETAILS */}
 
                       <div className="product-details">
+                        <h3>{product.name}</h3>
 
-                        {/* NAME */}
-
-                        <h3>
-
-                          {product.name}
-
-                        </h3>
-
-
-                        {/* DESCRIPTION */}
-
-                        <p className="product-description">
-
-                          {product.description}
-
-                        </p>
-
-
-                        {/* RATING */}
+                        <p className="product-description">{product.description}</p>
 
                         <div className="product-rating">
-
-                          <FiStar
-                            className="star-icon"
-                            size={14}
-                            fill="currentColor"
-                          />
-
-                          <span>
-
-                            {product.rating}
-
-                          </span>
-
+                          <FiStar className="star-icon" size={14} fill="currentColor" />
+                          <span>{product.rating}</span>
                         </div>
-
-
-                        {/* BOTTOM */}
 
                         <div className="product-bottom">
-
-
-                          {/* PRICE */}
-
                           <div className="price-section">
-
-                            <strong>
-
-                              ₹
-                              {product.price.toFixed(
-                                2
-                              )}
-
-                            </strong>
-
-
-                            {product.oldPrice && (
-
-                              <del>
-
-                                ₹
-                                {product.oldPrice.toFixed(
-                                  2
-                                )}
-
-                              </del>
-
-                            )}
-
+                            <strong>₹{Number(product.price || 0).toFixed(2)}</strong>
+                            {product.oldPrice && <del>₹{Number(product.oldPrice || 0).toFixed(2)}</del>}
                           </div>
 
-
-                          {/* CART */}
-
                           {cartItem ? (
-
-                            <div
-                              className="product-quantity-control"
-
-                              onClick={(event) =>
-                                event.stopPropagation()
-                              }
-                            >
-
-
-                              {/* MINUS */}
-
-                              <button
-                                type="button"
-
-                                onClick={() =>
-                                  decreaseQuantity(
-                                    product.id
-                                  )
-                                }
-                              >
-
-                                −
-
-                              </button>
-
-
-                              {/* QUANTITY */}
-
-                              <span>
-
-                                {cartItem.quantity}
-
-                              </span>
-
-
-                              {/* PLUS */}
-
-                              <button
-                                type="button"
-
-                                onClick={() =>
-                                  increaseQuantity(
-                                    product.id
-                                  )
-                                }
-                              >
-
-                                +
-
-                              </button>
-
-
+                            <div className="product-quantity-control" onClick={(event) => event.stopPropagation()}>
+                              <button type="button" onClick={() => decreaseQuantity(product.id)}>−</button>
+                              <span>{cartItem.quantity}</span>
+                              <button type="button" onClick={() => increaseQuantity(product.id)}>+</button>
                             </div>
-
                           ) : (
-
                             <button
                               type="button"
-
                               className="add-cart-btn"
-
                               onClick={(event) => {
-
                                 event.stopPropagation();
-
                                 addToCart(product);
-
                               }}
                             >
-
-                              <FiShoppingCart
-                                size={17}
-                              />
-
+                              <FiShoppingCart size={17} />
                             </button>
-
                           )}
-
                         </div>
-
                       </div>
-
                     </article>
-
                   );
+                })}
+              </div>
+            ) : null}
 
-                }
-              )}
-
-            </div>
-
-          ) : (
-
-            <div className="no-products">
-
-              <h3>
-
-                {searchFromURL
-                  ? "Product Not Found"
-                  : "No Products Found"}
-
-              </h3>
-
-
-              <p>
-
-                {searchFromURL
-
-                  ? `Sorry, we couldn't find "${searchFromURL}".`
-
-                  : "There are no products in this category."
-
-                }
-
-              </p>
-
-
-              <button
-                onClick={() =>
-                  handleCategoryChange(
-                    "All Products"
-                  )
-                }
-              >
-
-                View All Products
-
-              </button>
-
-            </div>
-
-          )}
-
-        </section>
-
-      </div>
-
-    </main>
-
+            {!error && !isLoading && filteredProducts.length === 0 && (
+              <div className="no-products">
+                <h3>{searchFromURL ? "Product Not Found" : "No Products Found"}</h3>
+                <p>
+                  {searchFromURL
+                    ? `Sorry, we couldn't find "${searchFromURL}".`
+                    : marketMode === MARKET_MODES.LOCAL
+                      ? "There are no nearby products in your area right now."
+                      : "There are no products in this category."}
+                </p>
+                <button onClick={() => handleMarketChange(MARKET_MODES.LOCAL)}>View Local Products</button>
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
     </>
   );
-
 };
-
 
 export default Products;
