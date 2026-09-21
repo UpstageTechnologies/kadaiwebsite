@@ -81,12 +81,6 @@ const Register = () => {
       if (!auth) {
         throw new Error("Firebase auth is not configured. Check your VITE_FIREBASE_* environment variables.");
       }
-
-      const container = document.getElementById("recaptcha-container");
-      if (!container) {
-        throw new Error("reCAPTCHA container is missing.");
-      }
-
       const formatted = `${phoneCode}${normalizedPhone(phone)}`;
       const verifier = await firebaseCreatePhoneVerifier();
       const newConfirmation = await firebaseSendPhoneOtp(formatted, verifier);
