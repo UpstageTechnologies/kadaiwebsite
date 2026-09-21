@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import {
@@ -8,7 +9,10 @@ import {
 
 import { products } from "../../data/category";
 import { useCart } from "../../components/CardContext";
-import { getMarketplaceCatalog } from "../../services/marketplace.service";
+import {
+  getMarketplaceCatalog,
+  subscribeMarketplaceProducts,
+} from "../../services/marketplace.service";
 
 import "./product-detail.css";
 import Navbar from "../../components/Navbar";
@@ -23,7 +27,44 @@ const ProductCard = () => {
     increaseQuantity,
     decreaseQuantity,
   } = useCart();
-  const product = getMarketplaceCatalog().find(
+  const [marketplaceProducts, setMarketplaceProducts] = useState(() =>
+    getMarketplaceCatalog()
+  );
+
+  useEffect(() => {
+    const updateProducts = (nextProducts) => {
+      setMarketplaceProducts((currentProducts) => {
+        const productsById = new Map(
+          currentProducts.map((currentProduct) => [
+            String(currentProduct.id),
+            currentProduct,
+          ])
+        );
+
+        nextProducts.forEach((nextProduct) => {
+          productsById.set(String(nextProduct.id), nextProduct);
+        });
+
+        return Array.from(productsById.values());
+      });
+    };
+
+    const unsubscribeLocal = subscribeMarketplaceProducts({
+      marketMode: "local",
+      onProducts: updateProducts,
+    });
+    const unsubscribeGlobal = subscribeMarketplaceProducts({
+      marketMode: "global",
+      onProducts: updateProducts,
+    });
+
+    return () => {
+      unsubscribeLocal();
+      unsubscribeGlobal();
+    };
+  }, []);
+
+  const product = marketplaceProducts.find(
     (item) => String(item.id) === String(id)
   ) || products.find((item) => String(item.id) === String(id));
 
@@ -156,6 +197,16 @@ const ProductCard = () => {
 
               <strong>
                 {product.unit}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Shop
+              </span>
+
+              <strong>
+                {product.shopName || "Store"}
               </strong>
             </div>
 

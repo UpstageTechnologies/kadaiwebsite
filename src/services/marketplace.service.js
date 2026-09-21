@@ -157,12 +157,9 @@ export const mapFirestoreProduct = async (productSnapshot, marketType = MARKET_M
   const oldPrice = normalizeNumber(data.oldPrice ?? data.mrp ?? data.salesPrice ?? data.price ?? price, price);
   const quantity = normalizeNumber(data.quantity ?? 0, 0);
   const itemNo = safeText(data.itemNo || "");
-  const shopName = safeText(
-    data.shopName || data.storeName || data.name || "",
-    "Store"
-  );
-
-  const finalSellerName = shopName === "Store" ? await resolveSellerDisplayName(shopId, shopName) : shopName;
+  const productShopName = safeText(data.shopName || data.storeName || "", "");
+  const finalSellerName =
+    productShopName || (await resolveSellerDisplayName(shopId, "Store"));
 
   return {
     id: String(productSnapshot.id || data.id || `${shopId}-${itemNo || itemName}`),

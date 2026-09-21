@@ -40,8 +40,13 @@ const Products = () => {
   const [searchParams] = useSearchParams();
 
   const searchFromURL = searchParams.get("search") || "";
+  const requestedMarketMode = searchParams.get("market");
 
-  const [marketMode, setMarketMode] = useState(DEFAULT_MARKET_MODE);
+  const [marketMode, setMarketMode] = useState(
+    requestedMarketMode === MARKET_MODES.GLOBAL
+      ? MARKET_MODES.GLOBAL
+      : DEFAULT_MARKET_MODE
+  );
   const [inventoryProducts, setInventoryProducts] = useState([]);
   const [globalProducts, setGlobalProducts] = useState([]);
   const [customerLocation, setCustomerLocation] = useState(null);
@@ -49,6 +54,18 @@ const Products = () => {
   const [nearbySellerIds, setNearbySellerIds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (
+      marketMode === MARKET_MODES.LOCAL &&
+      localStorage.getItem("isLoggedIn") !== "true"
+    ) {
+      navigate(
+        `/login?redirect=${encodeURIComponent("/products?market=local")}`,
+        { replace: true }
+      );
+    }
+  }, [marketMode, navigate]);
 
   useEffect(() => {
     const uid = getCurrentCustomerUid();
@@ -164,6 +181,16 @@ const Products = () => {
   }, [activeProducts, searchFromURL]);
 
   const handleMarketChange = (nextMode) => {
+    if (
+      nextMode === MARKET_MODES.LOCAL &&
+      localStorage.getItem("isLoggedIn") !== "true"
+    ) {
+      navigate(
+        `/login?redirect=${encodeURIComponent("/products?market=local")}`
+      );
+      return;
+    }
+
     setMarketMode(nextMode);
   };
 
@@ -225,6 +252,7 @@ const Products = () => {
                     >
                       <div className="product-image-wrapper">
                         <img src={product.image} alt={product.name} className="product-image" />
+                        <span className="shop-badge">{product.shopName || "Store"}</span>
                       </div>
 
                       <div className="product-details">
@@ -243,24 +271,32 @@ const Products = () => {
                             {product.oldPrice && <del>₹{Number(product.oldPrice || 0).toFixed(2)}</del>}
                           </div>
 
-                          {cartItem ? (
-                            <div className="product-quantity-control" onClick={(event) => event.stopPropagation()}>
-                              <button type="button" onClick={() => decreaseQuantity(product.id)}>−</button>
-                              <span>{cartItem.quantity}</span>
-                              <button type="button" onClick={() => increaseQuantity(product.id)}>+</button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="add-cart-btn"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                addToCart(product);
-                              }}
-                            >
-                              <FiShoppingCart size={17} />
-                            </button>
-                          )}
+                          <div className="product-bottom-actions">
+                            {typeof product.quantity === "number" && product.quantity >= 0 && (
+                              <span className={`stock-badge ${product.quantity === 0 ? "out" : "in-stock"}`}>
+                                {product.quantity === 0 ? "Out of stock" : `Stock: ${product.quantity}`}
+                              </span>
+                            )}
+
+                            {cartItem ? (
+                              <div className="product-quantity-control" onClick={(event) => event.stopPropagation()}>
+                                <button type="button" onClick={() => decreaseQuantity(product.id)}>−</button>
+                                <span>{cartItem.quantity}</span>
+                                <button type="button" onClick={() => increaseQuantity(product.id)}>+</button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="add-cart-btn"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  addToCart(product);
+                                }}
+                              >
+                                <FiShoppingCart size={17} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </article>
