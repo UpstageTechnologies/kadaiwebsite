@@ -40,10 +40,11 @@ const Products = () => {
   const [searchParams] = useSearchParams();
 
   const searchFromURL = searchParams.get("search") || "";
+  const categoryFromURL = searchParams.get("category") || "";
   const requestedMarketMode = searchParams.get("market");
 
   const [marketMode, setMarketMode] = useState(
-    requestedMarketMode === MARKET_MODES.GLOBAL
+    categoryFromURL || requestedMarketMode === MARKET_MODES.GLOBAL
       ? MARKET_MODES.GLOBAL
       : DEFAULT_MARKET_MODE
   );
@@ -177,8 +178,18 @@ const Products = () => {
       });
     }
 
+    if (marketMode === MARKET_MODES.GLOBAL && categoryFromURL) {
+      const selectedCategory = categoryFromURL.trim().toLowerCase();
+
+      result = result.filter(
+        (product) =>
+          String(product.category || "").trim().toLowerCase() ===
+          selectedCategory
+      );
+    }
+
     return result;
-  }, [activeProducts, searchFromURL]);
+  }, [activeProducts, categoryFromURL, marketMode, searchFromURL]);
 
   const handleMarketChange = (nextMode) => {
     if (

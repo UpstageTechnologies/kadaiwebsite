@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FiArrowLeft,
   FiArrowRight,
@@ -15,7 +15,7 @@ import drink from "../assets/drink.jpeg";
 import chocolate from "../assets/chocolate.webp";
 import pulses from "../assets/pulses.jpg";
 
-import { categories as categoryData } from "../data/category";
+import { subscribeCategoryNames } from "../services/category.service";
 
 import "../index.css";
 
@@ -31,29 +31,42 @@ const categoryImages = {
   "Personal Care": personal,
 };
 
-const categories = categoryData
-  .filter(
-    (category) => category !== "All Products"
-  )
-  .map((category) => ({
-    name: category,
-
-    description:
-      `Fresh and quality ${category.toLowerCase()} products`,
-
-    image: categoryImages[category],
-  }));
-
 const Category = () => {
 
   const navigate = useNavigate();
+
+  const [categoryNames, setCategoryNames] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = subscribeCategoryNames({
+      onNames: (names) => {
+        setCategoryNames(names);
+        setIsLoading(false);
+      },
+      onError: () => setIsLoading(false),
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const categories = categoryNames.map((category) => ({
+    name: category,
+    description: `Fresh and quality ${category.toLowerCase()} products`,
+    image: categoryImages[category],
+  }));
 
   const [activeIndex, setActiveIndex] =
     useState(0);
 
   const visibleCount = 5;
+  const currentIndex = categories.length
+    ? activeIndex % categories.length
+    : 0;
 
   const handleNext = () => {
+
+    if (!categories.length) return;
 
     setActiveIndex((prev) => {
 
@@ -67,6 +80,8 @@ const Category = () => {
   };
 
   const handlePrevious = () => {
+
+    if (!categories.length) return;
 
     setActiveIndex((prev) => {
 
@@ -82,7 +97,7 @@ const Category = () => {
   const handleCategoryClick = (category) => {
 
     navigate(
-      `/products?category=${encodeURIComponent(
+      `/products?market=global&category=${encodeURIComponent(
         category
       )}`
     );
@@ -91,24 +106,26 @@ const Category = () => {
 
   const visibleCategories = [];
 
-  for (
-    let i = 0;
-    i < visibleCount;
-    i++
-  ) {
+  if (categories.length) {
+    for (
+      let i = 0;
+      i < Math.min(visibleCount, categories.length);
+      i++
+    ) {
 
-    const index =
-      (activeIndex + i) %
-      categories.length;
+      const index =
+        (currentIndex + i) %
+        categories.length;
 
-    visibleCategories.push({
+      visibleCategories.push({
 
-      ...categories[index],
+        ...categories[index],
 
-      originalIndex: index,
+        originalIndex: index,
 
-    });
+      });
 
+    }
   }
 
   return (
@@ -157,6 +174,8 @@ const Category = () => {
 
       <div className="category-slider">
 
+        {isLoading && <p>Loading categories...</p>}
+
         {visibleCategories.map(
           (category) => (
 
@@ -165,7 +184,7 @@ const Category = () => {
 
               className={`category-card ${
                 category.originalIndex ===
-                activeIndex
+                currentIndex
                   ? "active"
                   : ""
               }`}

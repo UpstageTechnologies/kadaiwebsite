@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from "react";
 import {
   FiSearch,
   FiShoppingCart,
-  FiHeart,
   FiUser,
   FiMenu,
   FiX,
@@ -14,18 +13,7 @@ import { useCart } from "./CardContext";
 import { useLocation } from "./LocationContext";
 
 import { getMarketplaceCatalog } from "../services/marketplace.service";
-
-const categories = [
-  "Fruits",
-  "Vegetables",
-  "Dairy",
-  "Bakery",
-  "Groceries",
-  "Drinks",
-  "Snacks",
-  "Household",
-  "Personal Care",
-];
+import { subscribeCategoryNames } from "../services/category.service";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -61,6 +49,9 @@ const Navbar = () => {
 
   // Categories
   const [showCategories, setShowCategories] = useState(false);
+  const [categoryNames, setCategoryNames] = useState([]);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn || !location) {
@@ -99,12 +90,29 @@ const Navbar = () => {
     setIsLoggedIn(false);
     setShowProfile(false);
     localStorage.removeItem("isLoggedIn");
+    window.dispatchEvent(new Event("kadai-auth-changed"));
   };
 
   const liveProducts = getMarketplaceCatalog();
 
+  useEffect(() => {
+    const unsubscribe = subscribeCategoryNames({
+      onNames: (names) => {
+        setCategoryNames(names);
+        setIsCategoriesLoading(false);
+        setCategoriesError(false);
+      },
+      onError: () => {
+        setIsCategoriesLoading(false);
+        setCategoriesError(true);
+      },
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const categoryItems = useMemo(() => {
-    return categories.map((category) => {
+    return categoryNames.map((category) => {
       const categoryProduct = liveProducts.find(
         (product) =>
           product.category?.toLowerCase() ===
@@ -116,7 +124,7 @@ const Navbar = () => {
         image: categoryProduct?.image || null,
       };
     });
-  }, [liveProducts]);
+  }, [categoryNames, liveProducts]);
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -149,7 +157,7 @@ const Navbar = () => {
     setShowCategories(false);
 
     navigate(
-      `/products?category=${encodeURIComponent(category)}`
+      `/products?market=global&category=${encodeURIComponent(category)}`
     );
   };
 
@@ -193,7 +201,11 @@ const Navbar = () => {
             {showCategories && (
               <div className="navbar-category-dropdown">
 
-                {categoryItems.map((category) => (
+                {isCategoriesLoading ? (
+                  <div>Loading categories...</div>
+                ) : categoriesError ? (
+                  <div>Unable to load categories</div>
+                ) : categoryItems.map((category) => (
 
                   <button
                     key={category.name}
@@ -254,13 +266,6 @@ const Navbar = () => {
           >
             Products
           </button>
-
-
-          {/* Offers */}
-
-          <Link to="/offers">
-            Offers
-          </Link>
 
 
           {/* Orders */}
@@ -708,13 +713,6 @@ const Navbar = () => {
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Products
-            </Link>
-
-            <Link 
-              to="/offers" 
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Offers
             </Link>
 
             <Link

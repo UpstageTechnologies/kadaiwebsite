@@ -19,4 +19,20 @@
 .orders-empty h2 { margin: 16px 0 6px; color: #1f2937; }
 .orders-empty p { margin: 0; color: #6b7280; }
 .orders-empty button { margin-top: 20px; padding: 12px 20px; border: 0; border-radius: 9px; background: #65a91a; color: #fff; font-weight: 700; cursor: pointer; }
+.track-order-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 30%; margin-top: 18px; padding: 13px 18px; border: 1px solid #4f8611; border-radius: 10px; background: linear-gradient(135deg, #65a91a, #4f8611); box-shadow: 0 8px 16px rgba(79, 134, 17, 0.18); color: #fff; font-size: 14px; font-weight: 800; letter-spacing: .1px; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }
+.track-order-button svg { width: 17px; height: 17px; transition: transform .2s ease; }
+.track-order-button:hover { background: linear-gradient(135deg, #74b624, #4f8611); box-shadow: 0 11px 20px rgba(79, 134, 17, 0.25); transform: translateY(-2px); }
+.track-order-button:hover svg { transform: translateX(3px); }
+.track-order-button:focus-visible { outline: 3px solid rgba(101, 169, 26, .3); outline-offset: 3px; }
+.track-order-button:active { transform: translateY(0); box-shadow: 0 5px 10px rgba(79, 134, 17, 0.18); }
+.order-tracking { position: relative; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 18px; padding: 22px 4px 2px; }
+.order-tracking-rail { position: absolute; top: 34px; right: calc(8.333% + 4px); left: calc(8.333% + 4px); height: 3px; border-radius: 3px; background: #e5ebe2; pointer-events: none; }
+.order-tracking-progress { display: block; height: 100%; border-radius: inherit; background: #65a91a; transition: width 0.25s ease; }
+.order-tracking-step { position: relative; z-index: 1; display: grid; min-width: 0; justify-items: center; align-content: start; gap: 10px; text-align: center; }
+.order-tracking-marker { display: grid; width: 26px; height: 26px; place-items: center; border: 3px solid #dbe4d8; border-radius: 50%; background: #fff; color: #9aa59a; font-size: 13px; font-weight: 800; line-height: 1; }
+.order-tracking-step.completed .order-tracking-marker { border-color: #65a91a; background: #65a91a; color: #fff; }
+.order-tracking-step.current .order-tracking-marker { border-color: #65a91a; color: #65a91a; box-shadow: 0 0 0 4px #eef8e6; }
+.order-tracking-label { max-width: 110px; color: #879087; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
+.order-tracking-step.completed .order-tracking-label, .order-tracking-step.current .order-tracking-label { color: #4f8611; font-weight: 700; }
 @media (max-width: 600px) { .orders-page { padding-inline: 5%; } .orders-header h1 { font-size: 28px; } .order-card { padding: 18px; } }
+@media (max-width: 600px) { .order-tracking { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 18px; padding-top: 0; } .order-tracking-rail { display: none; } .order-tracking-step { gap: 7px; } .order-tracking-label { max-width: 82px; font-size: 10px; } }

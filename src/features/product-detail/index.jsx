@@ -7,7 +7,7 @@ import {
   FiStar,
 } from "react-icons/fi";
 
-import { products } from "../../data/category";
+//import { products } from "../../data/category";
 import { useCart } from "../../components/CardContext";
 import {
   getMarketplaceCatalog,

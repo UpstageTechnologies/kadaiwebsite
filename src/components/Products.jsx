@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FiShoppingCart,
   FiStar,
@@ -10,7 +10,11 @@ import {
 import "../index.css";
 import { useCart } from "./CardContext";
 import { useNavigate } from "react-router-dom";
-import { getMarketplaceCatalog } from "../services/marketplace.service";
+import {
+  getMarketplaceCatalog,
+  MARKET_MODES,
+  subscribeMarketplaceProducts,
+} from "../services/marketplace.service";
 
 const Products = () => {
   const navigate = useNavigate();
@@ -26,8 +30,14 @@ const Products = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [showAll, setShowAll] = useState(false);
+  const [liveProducts, setLiveProducts] = useState(() => getMarketplaceCatalog());
 
-  const liveProducts = getMarketplaceCatalog();
+  useEffect(() => {
+    return subscribeMarketplaceProducts({
+      marketMode: MARKET_MODES.GLOBAL,
+      onProducts: setLiveProducts,
+    });
+  }, []);
 
   const totalPages = Math.ceil(
     liveProducts.length / productsPerPage

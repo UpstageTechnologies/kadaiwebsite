@@ -1,0 +1,55 @@
+.track-order-page { min-height: 100vh; padding: 28px 6% 70px; background: #f8faf9; }
+.track-order-header { margin: 20px 0 24px; }
+.track-order-header > span { color: #65a91a; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; }
+.track-order-header h1 { margin: 8px 0; color: #1f2937; font-size: 34px; }
+.track-order-header p { margin: 0; color: #6b7280; }
+.track-summary-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; max-width: 1000px; padding: 22px; background: #fff; border-radius: 16px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05); }
+.track-summary-card div { display: grid; gap: 6px; min-width: 0; }
+.track-summary-card small { color: #879087; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+.track-summary-card strong { overflow-wrap: anywhere; color: #29332a; font-size: 15px; }
+.track-summary-status strong { font-weight: 800; }
+.track-section-title { margin: 30px 0 14px; color: #1f2937; font-size: 22px; }
+.track-shop-list { display: grid; gap: 18px; max-width: 1000px; }
+.track-shop-card { padding: 22px; background: #fff; border-radius: 16px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05); }
+.track-shop-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border-radius: 10px; background: #f7fbf3; }
+.track-shop-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.track-shop-name svg { flex: 0 0 auto; color: #65a91a; }
+.track-shop-name h3 { margin: 0; overflow-wrap: anywhere; color: #29332a; font-size: 16px; }
+.track-status-badge { flex: 0 0 auto; font-size: 12px; font-weight: 800; }
+.track-items { display: flex; gap: 6px; margin: 16px 2px; color: #5f6860; font-size: 13px; line-height: 1.6; }
+.track-items strong { color: #29332a; }
+.track-items > span { min-width: 0; overflow-wrap: anywhere; }
+.track-timeline { padding: 8px 4px 0; }
+.track-step-group { position: relative; }
+.track-step { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; min-height: 68px; }
+.track-step-rail { position: relative; display: flex; justify-content: center; }
+.track-step-dot { position: relative; z-index: 1; display: grid; width: 20px; height: 20px; place-items: center; border: 2px solid #cbd5e1; border-radius: 50%; background: #fff; color: #fff; font-size: 11px; }
+.track-step-dot svg { width: 12px; height: 12px; }
+.track-step-dot.done { border-color: #16a34a; background: #16a34a; }
+.track-step-dot.current { border-color: #65a91a; box-shadow: 0 0 0 4px #eef8e6; }
+.track-step-dot.current span { width: 8px; height: 8px; border-radius: 50%; background: #65a91a; }
+.track-step-dot.delayed { border-color: #f59e0b; color: #f59e0b; background: #fffbeb; }
+.track-step-line { position: absolute; top: 20px; bottom: -1px; width: 2px; background: #e2e8f0; }
+.track-step-line.done { background: #16a34a; }
+.track-step-copy { display: grid; align-content: start; gap: 3px; padding-bottom: 20px; }
+.track-step-copy strong { color: #94a3b8; font-size: 14px; }
+.track-step-copy strong:not(.delayed) { color: #4f8611; }
+.track-step-copy strong.delayed { color: #f59e0b; }
+.track-step-copy span { color: #64748b; font-size: 11px; }
+.track-delay-card { margin: -4px 0 16px 42px; padding: 12px; border: 1px solid #fde8bb; border-radius: 10px; background: #fffbeb; }
+.track-delay-card strong { display: flex; align-items: center; gap: 6px; color: #b45309; font-size: 12px; }
+.track-delay-card strong svg { flex: 0 0 auto; }
+.track-delay-card p { margin: 6px 0 0; color: #78350f; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.track-delay-card small { display: block; margin-top: 6px; color: #92400e; font-size: 11px; font-weight: 600; }
+.track-rejected-box { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding: 14px; border: 1px solid #fca5a5; border-radius: 10px; background: #fee2e2; color: #b91c1c; font-size: 13px; font-weight: 600; }
+.track-rejected-box svg { flex: 0 0 auto; }
+.track-continue-button, .track-state-card button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 24px; padding: 13px 20px; border: 0; border-radius: 9px; background: #65a91a; color: #fff; font-weight: 700; cursor: pointer; }
+.track-continue-button:hover, .track-state-card button:hover { background: #4f8611; }
+.track-state-card { display: grid; justify-items: center; max-width: 520px; margin: 70px auto; padding: 36px 24px; border-radius: 16px; background: #fff; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05); text-align: center; }
+.track-state-card > svg { width: 38px; height: 38px; color: #65a91a; }
+.track-state-card h1 { margin: 16px 0 8px; color: #1f2937; font-size: 22px; }
+.track-state-card p { margin: 0; color: #6b7280; }
+.track-spinner { width: 34px; height: 34px; border: 3px solid #e1ecd9; border-top-color: #65a91a; border-radius: 50%; animation: track-spin .8s linear infinite; }
+@keyframes track-spin { to { transform: rotate(360deg); } }
+@media (max-width: 768px) { .track-order-page { padding-inline: 5%; } .track-summary-card { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .track-order-header h1 { font-size: 28px; } .track-summary-card { grid-template-columns: 1fr; padding: 18px; } .track-shop-card { padding: 16px; } .track-shop-heading { align-items: flex-start; flex-direction: column; gap: 8px; } .track-items { display: block; } .track-items strong { display: block; } }

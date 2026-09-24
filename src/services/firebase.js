@@ -20,7 +20,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: import.meta.env?.VITE_FIREBASE_API_KEY || "",
   authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "",
   projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "",
@@ -55,7 +55,7 @@ export const firebaseMissingConfig = () => {
 
 export const isFirebaseConfigured = () => firebaseMissingConfig().length === 0;
 
-const firebaseApp = isFirebaseConfigured()
+export const firebaseApp = isFirebaseConfigured()
   ? getApps().length
     ? getApps()[0]
     : initializeApp(firebaseConfig)

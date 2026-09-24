@@ -1,14 +1,44 @@
-import { FiPackage } from "react-icons/fi";
+import { useEffect, useState } from "react";
+import { FiArrowRight, FiPackage } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 
 import Navbar from "../../components/Navbar";
-import { getSavedOrders } from "./orders.service";
+import {
+  getCurrentCustomerId,
+  getSavedOrders,
+  subscribeCustomerOrders,
+} from "./orders.service";
 
 import "./orders.css";
 
 const Orders = () => {
   const navigate = useNavigate();
-  const orders = getSavedOrders();
+  const [orders, setOrders] = useState(() => getSavedOrders());
+
+  useEffect(() => {
+    const unsubscribe = subscribeCustomerOrders({
+      customerId: getCurrentCustomerId(),
+      onOrders: (firestoreOrders) => {
+        const localOrders = getSavedOrders();
+        const remoteById = new Map(
+          firestoreOrders.map((order) => [String(order.id), order])
+        );
+        const mergedOrders = localOrders.map(
+          (order) => remoteById.get(String(order.id)) || order
+        );
+
+        firestoreOrders.forEach((order) => {
+          if (!mergedOrders.some((item) => String(item.id) === String(order.id))) {
+            mergedOrders.push(order);
+          }
+        });
+
+        setOrders(mergedOrders);
+      },
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <>
@@ -44,6 +74,10 @@ const Orders = () => {
                 <p>{items.map((item) => `${item?.name || "Product"} x ${item?.quantity || 0}`).join(", ") || "Order items unavailable"}</p>
                 <div className="order-card-footer"><span>{order?.paymentMethod === "cod" ? "Cash on Delivery" : order?.paymentMethod === "google-pay" ? "Google Pay" : "Razorpay"}</span><strong>₹{total.toFixed(2)}</strong></div>
                 <small>{address}</small>
+                <button className="track-order-button" type="button" onClick={() => navigate(`/track-order/${encodeURIComponent(order.id)}`)}>
+                  Track My Order
+                  <FiArrowRight aria-hidden="true" />
+                </button>
               </article>
               );
             })}

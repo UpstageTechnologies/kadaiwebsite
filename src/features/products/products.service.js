@@ -3,7 +3,15 @@
  * Handles Products page business logic, filtering, searching
  */
 
-import { products, categories } from "../../data/category";
+import { products } from "../../data/category";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../../services/firebase";
+
+const CATEGORY_COLLECTION_PATH = [
+  "users",
+  "9Hki1DyPmhc621MwXQQKZYlkdf53",
+  "categories",
+];
 
 /**
  * Get all products
@@ -15,8 +23,17 @@ export const getAllProducts = () => {
 /**
  * Get all product categories
  */
-export const getCategories = () => {
-  return categories;
+export const getCategories = async () => {
+  if (!db) return [];
+
+  const snapshot = await getDocs(
+    collection(db, ...CATEGORY_COLLECTION_PATH)
+  );
+
+  return snapshot.docs
+    .map((categorySnapshot) => categorySnapshot.data()?.name)
+    .filter((name) => typeof name === "string" && name.trim())
+    .map((name) => name.trim());
 };
 
 /**

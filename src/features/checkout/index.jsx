@@ -14,15 +14,14 @@ import {
   selectAddress,
   updateAddress,
 } from "./address.service";
-import { openRazorpayCheckout } from "./payment.service";
 
 import "./checkout.css";
 
-const PAYMENT_METHODS = [
-  { id: "razorpay", label: "Razorpay", note: "Online payment" },
-  { id: "google-pay", label: "Google Pay", note: "Online payment" },
-  { id: "cod", label: "Cash on Delivery", note: "Pay when your order arrives" },
-];
+const PAYMENT_METHOD = {
+  id: "cod",
+  label: "Cash on Delivery",
+  note: "Pay when your order arrives",
+};
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -30,10 +29,8 @@ const Checkout = () => {
   const { cartItems, clearCart } = useCart();
   const { location } = useLocation();
   const initialAddresses = getSavedAddresses(location);
-  const [paymentMethod, setPaymentMethod] = useState("");
   const [error, setError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [addresses, setAddresses] = useState(initialAddresses);
   const [selectedAddress, setSelectedAddress] = useState(() =>
     getSelectedAddress(initialAddresses)
@@ -148,11 +145,6 @@ const Checkout = () => {
   };
 
   const handlePlaceOrder = () => {
-    if (!paymentMethod) {
-      setError("Please select a payment method to continue.");
-      return;
-    }
-
     if (!selectedAddress) {
       setError("Please select a delivery address.");
       return;
@@ -163,66 +155,22 @@ const Checkout = () => {
       return;
     }
 
-    if (paymentMethod === "cod") {
-      const order = placeOrder({
-        cartItems,
-        address: selectedAddress,
-        paymentMethod,
-        summary,
-        paymentStatus: "Pending",
-      });
+    const order = placeOrder({
+      cartItems,
+      address: selectedAddress,
+      paymentMethod: "cod",
+      summary,
+      paymentStatus: "Pending",
+    });
 
-      if (!order) {
-        setError("Order creation failed. Please try again.");
-        return;
-      }
-
-      clearCart();
-      setSuccessOrder(order);
-      setError("");
+    if (!order) {
+      setError("Order creation failed. Please try again.");
       return;
     }
 
-    if (["razorpay", "google-pay"].includes(paymentMethod)) {
-      setIsProcessing(true);
-      setError("");
-
-      openRazorpayCheckout({
-        amount: summary.total,
-        order: { id: "KADAI-ORDER" },
-        paymentMethod,
-        onSuccess: (paymentResponse) => {
-          const gatewayReference = paymentResponse?.razorpay_payment_id || "";
-          const order = placeOrder({
-            cartItems,
-            address: selectedAddress,
-            paymentMethod,
-            summary,
-            paymentStatus: "Paid",
-            paymentGatewayReference: gatewayReference,
-          });
-
-          if (!order) {
-            setError("Order creation failed. Please try again.");
-            setIsProcessing(false);
-            return;
-          }
-
-          clearCart();
-          setSuccessOrder(order);
-          setError("");
-          setIsProcessing(false);
-        },
-        onCancel: (message) => {
-          setError(message || "Payment cancelled. No order was placed.");
-          setIsProcessing(false);
-        },
-        onError: (message) => {
-          setError(message || "Payment failed. Please try again.");
-          setIsProcessing(false);
-        },
-      });
-    }
+    clearCart();
+    setSuccessOrder(order);
+    setError("");
   };
 
   if (!isLoggedIn) {
@@ -454,28 +402,13 @@ const Checkout = () => {
                 </div>
               </div>
               <div className="payment-options">
-                {PAYMENT_METHODS.map((method) => (
-                  <label
-                    className={`payment-option ${paymentMethod === method.id ? "selected" : ""}`}
-                    key={method.id}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value={method.id}
-                      checked={paymentMethod === method.id}
-                      onChange={(event) => {
-                        setPaymentMethod(event.target.value);
-                        setError("");
-                      }}
-                    />
-                    <span className="payment-radio" />
-                    <span className="payment-copy">
-                      <strong>{method.label}</strong>
-                      <small>{method.note}</small>
-                    </span>
-                  </label>
-                ))}
+                <div className="payment-option selected">
+                  <span className="payment-radio" />
+                  <span className="payment-copy">
+                    <strong>{PAYMENT_METHOD.label}</strong>
+                    <small>{PAYMENT_METHOD.note}</small>
+                  </span>
+                </div>
               </div>
               {error && <p className="checkout-error">{error}</p>}
             </div>
