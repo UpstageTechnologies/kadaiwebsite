@@ -34,5 +34,5 @@
 .order-tracking-step.current .order-tracking-marker { border-color: #65a91a; color: #65a91a; box-shadow: 0 0 0 4px #eef8e6; }
 .order-tracking-label { max-width: 110px; color: #879087; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
 .order-tracking-step.completed .order-tracking-label, .order-tracking-step.current .order-tracking-label { color: #4f8611; font-weight: 700; }
-@media (max-width: 600px) { .orders-page { padding-inline: 5%; } .orders-header h1 { font-size: 28px; } .order-card { padding: 18px; } }
+@media (max-width: 600px) { .orders-page { padding-inline: 5%; } .orders-header h1 { font-size: 28px; } .order-card { padding: 18px; } .track-order-button { width: 100%; margin-top: 16px; padding: 12px 16px; } }
 @media (max-width: 600px) { .order-tracking { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 18px; padding-top: 0; } .order-tracking-rail { display: none; } .order-tracking-step { gap: 7px; } .order-tracking-label { max-width: 82px; font-size: 10px; } }

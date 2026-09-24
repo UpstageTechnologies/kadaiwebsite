@@ -410,6 +410,35 @@
   color: #19351d;
 }
 
+.register-location-mode {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.register-location-mode button {
+  flex: 1;
+  min-height: 42px;
+  border: 1px solid #dddddd;
+  border-radius: 9px;
+  background: #fff;
+  color: #4f8611;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.register-location-mode button.active {
+  border-color: #65a91a;
+  background: #eef8e6;
+}
+
+.register-location-status {
+  margin: 16px 0 0;
+  color: #4f8611;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .register-alert {
   margin: 12px auto 0;
   border-radius: 10px;

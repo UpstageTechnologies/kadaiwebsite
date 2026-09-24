@@ -1,4 +1,4 @@
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -9,6 +9,7 @@ const db = getFirestore();
 const messaging = getMessaging();
 
 const STATUS_TITLES = {
+  "Order Placed": "Order Placed",
   Accepted: "Order Accepted",
   Packed: "Order Packed",
   Pending: "Order Delayed",
@@ -18,6 +19,7 @@ const STATUS_TITLES = {
 };
 
 const STATUS_MESSAGES = {
+  "Order Placed": "has been placed successfully",
   Accepted: "has been accepted",
   Packed: "has been packed",
   Pending: "is currently pending/delayed",
@@ -26,13 +28,13 @@ const STATUS_MESSAGES = {
   Rejected: "has been rejected",
 };
 
-exports.sendOrderStatusNotification = onDocumentUpdated(
+exports.sendOrderStatusNotification = onDocumentWritten(
   "customers/{customerUid}/orders/{orderId}",
   async (event) => {
     const change = event.data;
     if (!change) return;
 
-    const beforeData = change.before.data() || {};
+    const beforeData = change.before.exists ? change.before.data() || {} : {};
     const afterData = change.after.data() || {};
     const oldStatus = beforeData.status;
     const newStatus = afterData.status;

@@ -12,42 +12,89 @@ import {
   firebaseUpsertCustomerProfile,
   updateProfile,
 } from "../../../services/firebase";
-import { setConfirmation, getConfirmation, clearConfirmation } from "./phoneSession";
+import {
+  setConfirmation,
+  getConfirmation,
+  clearConfirmation,
+  getRegistrationPhone,
+  clearRegistrationPhone,
+  setRegistrationUsername,
+  getRegistrationUsername,
+  clearRegistrationUsername,
+} from "./phoneSession";
+import { getRegistrationLocationOptions } from "../../../services/registration-location.service";
 import "./register.css";
 
 const Register = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const initialPhone = location.state?.phone || getRegistrationPhone();
   const routeStep = useMemo(() => {
     if (location.pathname === "/register/otp") return "otp";
     if (location.pathname === "/register/username") return "username";
+    if (location.pathname === "/register/address") return "address";
     return "phone";
   }, [location.pathname]);
 
-  const [step, setStep] = useState(routeStep);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [phoneCode, setPhoneCode] = useState("+91");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone);
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(30);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(getRegistrationUsername());
+  const countryId = "india";
+  const [state, setState] = useState("");
+  const [district, setDistrict] = useState("");
+  const [city, setCity] = useState("");
+  const [area, setArea] = useState("");
+  const [locationMode, setLocationMode] = useState("manual");
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
+  const [locationOptions, setLocationOptions] = useState({
+    states: [],
+    districts: [],
+    cities: [],
+    areas: [],
+  });
 
   useEffect(() => {
-    setStep(routeStep);
-  }, [routeStep]);
+    if (routeStep === "otp" && !getConfirmation()) {
+      navigate("/register", { replace: true });
+    }
+
+    if (routeStep === "username" && !auth?.currentUser) {
+      navigate("/register", { replace: true });
+    }
+
+    if (routeStep === "address" && !auth?.currentUser) {
+      navigate("/register", { replace: true });
+    }
+  }, [navigate, routeStep]);
+
+  useEffect(() => {
+    if (routeStep !== "address") return undefined;
+
+    let active = true;
+    getRegistrationLocationOptions({ countryId, level: "states" })
+      .then((states) => {
+        if (active) setLocationOptions((current) => ({ ...current, states }));
+      })
+      .catch((locationError) => {
+        console.error("[AUTH] State lookup failed:", locationError);
+        if (active) setError("Unable to load states. Please try again.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [countryId, routeStep]);
 
   useEffect(() => {
     if (seconds <= 0) return undefined;
     const timer = setTimeout(() => setSeconds((current) => Math.max(current - 1, 0)), 1000);
     return () => clearTimeout(timer);
   }, [seconds]);
-
-  useEffect(() => {
-    return () => {
-      clearConfirmation();
-    };
-  }, []);
 
   const normalizedPhone = (input) => (input || "").replace(/\D/g, "");
 
@@ -85,9 +132,8 @@ const Register = () => {
       const verifier = await firebaseCreatePhoneVerifier();
       const newConfirmation = await firebaseSendPhoneOtp(formatted, verifier);
 
-      setConfirmation(newConfirmation);
+      setConfirmation(newConfirmation, formatted);
       firebaseSetPhoneOtpInProgress(false);
-      setStep("otp");
       setOtp("");
 
       navigate("/register/otp", { state: { phone: formatted } });
@@ -128,7 +174,6 @@ const Register = () => {
       const uid = credential?.user?.uid || auth?.currentUser?.uid || "";
       clearConfirmation();
       sessionStorage.setItem("kadai.phone.verifiedUid", uid);
-      setStep("username");
       navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}`, uid } });
     } catch (verifyError) {
       const code = verifyError?.code || "";
@@ -152,7 +197,7 @@ const Register = () => {
       const formatted = `${phoneCode}${normalizedPhone(phone)}`;
       const verifier = await firebaseCreatePhoneVerifier();
       const nextConfirmation = await firebaseSendPhoneOtp(formatted, verifier);
-      setConfirmation(nextConfirmation);
+      setConfirmation(nextConfirmation, formatted);
       setSeconds(30);
       setOtp("");
     } catch (resendError) {
@@ -175,61 +220,112 @@ const Register = () => {
       return;
     }
 
+    setRegistrationUsername(trimmedUsername);
+    navigate("/register/address", { replace: true });
+  };
+
+  const loadLocationLevel = async (level, values) => {
+    try {
+      const options = await getRegistrationLocationOptions({ ...values, level });
+      setLocationOptions((current) => ({ ...current, [level]: options }));
+    } catch (locationError) {
+      console.error(`[AUTH] ${level} lookup failed:`, locationError);
+      setError("Unable to load location options. Please try again.");
+    }
+  };
+
+  const handleStateChange = (value) => {
+    setState(value);
+    setDistrict("");
+    setCity("");
+    setArea("");
+    setLocationOptions((current) => ({ ...current, districts: [], cities: [], areas: [] }));
+    loadLocationLevel("districts", { countryId, stateId: value });
+  };
+
+  const handleDistrictChange = (value) => {
+    setDistrict(value);
+    setCity("");
+    setArea("");
+    setLocationOptions((current) => ({ ...current, cities: [], areas: [] }));
+    const stateId = locationOptions.states.find((option) => option.value === state)?.id || state;
+    loadLocationLevel("cities", { countryId, stateId, districtId: value });
+  };
+
+  const handleCityChange = (value) => {
+    setCity(value);
+    setArea("");
+    setLocationOptions((current) => ({ ...current, areas: [] }));
+    const stateId = locationOptions.states.find((option) => option.value === state)?.id || state;
+    const districtId = locationOptions.districts.find((option) => option.value === district)?.id || district;
+    loadLocationLevel("areas", { countryId, stateId, districtId, cityId: value });
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Location is not supported by this browser.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLatitude(coords.latitude);
+        setLongitude(coords.longitude);
+        setLocationMode("gps");
+        setLoading(false);
+      },
+      (locationError) => {
+        setLoading(false);
+        setError(locationError.code === 1 ? "Location permission was denied." : "Unable to detect your current location.");
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
+    );
+  };
+
+  const saveRegistration = async () => {
+    if (locationMode === "manual" && (!state || !district || !city || !area)) {
+      setError("Please select State, District, City, and Area.");
+      return;
+    }
+
+    if (!auth?.currentUser) {
+      setError("Your verification session has expired. Please verify your mobile number again.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      console.log("[AUTH] Current Firebase user:", auth.currentUser?.uid);
-      console.log("[AUTH] Verified Firebase phone:", auth.currentUser?.phoneNumber);
-
-      if (!auth?.currentUser) {
-        throw new Error("Your verification session has expired. Please verify your mobile number again.");
-      }
-
-      if (!auth.currentUser?.phoneNumber) {
-        throw new Error("Verified mobile number could not be found. Please verify your mobile number again.");
-      }
-
-      const verifiedPhone = auth.currentUser.phoneNumber;
-      const digits = String(verifiedPhone).replace(/\D/g, "");
-      let mobileDigits = digits;
-
-      if (mobileDigits.startsWith("91") && mobileDigits.length === 12) {
-        mobileDigits = mobileDigits.slice(2);
-      }
-
-      if (mobileDigits.length !== 10) {
-        throw new Error("Please verify a valid Indian mobile number.");
-      }
-
-      const finalPhone = `+91${mobileDigits}`;
-
-      console.log("[AUTH] Username:", trimmedUsername);
-      console.log("[AUTH] Firebase displayName:", auth.currentUser?.displayName);
-      console.log("[AUTH] Customer UID:", auth.currentUser?.uid);
-
-      await updateProfile(auth.currentUser, {
-        displayName: trimmedUsername,
+      const verifiedPhone = auth.currentUser.phoneNumber || getRegistrationPhone();
+      await updateProfile(auth.currentUser, { displayName: username.trim() });
+      await firebaseUpsertCustomerProfile(auth.currentUser.uid, {
+        uid: auth.currentUser.uid,
+        name: username.trim(),
+        fullName: username.trim(),
+        displayName: username.trim(),
+        mobile: verifiedPhone,
+        address: {
+          country: countryId,
+          state,
+          district,
+          city,
+          area,
+          fullAddress: "",
+          pincode: "",
+          lat: locationMode === "gps" ? latitude : null,
+          lon: locationMode === "gps" ? longitude : null,
+          locationSource: locationMode,
+        },
       });
-
-      const uid = auth?.currentUser?.uid || sessionStorage.getItem("kadai.phone.verifiedUid") || "";
-      if (uid) {
-        await firebaseUpsertCustomerProfile(uid, {
-          uid,
-          name: trimmedUsername,
-          fullName: trimmedUsername,
-          displayName: trimmedUsername,
-          mobile: finalPhone,
-          country: "India",
-        });
-      }
-
-      console.log("[AUTH] Registration completed");
-      setStep("phone");
+      clearRegistrationPhone();
+      clearRegistrationUsername();
       navigate("/login", { replace: true });
-    } catch (registerError) {
-      console.error("[AUTH] Registration failed:", registerError);
-      setError(registerError?.message || "Registration failed. Please try again.");
+    } catch (saveError) {
+      console.error("[AUTH] Registration profile save failed:", saveError);
+      setError(saveError?.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -265,7 +361,7 @@ const Register = () => {
         <section className="register-card">
           <div id="recaptcha-container" className="recaptcha-container" />
 
-          {step === "phone" && (
+          {routeStep === "phone" && (
             <>
               <div className="register-title">
                 <h1>Create your account</h1>
@@ -307,7 +403,7 @@ const Register = () => {
             </>
           )}
 
-          {step === "otp" && (
+          {routeStep === "otp" && (
             <>
               <div className="register-title">
                 <h1>Verify your number</h1>
@@ -345,7 +441,7 @@ const Register = () => {
             </>
           )}
 
-          {step === "username" && (
+          {routeStep === "username" && (
             <>
               <div className="register-title">
                 <h1>Create your username</h1>
@@ -376,6 +472,88 @@ const Register = () => {
                   {loading ? "Saving..." : "Create Account"}
                 </button>
               </div>
+            </>
+          )}
+
+          {routeStep === "address" && (
+            <>
+              <div className="register-title">
+                <h1>Choose your location</h1>
+                <p>Select your shopping location to show nearby stores and products.</p>
+              </div>
+
+              <div className="register-location-mode">
+                <button
+                  className={locationMode === "gps" ? "active" : ""}
+                  type="button"
+                  onClick={useCurrentLocation}
+                  disabled={loading}
+                >
+                  Use Current Location
+                </button>
+                <button
+                  className={locationMode === "manual" ? "active" : ""}
+                  type="button"
+                  onClick={() => {
+                    setLocationMode("manual");
+                    setLatitude(null);
+                    setLongitude(null);
+                  }}
+                >
+                  Add Manually
+                </button>
+              </div>
+
+              {locationMode === "manual" && (
+                <div className="register-form-grid">
+                  <div className="register-field">
+                    <span>Country</span>
+                    <select value={countryId} disabled>
+                      <option value="india">India</option>
+                    </select>
+                  </div>
+                  <div className="register-field">
+                    <span>State</span>
+                    <select value={state} onChange={(event) => handleStateChange(event.target.value)} disabled={loading}>
+                      <option value="">Select State</option>
+                      {locationOptions.states.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="register-field">
+                    <span>District</span>
+                    <select value={district} onChange={(event) => handleDistrictChange(event.target.value)} disabled={loading || !state}>
+                      <option value="">Select District</option>
+                      {locationOptions.districts.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="register-field">
+                    <span>City</span>
+                    <select value={city} onChange={(event) => handleCityChange(event.target.value)} disabled={loading || !district}>
+                      <option value="">Select City</option>
+                      {locationOptions.cities.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="register-field">
+                    <span>Area</span>
+                    <select value={area} onChange={(event) => setArea(event.target.value)} disabled={loading || !city}>
+                      <option value="">Select Area</option>
+                      {locationOptions.areas.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {locationMode === "gps" && latitude !== null && (
+                <p className="register-location-status">
+                  Location detected: {latitude.toFixed(5)}, {longitude.toFixed(5)}
+                </p>
+              )}
+
+              {error && <div className="error-message" role="alert">{error}</div>}
+
+              <button className="register-submit" type="button" onClick={saveRegistration} disabled={loading}>
+                {loading ? "Saving..." : "Complete Registration"}
+              </button>
             </>
           )}
         </section>
