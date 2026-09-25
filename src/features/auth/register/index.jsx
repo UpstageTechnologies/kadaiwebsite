@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiPhone, FiArrowLeft, FiUser } from "react-icons/fi";
 import {
@@ -22,7 +22,10 @@ import {
   getRegistrationUsername,
   clearRegistrationUsername,
 } from "./phoneSession";
-import { getRegistrationLocationOptions } from "../../../services/registration-location.service";
+import {
+  getRegistrationCountries,
+  getRegistrationLocationOptions,
+} from "../../../services/registration-location.service";
 import "./register.css";
 
 const Register = () => {
@@ -43,7 +46,8 @@ const Register = () => {
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(30);
   const [username, setUsername] = useState(getRegistrationUsername());
-  const countryId = "india";
+  const [countryId, setCountryId] = useState("");
+  const [countryOptions, setCountryOptions] = useState([]);
   const [state, setState] = useState("");
   const [district, setDistrict] = useState("");
   const [city, setCity] = useState("");
@@ -56,6 +60,20 @@ const Register = () => {
     districts: [],
     cities: [],
     areas: [],
+  });
+  const [locationLoading, setLocationLoading] = useState({
+    countries: false,
+    states: false,
+    districts: false,
+    cities: false,
+    areas: false,
+  });
+  const locationRequestIds = useRef({
+    countries: 0,
+    states: 0,
+    districts: 0,
+    cities: 0,
+    areas: 0,
   });
 
   useEffect(() => {
@@ -71,24 +89,6 @@ const Register = () => {
       navigate("/register", { replace: true });
     }
   }, [navigate, routeStep]);
-
-  useEffect(() => {
-    if (routeStep !== "address") return undefined;
-
-    let active = true;
-    getRegistrationLocationOptions({ countryId, level: "states" })
-      .then((states) => {
-        if (active) setLocationOptions((current) => ({ ...current, states }));
-      })
-      .catch((locationError) => {
-        console.error("[AUTH] State lookup failed:", locationError);
-        if (active) setError("Unable to load states. Please try again.");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [countryId, routeStep]);
 
   useEffect(() => {
     if (seconds <= 0) return undefined;
@@ -225,51 +225,130 @@ const Register = () => {
   };
 
   const loadLocationLevel = async (level, values) => {
+    const requestId = ++locationRequestIds.current[level];
+    setLocationLoading((current) => ({ ...current, [level]: true }));
+
     try {
       const options = await getRegistrationLocationOptions({ ...values, level });
-      setLocationOptions((current) => ({ ...current, [level]: options }));
+      if (requestId === locationRequestIds.current[level]) {
+        setLocationOptions((current) => ({ ...current, [level]: options }));
+      }
     } catch (locationError) {
       console.error(`[AUTH] ${level} lookup failed:`, locationError);
-      setError("Unable to load location options. Please try again.");
+      if (requestId === locationRequestIds.current[level]) {
+        setLocationOptions((current) => ({ ...current, [level]: [] }));
+        setError(`Unable to load ${level}. Please try again.`);
+      }
+    } finally {
+      if (requestId === locationRequestIds.current[level]) {
+        setLocationLoading((current) => ({ ...current, [level]: false }));
+      }
     }
   };
 
+  useEffect(() => {
+    if (routeStep !== "address") return undefined;
+
+    let active = true;
+    const requestId = ++locationRequestIds.current.countries;
+    setLocationLoading((current) => ({ ...current, countries: true }));
+
+    getRegistrationCountries()
+      .then((countries) => {
+        if (!active || requestId !== locationRequestIds.current.countries) return;
+
+        setCountryOptions(countries);
+        const defaultCountry = countries.find((country) => country.id === "india") || countries[0];
+        if (defaultCountry) {
+          setCountryId(defaultCountry.id);
+          loadLocationLevel("states", { countryId: defaultCountry.id });
+        }
+      })
+      .catch((locationError) => {
+        console.error("[AUTH] Country lookup failed:", locationError);
+        if (active) {
+          setCountryOptions([]);
+          setError("Unable to load countries. Please try again.");
+        }
+      })
+      .finally(() => {
+        if (active && requestId === locationRequestIds.current.countries) {
+          setLocationLoading((current) => ({ ...current, countries: false }));
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [routeStep]);
+
+  const handleCountryChange = (value) => {
+    locationRequestIds.current.states += 1;
+    locationRequestIds.current.districts += 1;
+    locationRequestIds.current.cities += 1;
+    locationRequestIds.current.areas += 1;
+    setCountryId(value);
+    setState("");
+    setDistrict("");
+    setCity("");
+    setArea("");
+    setLocationOptions({ states: [], districts: [], cities: [], areas: [] });
+    setLocationLoading((current) => ({
+      ...current,
+      states: false,
+      districts: false,
+      cities: false,
+      areas: false,
+    }));
+
+    if (value) loadLocationLevel("states", { countryId: value });
+  };
+
   const handleStateChange = async (value) => {
+    locationRequestIds.current.districts += 1;
+    locationRequestIds.current.cities += 1;
+    locationRequestIds.current.areas += 1;
     setState(value);
     setDistrict("");
     setCity("");
     setArea("");
     setLocationOptions((current) => ({ ...current, districts: [], cities: [], areas: [] }));
+    setLocationLoading((current) => ({
+      ...current,
+      districts: false,
+      cities: false,
+      areas: false,
+    }));
 
     if (!value) return;
 
-    setLoading(true);
-    try {
-      await loadLocationLevel("districts", { countryId, stateId: value });
-    } catch (locationError) {
-      console.error("[AUTH] District lookup failed:", locationError);
-      setError("Unable to load districts. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    const stateId = locationOptions.states.find((option) => option.value === value)?.id || value;
+    loadLocationLevel("districts", { countryId, stateId });
   };
 
   const handleDistrictChange = (value) => {
+    locationRequestIds.current.cities += 1;
+    locationRequestIds.current.areas += 1;
     setDistrict(value);
     setCity("");
     setArea("");
     setLocationOptions((current) => ({ ...current, cities: [], areas: [] }));
+    setLocationLoading((current) => ({ ...current, cities: false, areas: false }));
     const stateId = locationOptions.states.find((option) => option.value === state)?.id || state;
-    loadLocationLevel("cities", { countryId, stateId, districtId: value });
+    const districtId = locationOptions.districts.find((option) => option.value === value)?.id || value;
+    loadLocationLevel("cities", { countryId, stateId, districtId });
   };
 
   const handleCityChange = (value) => {
+    locationRequestIds.current.areas += 1;
     setCity(value);
     setArea("");
     setLocationOptions((current) => ({ ...current, areas: [] }));
+    setLocationLoading((current) => ({ ...current, areas: false }));
     const stateId = locationOptions.states.find((option) => option.value === state)?.id || state;
     const districtId = locationOptions.districts.find((option) => option.value === district)?.id || district;
-    loadLocationLevel("areas", { countryId, stateId, districtId, cityId: value });
+    const cityId = locationOptions.cities.find((option) => option.value === value)?.id || value;
+    loadLocationLevel("areas", { countryId, stateId, districtId, cityId });
   };
 
   const useCurrentLocation = () => {
@@ -519,35 +598,44 @@ const Register = () => {
                 <div className="register-form-grid">
                   <div className="register-field">
                     <span>Country</span>
-                    <select value={countryId} disabled>
-                      <option value="india">India</option>
+                    <select
+                      value={countryId}
+                      onChange={(event) => handleCountryChange(event.target.value)}
+                      disabled={locationLoading.countries}
+                    >
+                      <option value="">
+                        {locationLoading.countries ? "Loading countries..." : "Select Country"}
+                      </option>
+                      {countryOptions.map((option) => (
+                        <option key={option.id} value={option.value}>{option.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="register-field">
                     <span>State</span>
-                    <select value={state} onChange={(event) => handleStateChange(event.target.value)} disabled={loading}>
-                      <option value="">Select State</option>
+                    <select value={state} onChange={(event) => handleStateChange(event.target.value)} disabled={loading || locationLoading.states || !countryId}>
+                      <option value="">{locationLoading.states ? "Loading states..." : "Select State"}</option>
                       {locationOptions.states.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
                   <div className="register-field">
                     <span>District</span>
-                    <select value={district} onChange={(event) => handleDistrictChange(event.target.value)} disabled={loading || !state}>
-                      <option value="">Select District</option>
+                    <select value={district} onChange={(event) => handleDistrictChange(event.target.value)} disabled={loading || locationLoading.districts || !state}>
+                      <option value="">{locationLoading.districts ? "Loading districts..." : "Select District"}</option>
                       {locationOptions.districts.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
                   <div className="register-field">
                     <span>City</span>
-                    <select value={city} onChange={(event) => handleCityChange(event.target.value)} disabled={loading || !district}>
-                      <option value="">Select City</option>
+                    <select value={city} onChange={(event) => handleCityChange(event.target.value)} disabled={loading || locationLoading.cities || !district}>
+                      <option value="">{locationLoading.cities ? "Loading cities..." : "Select City"}</option>
                       {locationOptions.cities.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
                   <div className="register-field">
                     <span>Area</span>
-                    <select value={area} onChange={(event) => setArea(event.target.value)} disabled={loading || !city}>
-                      <option value="">Select Area</option>
+                    <select value={area} onChange={(event) => setArea(event.target.value)} disabled={loading || locationLoading.areas || !city}>
+                      <option value="">{locationLoading.areas ? "Loading areas..." : "Select Area"}</option>
                       {locationOptions.areas.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>

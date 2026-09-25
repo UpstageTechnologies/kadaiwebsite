@@ -2,14 +2,33 @@ import { collection, getDocs } from "firebase/firestore";
 
 import { db } from "./firebase";
 
-const mapLocationOptions = (snapshot, fallbackField) => snapshot.docs
+const mapLocationOptions = (snapshot, fallbackFields) => snapshot.docs
   .map((locationSnapshot) => {
     const data = locationSnapshot.data() || {};
-    const value = String(data.name || data[fallbackField] || locationSnapshot.id).trim();
+    const value = String(
+      data.name || fallbackFields.map((field) => data[field]).find(Boolean) || locationSnapshot.id
+    ).trim();
 
     return value
       ? { id: locationSnapshot.id, value, label: value }
       : null;
+  })
+  .filter(Boolean)
+  .sort((first, second) => first.label.localeCompare(second.label));
+
+const mapCountryOptions = (snapshot) => snapshot.docs
+  .map((locationSnapshot) => {
+    const data = locationSnapshot.data() || {};
+    const value = String(data.name || locationSnapshot.id).trim();
+
+    if (data.isActive === false || !value) return null;
+
+    return {
+      id: locationSnapshot.id,
+      value: locationSnapshot.id,
+      label: value,
+      code: String(data.code || "").trim(),
+    };
   })
   .filter(Boolean)
   .sort((first, second) => first.label.localeCompare(second.label));
@@ -37,15 +56,22 @@ export const getRegistrationLocationOptions = async ({
     return [];
   }
 
-  const fieldByLevel = {
-    states: "state",
-    districts: "district",
-    cities: "city",
-    areas: "area",
+  const fieldsByLevel = {
+    states: ["state"],
+    districts: ["district"],
+    cities: ["city"],
+    areas: ["area"],
   };
   const snapshot = await getDocs(
     getLocationCollection(countryId, stateId, districtId, cityId, level)
   );
 
-  return mapLocationOptions(snapshot, fieldByLevel[level]);
+  return mapLocationOptions(snapshot, fieldsByLevel[level] || []);
+};
+
+export const getRegistrationCountries = async () => {
+  if (!db) return [];
+
+  const snapshot = await getDocs(collection(db, "location_master"));
+  return mapCountryOptions(snapshot);
 };

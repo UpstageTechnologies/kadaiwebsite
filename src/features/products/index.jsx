@@ -37,7 +37,7 @@ const Products = () => {
     decreaseQuantity,
   } = useCart();
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const searchFromURL = searchParams.get("search") || "";
   const categoryFromURL = searchParams.get("category") || "";
@@ -48,7 +48,20 @@ const Products = () => {
       ? MARKET_MODES.GLOBAL
       : DEFAULT_MARKET_MODE
   );
-  const [inventoryProducts, setInventoryProducts] = useState([]);
+
+  useEffect(() => {
+    if (categoryFromURL) {
+      setMarketMode(MARKET_MODES.GLOBAL);
+      return;
+    }
+
+    const nextMode = requestedMarketMode === MARKET_MODES.GLOBAL
+      ? MARKET_MODES.GLOBAL
+      : DEFAULT_MARKET_MODE;
+
+    setMarketMode(nextMode);
+  }, [categoryFromURL, requestedMarketMode]);
+  const [inventoryProducts, setInventoryProducts] = useState([]); 
   const [globalProducts, setGlobalProducts] = useState([]);
   const [customerLocation, setCustomerLocation] = useState(null);
   const [sellerLocations, setSellerLocations] = useState({});
@@ -203,6 +216,16 @@ const Products = () => {
     }
 
     setMarketMode(nextMode);
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+
+    if (nextMode === MARKET_MODES.LOCAL) {
+      nextSearchParams.delete("category");
+    }
+
+    nextSearchParams.set("market", nextMode);
+
+    setSearchParams(nextSearchParams, { replace: true });
   };
 
   return (
