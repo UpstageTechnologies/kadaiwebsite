@@ -234,13 +234,24 @@ const Register = () => {
     }
   };
 
-  const handleStateChange = (value) => {
+  const handleStateChange = async (value) => {
     setState(value);
     setDistrict("");
     setCity("");
     setArea("");
     setLocationOptions((current) => ({ ...current, districts: [], cities: [], areas: [] }));
-    loadLocationLevel("districts", { countryId, stateId: value });
+
+    if (!value) return;
+
+    setLoading(true);
+    try {
+      await loadLocationLevel("districts", { countryId, stateId: value });
+    } catch (locationError) {
+      console.error("[AUTH] District lookup failed:", locationError);
+      setError("Unable to load districts. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDistrictChange = (value) => {
