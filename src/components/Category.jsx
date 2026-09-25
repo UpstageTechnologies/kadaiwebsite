@@ -14,12 +14,14 @@ import vegetable from "../assets/vegetable.webp";
 import drink from "../assets/drink.jpeg";
 import chocolate from "../assets/chocolate.webp";
 import pulses from "../assets/pulses.jpg";
+import categoryImage from "../assets/categories.jpeg";
 
 import { subscribeCategoryNames } from "../services/category.service";
 
 import "../index.css";
 
 const categoryImages = {
+  Categories: categoryImage,
   Fruits: fruits,
   Vegetables: vegetable,
   Drinks: drink,
@@ -53,7 +55,7 @@ const Category = () => {
   const categories = categoryNames.map((category) => ({
     name: category,
     description: `Fresh and quality ${category.toLowerCase()} products`,
-    image: categoryImages[category],
+    image: categoryImages[category] || categoryImage,
   }));
 
   const [activeIndex, setActiveIndex] =
