@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiArrowLeft, FiCheck, FiMapPin } from "react-icons/fi";
 import { useLocation as useRouteLocation, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
+import AddressChangeModal from "../../components/AddressChangeModal";
 import { useCart } from "../../components/CardContext";
 import { useLocation } from "../../components/LocationContext";
 import { calculateSubtotal } from "../cart/cart.service";
@@ -10,9 +11,7 @@ import {
   deleteAddress,
   getSavedAddresses,
   getSelectedAddress,
-  saveAddress,
   selectAddress,
-  updateAddress,
 } from "./address.service";
 
 import "./checkout.css";
@@ -38,12 +37,6 @@ const Checkout = () => {
   const [showAddressOptions, setShowAddressOptions] = useState(
     initialAddresses.length === 0
   );
-  const [showAddressForm, setShowAddressForm] = useState(
-    initialAddresses.length === 0
-  );
-  const [editingAddress, setEditingAddress] = useState(null);
-  const [newAddressLabel, setNewAddressLabel] = useState("");
-  const [newAddressText, setNewAddressText] = useState("");
 
   const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
 
@@ -85,61 +78,50 @@ const Checkout = () => {
     setSelectedAddress(refreshedSelectedAddress);
 
     setShowAddressOptions(false);
-    setShowAddressForm(false);
     setError("");
   };
 
-  const handleEditAddress = (selectedAddress) => {
+  const handleEditAddress = () => {
     setShowAddressOptions(true);
-    setShowAddressForm(true);
-    setEditingAddress(selectedAddress || null);
-    setNewAddressLabel(selectedAddress?.label || "");
-    setNewAddressText(selectedAddress?.address || "");
     setError("");
   };
 
-  const handleAddAddress = (event) => {
-    event.preventDefault();
-
-    if (!newAddressText.trim()) {
-      setError("Please enter a delivery address.");
-      return;
-    }
-
-    if (editingAddress) {
-      const editedAddress = {
-        ...editingAddress,
-        id: editingAddress.id,
-        label: newAddressLabel.trim() || "Home address",
-        address: newAddressText.trim(),
-      };
-
-      updateAddress(editedAddress);
-      const updatedAddresses = getSavedAddresses(location);
-      setAddresses(updatedAddresses);
-      setSelectedAddress(editedAddress);
-      setEditingAddress(null);
-      setNewAddressLabel("");
-      setNewAddressText("");
-      setShowAddressForm(false);
-      setShowAddressOptions(false);
-      setError("");
-      return;
-    }
-
-    const newAddress = {
-      id: `address-${Date.now()}`,
-      label: newAddressLabel.trim() || "Home address",
-      address: newAddressText.trim(),
-      detectedAt: new Date().toISOString(),
+  const handleAddressSaved = (nextAddress) => {
+    const formattedAddress = {
+      id: nextAddress.id || "saved-profile-address",
+      label: nextAddress.label || "Saved address",
+      address:
+        nextAddress.fullAddress ||
+        nextAddress.address ||
+        [
+          nextAddress.area,
+          nextAddress.city,
+          nextAddress.district,
+          nextAddress.state,
+          nextAddress.country,
+        ]
+          .filter(Boolean)
+          .join(", "),
+      detectedAt: nextAddress.detectedAt || new Date().toISOString(),
+      ...nextAddress,
     };
 
-    saveAddress(newAddress);
-    setAddresses((previousAddresses) => [newAddress, ...previousAddresses]);
-    setSelectedAddress(newAddress);
-    setNewAddressLabel("");
-    setNewAddressText("");
-    setShowAddressForm(false);
+    setAddresses((previousAddresses) => {
+      const existingAddressIndex = previousAddresses.findIndex(
+        (savedAddress) => savedAddress.id === formattedAddress.id
+      );
+
+      if (existingAddressIndex >= 0) {
+        const updatedAddresses = [...previousAddresses];
+        updatedAddresses[existingAddressIndex] = formattedAddress;
+        return updatedAddresses;
+      }
+
+      return [formattedAddress, ...previousAddresses];
+    });
+
+    setSelectedAddress(formattedAddress);
+    selectAddress(formattedAddress);
     setShowAddressOptions(false);
     setError("");
   };
@@ -262,7 +244,7 @@ const Checkout = () => {
                     <button
                       className="edit-address-btn"
                       type="button"
-                      onClick={() => handleEditAddress(selectedAddress)}
+                      onClick={handleEditAddress}
                     >
                       Edit
                     </button>
@@ -300,7 +282,7 @@ const Checkout = () => {
                           onClick={(event) => {
                             event.preventDefault();
                             event.stopPropagation();
-                            handleEditAddress(savedAddress);
+                            handleEditAddress();
                           }}
                         >
                           Edit
@@ -329,67 +311,24 @@ const Checkout = () => {
               )}
 
               {showAddressOptions && (
+                <AddressChangeModal
+                  open={showAddressOptions}
+                  onClose={() => setShowAddressOptions(false)}
+                  onSaved={handleAddressSaved}
+                />
+              )}
+
+              {!selectedAddress && (
                 <button
                   className="add-address-btn"
                   type="button"
                   onClick={() => {
-                    setShowAddressForm(!showAddressForm);
+                    setShowAddressOptions(true);
                     setError("");
                   }}
                 >
-                  {showAddressForm ? "Close" : "+ Add New Address"}
+                  + Add New Address
                 </button>
-              )}
-
-              {(showAddressOptions || showAddressForm || !selectedAddress) && (
-                <form className="address-form" onSubmit={handleAddAddress}>
-                  <div className="address-form-grid">
-                    <div className="address-form-field address-form-label-field">
-                      <label className="address-form-label" htmlFor="newAddressLabel">
-                        Address label
-                      </label>
-                      <input
-                        id="newAddressLabel"
-                        type="text"
-                        placeholder="Label (Home, Work...)"
-                        value={newAddressLabel}
-                        onChange={(event) => setNewAddressLabel(event.target.value)}
-                      />
-                    </div>
-                    <div className="address-form-field address-form-address-field">
-                      <label className="address-form-label" htmlFor="newAddressText">
-                        Delivery address
-                      </label>
-                      <textarea
-                        id="newAddressText"
-                        placeholder="Enter your full delivery address"
-                        value={newAddressText}
-                        onChange={(event) => setNewAddressText(event.target.value)}
-                        required
-                        rows={4}
-                      />
-                    </div>
-                  </div>
-                  <div className="address-form-actions">
-                    <button type="submit">{editingAddress ? "Update Address" : "Save Address"}</button>
-                    {(editingAddress || showAddressForm) && (
-                      <button
-                        className="cancel-address-edit-btn"
-                        type="button"
-                        onClick={() => {
-                          setShowAddressForm(false);
-                          setShowAddressOptions(false);
-                          setEditingAddress(null);
-                          setNewAddressLabel("");
-                          setNewAddressText("");
-                          setError("");
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                </form>
               )}
             </div>
 

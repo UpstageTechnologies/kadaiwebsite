@@ -11,9 +11,43 @@ import { Link, useNavigate } from "react-router-dom";
 import "../index.css";
 import { useCart } from "./CardContext";
 import { useLocation } from "./LocationContext";
+import AddressChangeModal from "./AddressChangeModal";
 
 import { getMarketplaceCatalog } from "../services/marketplace.service";
 import { subscribeCategoryNames } from "../services/category.service";
+
+const readRegisteredCustomer = () => {
+  try {
+    return JSON.parse(localStorage.getItem("registeredUser") || "null");
+  } catch {
+    return null;
+  }
+};
+
+const formatRegisteredAddress = (address) => {
+  if (!address) {
+    return "";
+  }
+
+  if (address.fullAddress) {
+    return address.fullAddress;
+  }
+
+  if (address.address) {
+    return address.address;
+  }
+
+  return [
+    address.area,
+    address.city,
+    address.district,
+    address.state,
+    address.country,
+    address.pincode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+};
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -43,6 +77,12 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+
+  const currentProfileAddress = useMemo(() => {
+    const customer = readRegisteredCustomer();
+    return formatRegisteredAddress(customer?.address) || "";
+  }, [isLoggedIn, showAddressModal, location]);
 
   // Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,6 +199,11 @@ const Navbar = () => {
     navigate(
       `/products?market=global&category=${encodeURIComponent(category)}`
     );
+  };
+
+  const openAddressEditor = () => {
+    setShowProfile(false);
+    setShowAddressModal(true);
   };
 
   return (
@@ -476,24 +521,33 @@ const Navbar = () => {
                     My Profile
                   </button>
 
-                  <div className="profile-address">
+                  <div
+                    className="profile-address"
+                    onClick={openAddressEditor}
+                    style={{ cursor: "pointer" }}
+                  >
                     <strong>Address</strong>
 
-                    {locationStatus === "loading" && (
+                    {currentProfileAddress && <span>{currentProfileAddress}</span>}
+
+                    {!currentProfileAddress && locationStatus === "loading" && (
                       <span>Detecting your current location...</span>
                     )}
 
-                    {locationStatus === "success" && location && (
+                    {!currentProfileAddress && locationStatus === "success" && location && (
                       <span>{location.address}</span>
                     )}
 
-                    {locationStatus === "error" && (
+                    {!currentProfileAddress && locationStatus === "error" && (
                       <>
                         <span>{locationError}</span>
                         <button
                           type="button"
                           className="location-retry-btn"
-                          onClick={requestLocation}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            requestLocation();
+                          }}
                         >
                           Try Again
                         </button>
@@ -511,12 +565,6 @@ const Navbar = () => {
                   >
                     My Orders
                   </button>
-
-
-                  <button>
-                    Saved Items
-                  </button>
-
 
                   <button
                     className="logout-btn"
@@ -556,6 +604,11 @@ const Navbar = () => {
         </div>
 
       </nav>
+
+      <AddressChangeModal
+        open={showAddressModal}
+        onClose={() => setShowAddressModal(false)}
+      />
 
       {showSearch && (
 

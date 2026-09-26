@@ -316,7 +316,9 @@ export const firebaseFindCustomerByMobile = async (mobile) => {
 };
 
 export const firebaseCustomerSnapshot = async (uid) => {
-  if (!auth?.currentUser) {
+  const customerUid = uid || auth?.currentUser?.uid || JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
+
+  if (!customerUid) {
     const expired = new Error("Your verification session has expired. Please verify your mobile number again.");
     expired.code = "auth/session-expired";
     throw expired;
@@ -328,7 +330,7 @@ export const firebaseCustomerSnapshot = async (uid) => {
     throw unavailable;
   }
 
-  const customerRef = firebaseCustomerDoc(uid);
+  const customerRef = firebaseCustomerDoc(customerUid);
   if (!customerRef) {
     const unavailable = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
     unavailable.code = "firestore/unavailable";
@@ -347,7 +349,9 @@ export const firebaseCustomerSnapshot = async (uid) => {
 };
 
 export const firebaseUpsertCustomerProfile = async (uid, data) => {
-  if (!auth?.currentUser) {
+  const customerUid = uid || auth?.currentUser?.uid || JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
+
+  if (!customerUid) {
     const expired = new Error("Your verification session has expired. Please verify your mobile number again.");
     expired.code = "auth/session-expired";
     throw expired;
@@ -359,7 +363,7 @@ export const firebaseUpsertCustomerProfile = async (uid, data) => {
     throw unavailable;
   }
 
-  const customerRef = firebaseCustomerDoc(uid);
+  const customerRef = firebaseCustomerDoc(customerUid);
   if (!customerRef) {
     const unavailable = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
     unavailable.code = "firestore/unavailable";
@@ -387,8 +391,10 @@ export const firebaseUpsertCustomerProfile = async (uid, data) => {
 };
 
 export const firebaseUpdateCustomer = async (uid, data) => {
-  if (!auth?.currentUser) {
-    const expired = new Error("Your verification session has expired. Please verify your mobile number again.");
+  const customerUid = uid || auth?.currentUser?.uid || JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
+
+  if (!customerUid) {
+    const expired = new Error("Your customer session is missing. Please log in again.");
     expired.code = "auth/session-expired";
     throw expired;
   }
@@ -399,7 +405,7 @@ export const firebaseUpdateCustomer = async (uid, data) => {
     throw unavailable;
   }
 
-  const customerRef = firebaseCustomerDoc(uid);
+  const customerRef = firebaseCustomerDoc(customerUid);
   if (!customerRef) {
     const unavailable = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
     unavailable.code = "firestore/unavailable";
@@ -407,11 +413,12 @@ export const firebaseUpdateCustomer = async (uid, data) => {
   }
 
   try {
-    console.log("[FIRESTORE] Updating customer document:", uid);
+    console.log("[FIRESTORE] Updating customer document:", customerUid);
     return await setDoc(customerRef, data, { merge: true });
   } catch (error) {
     console.error("[FIRESTORE] firebaseUpdateCustomer failed:", error?.code || error?.message || error);
-    const friendly = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
+
+    const friendly = new Error(error?.message || "Unable to update your address. Please try again.");
     friendly.code = error?.code || "firestore/write-failed";
     throw friendly;
   }
