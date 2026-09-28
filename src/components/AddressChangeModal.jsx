@@ -85,17 +85,25 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         }
 
         const firebaseUser = auth?.currentUser || null;
+        console.log("[ADDRESS DEBUG] Firebase auth user:", firebaseUser);
+
         if (!firebaseUser || !firebaseUser.uid) {
+          setAddressError("Your Firebase session is missing. Please log in again.");
           return;
         }
 
-        const customerSnapshot = await firebaseCustomerSnapshot(firebaseUser.uid);
+        const customerUid = firebaseUser.uid;
+        console.log("[ADDRESS DEBUG] Firebase auth UID:", customerUid);
+
+        const customerSnapshot = await firebaseCustomerSnapshot(customerUid);
         const customerData = customerSnapshot?.data?.() || {};
         const customerAddress = normalizeAddress(customerData.address || {});
 
         if (!active) {
           return;
         }
+
+        console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
 
         setAddressCountryId(customerAddress.country || fallbackAddress.country || "");
         setAddressState(customerAddress.state || fallbackAddress.state || "");
@@ -269,54 +277,56 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   const handleSave = async () => {
     const customer = readRegisteredCustomer();
 
-    if (auth && typeof auth.authStateReady === "function") {
-      await auth.authStateReady();
-    }
+    try {
+      if (auth && typeof auth.authStateReady === "function") {
+        await auth.authStateReady();
+      }
 
-    const firebaseUser = auth?.currentUser || null;
+      const firebaseUser = auth?.currentUser || null;
+      console.log("[ADDRESS DEBUG] Firebase auth user:", firebaseUser);
 
-    if (!firebaseUser || !firebaseUser.uid) {
-      setAddressError("Your Firebase session is missing. Please log in again.");
-      console.error("[ADDRESS DEBUG] No authenticated Firebase user available for address update.");
-      return;
-    }
-
-    if (addressMode === "manual") {
-      if (!addressCountryId || !addressState || !addressDistrict || !addressCity || !addressArea) {
-        setAddressError("Please complete the location hierarchy before saving.");
+      if (!firebaseUser || !firebaseUser.uid) {
+        setAddressError("Your Firebase session is missing. Please log in again.");
+        console.error("[ADDRESS DEBUG] No authenticated Firebase user available for address update.");
         return;
       }
-    }
 
-    if (addressMode === "gps" && !addressFull.trim()) {
-      setAddressError("Please wait for your current location to be detected.");
-      return;
-    }
-
-    const nextAddress = {
-      country: addressCountryId,
-      state: addressState,
-      district: addressDistrict,
-      city: addressCity,
-      area: addressArea,
-      lat: addressMode === "gps" ? addressLatitude : null,
-      lon: addressMode === "gps" ? addressLongitude : null,
-      locationSource: addressMode === "gps" ? "gps" : "manual",
-      address: addressMode === "gps"
-        ? addressFull.trim()
-        : [addressArea, addressCity, addressDistrict, addressState, addressCountryId]
-            .filter(Boolean)
-            .join(", "),
-    };
-
-    setIsSavingAddress(true);
-    setAddressError("");
-
-    try {
       const customerUid = firebaseUser.uid;
-      console.log("[ADDRESS DEBUG] Firebase auth user:", auth?.currentUser);
-      console.log("[ADDRESS DEBUG] Firebase auth UID:", auth?.currentUser?.uid);
-      console.log("[ADDRESS DEBUG] Updating customer:", `customers/${customerUid}`);
+      console.log("[ADDRESS DEBUG] Firebase auth UID:", customerUid);
+
+      if (addressMode === "manual") {
+        if (!addressCountryId || !addressState || !addressDistrict || !addressCity || !addressArea) {
+          setAddressError("Please complete the location hierarchy before saving.");
+          return;
+        }
+      }
+
+      if (addressMode === "gps" && !addressFull.trim()) {
+        setAddressError("Please wait for your current location to be detected.");
+        return;
+      }
+
+      const nextAddress = {
+        country: addressCountryId,
+        state: addressState,
+        district: addressDistrict,
+        city: addressCity,
+        area: addressArea,
+        lat: addressMode === "gps" ? addressLatitude : null,
+        lon: addressMode === "gps" ? addressLongitude : null,
+        locationSource: addressMode === "gps" ? "gps" : "manual",
+        address: addressMode === "gps"
+          ? addressFull.trim()
+          : [addressArea, addressCity, addressDistrict, addressState, addressCountryId]
+              .filter(Boolean)
+              .join(", "),
+      };
+
+      setIsSavingAddress(true);
+      setAddressError("");
+
+      console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
+      console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
 
       await firebaseUpdateCustomer(customerUid, { address: nextAddress });
       const updatedUser = { ...(customer || {}), uid: customerUid, address: nextAddress };
