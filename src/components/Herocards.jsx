@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FiArrowRight,
   FiPlay,
@@ -49,7 +50,7 @@ const heroSlides = [
 ];
 
 const Herocards = () => {
-
+  const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
 
   /* Auto slide */
@@ -95,19 +96,28 @@ const Herocards = () => {
 
         <div className="hero-buttons">
 
-          <button className="explore-button">
-            <span>Explore Now</span>
+          <button
+            type="button"
+            className="explore-button"
+            onClick={() => navigate("/products?market=local")}
+          >
+            <span>Nearby Stores</span>
 
             <i>
               <FiArrowRight size={20} />
             </i>
           </button>
 
-          <button className="order-button">
+          <button
+            type="button"
+            className="order-button"
+            onClick={() => navigate("/products?market=global")}
+          >
+            <span>All Stores</span>
+
             <i>
-              <FiPlay />
+              <FiArrowRight size={20} />
             </i>
-            <span>How To Order</span>
 
           </button>
         </div>

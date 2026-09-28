@@ -391,8 +391,15 @@ export const firebaseUpsertCustomerProfile = async (uid, data) => {
 };
 
 export const firebaseUpdateCustomer = async (uid, data) => {
-  const customerUid = uid || auth?.currentUser?.uid || JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
+  const authenticatedUid = auth?.currentUser?.uid || "";
+  const storedCustomerUid = JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
+  const customerUid = authenticatedUid || uid || storedCustomerUid;
 
+  if (uid && authenticatedUid && String(uid) !== String(authenticatedUid)) {
+    const mismatch = new Error("You can only update your own customer profile.");
+    mismatch.code = "auth/uid-mismatch";
+    throw mismatch;
+  }
   if (!customerUid) {
     const expired = new Error("Your customer session is missing. Please log in again.");
     expired.code = "auth/session-expired";
@@ -413,7 +420,9 @@ export const firebaseUpdateCustomer = async (uid, data) => {
   }
 
   try {
-    console.log("[FIRESTORE] Updating customer document:", customerUid);
+    console.log("[ADDRESS DEBUG] auth uid:", authenticatedUid);
+    console.log("[ADDRESS DEBUG] customer document id:", customerUid);
+    console.log("[ADDRESS DEBUG] updating path:", `customers/${customerUid}`);
     return await setDoc(customerRef, data, { merge: true });
   } catch (error) {
     console.error("[FIRESTORE] firebaseUpdateCustomer failed:", error?.code || error?.message || error);

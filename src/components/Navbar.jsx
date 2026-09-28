@@ -78,11 +78,21 @@ const Navbar = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setProfileRefreshKey((value) => value + 1);
+    };
+
+    window.addEventListener("kadai-auth-changed", handleAuthChange);
+    return () => window.removeEventListener("kadai-auth-changed", handleAuthChange);
+  }, []);
 
   const currentProfileAddress = useMemo(() => {
     const customer = readRegisteredCustomer();
     return formatRegisteredAddress(customer?.address) || "";
-  }, [isLoggedIn, showAddressModal, location]);
+  }, [isLoggedIn, showAddressModal, location, profileRefreshKey]);
 
   // Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -526,7 +536,17 @@ const Navbar = () => {
                     onClick={openAddressEditor}
                     style={{ cursor: "pointer" }}
                   >
-                    <strong>Address</strong>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <strong>Address</strong>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openAddressEditor();
+                        }}
+                      >
+                      </button>
+                    </div>
 
                     {currentProfileAddress && <span>{currentProfileAddress}</span>}
 
@@ -608,6 +628,7 @@ const Navbar = () => {
       <AddressChangeModal
         open={showAddressModal}
         onClose={() => setShowAddressModal(false)}
+        onSaved={() => setProfileRefreshKey((value) => value + 1)}
       />
 
       {showSearch && (

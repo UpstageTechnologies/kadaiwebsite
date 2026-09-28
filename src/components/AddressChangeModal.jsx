@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { firebaseUpdateCustomer } from "../services/firebase";
+import { auth, firebaseUpdateCustomer } from "../services/firebase";
 import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
@@ -264,7 +264,12 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
     setAddressError("");
 
     try {
-      await firebaseUpdateCustomer(customer.uid, { address: nextAddress });
+      const customerUid = auth?.currentUser?.uid || customer.uid;
+      console.log("[ADDRESS DEBUG] auth uid:", auth?.currentUser?.uid);
+      console.log("[ADDRESS DEBUG] customer document id:", customerUid);
+      console.log("[ADDRESS DEBUG] updating path:", `customers/${customerUid}`);
+
+      await firebaseUpdateCustomer(customerUid, { address: nextAddress });
       const updatedUser = { ...customer, address: nextAddress };
       localStorage.setItem("registeredUser", JSON.stringify(updatedUser));
       window.dispatchEvent(new Event("kadai-auth-changed"));
