@@ -391,20 +391,26 @@ export const firebaseUpsertCustomerProfile = async (uid, data) => {
 };
 
 export const firebaseUpdateCustomer = async (uid, data) => {
-  const authenticatedUid = auth?.currentUser?.uid || "";
-  const storedCustomerUid = JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
-  const customerUid = authenticatedUid || uid || storedCustomerUid;
+  const authUser = auth?.currentUser || null;
+  const authenticatedUid = authUser?.uid || "";
 
-  if (uid && authenticatedUid && String(uid) !== String(authenticatedUid)) {
+  console.log("[ADDRESS DEBUG] auth.currentUser:", authUser);
+  console.log("[ADDRESS DEBUG] auth.currentUser exists:", !!authUser);
+  console.log("[ADDRESS DEBUG] auth UID:", authenticatedUid);
+
+  if (!authUser || !authenticatedUid) {
+    const expired = new Error("Your Firebase session is missing. Please log in again.");
+    expired.code = "auth/session-expired";
+    throw expired;
+  }
+
+  if (uid && String(uid) !== String(authenticatedUid)) {
     const mismatch = new Error("You can only update your own customer profile.");
     mismatch.code = "auth/uid-mismatch";
     throw mismatch;
   }
-  if (!customerUid) {
-    const expired = new Error("Your customer session is missing. Please log in again.");
-    expired.code = "auth/session-expired";
-    throw expired;
-  }
+
+  const customerUid = authenticatedUid;
 
   if (!db) {
     const unavailable = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
@@ -420,10 +426,10 @@ export const firebaseUpdateCustomer = async (uid, data) => {
   }
 
   try {
-    console.log("[ADDRESS DEBUG] auth uid:", authenticatedUid);
-    console.log("[ADDRESS DEBUG] customer document id:", customerUid);
-    console.log("[ADDRESS DEBUG] updating path:", `customers/${customerUid}`);
-    return await setDoc(customerRef, data, { merge: true });
+    console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
+    await setDoc(customerRef, data, { merge: true });
+    console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
+    return true;
   } catch (error) {
     console.error("[FIRESTORE] firebaseUpdateCustomer failed:", error?.code || error?.message || error);
 

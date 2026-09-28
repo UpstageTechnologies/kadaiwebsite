@@ -227,8 +227,11 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
   const handleSave = async () => {
     const customer = readRegisteredCustomer();
-    if (!customer?.uid) {
-      setAddressError("Your session has expired. Please log in again.");
+    const authUser = auth?.currentUser || null;
+
+    if (!authUser || !authUser.uid) {
+      setAddressError("Your Firebase session is missing. Please log in again.");
+      console.error("[ADDRESS DEBUG] No authenticated Firebase user available for address update.");
       return;
     }
 
@@ -264,13 +267,13 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
     setAddressError("");
 
     try {
-      const customerUid = auth?.currentUser?.uid || customer.uid;
-      console.log("[ADDRESS DEBUG] auth uid:", auth?.currentUser?.uid);
-      console.log("[ADDRESS DEBUG] customer document id:", customerUid);
-      console.log("[ADDRESS DEBUG] updating path:", `customers/${customerUid}`);
+      const customerUid = authUser.uid;
+      console.log("[ADDRESS DEBUG] auth.currentUser exists:", !!authUser);
+      console.log("[ADDRESS DEBUG] auth UID:", customerUid);
+      console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
 
       await firebaseUpdateCustomer(customerUid, { address: nextAddress });
-      const updatedUser = { ...customer, address: nextAddress };
+      const updatedUser = { ...(customer || {}), uid: customerUid, address: nextAddress };
       localStorage.setItem("registeredUser", JSON.stringify(updatedUser));
       window.dispatchEvent(new Event("kadai-auth-changed"));
       onSaved?.(nextAddress);
