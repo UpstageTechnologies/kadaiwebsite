@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { auth, firebaseUpdateCustomer } from "../services/firebase";
+import {
+  auth,
+  firebaseCustomerSnapshot,
+  firebaseUpdateCustomer,
+} from "../services/firebase";
 import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
@@ -57,22 +61,59 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       return undefined;
     }
 
-    const customer = readRegisteredCustomer();
-    const currentAddress = normalizeAddress(customer?.address || {});
-
-    setAddressCountryId(currentAddress.country || "");
-    setAddressState(currentAddress.state || "");
-    setAddressDistrict(currentAddress.district || "");
-    setAddressCity(currentAddress.city || "");
-    setAddressArea(currentAddress.area || "");
-    setAddressFull(currentAddress.fullAddress || "");
-    setAddressPincode(currentAddress.pincode || "");
-    setAddressLatitude(currentAddress.lat ?? null);
-    setAddressLongitude(currentAddress.lon ?? null);
-    setAddressMode(currentAddress.locationSource === "gps" ? "gps" : "manual");
-    setAddressError("");
-
     let active = true;
+
+    const loadCustomerAddress = async () => {
+      const localCustomer = readRegisteredCustomer();
+      const fallbackAddress = normalizeAddress(localCustomer?.address || {});
+
+      setAddressCountryId(fallbackAddress.country || "");
+      setAddressState(fallbackAddress.state || "");
+      setAddressDistrict(fallbackAddress.district || "");
+      setAddressCity(fallbackAddress.city || "");
+      setAddressArea(fallbackAddress.area || "");
+      setAddressFull(fallbackAddress.fullAddress || "");
+      setAddressPincode(fallbackAddress.pincode || "");
+      setAddressLatitude(fallbackAddress.lat ?? null);
+      setAddressLongitude(fallbackAddress.lon ?? null);
+      setAddressMode(fallbackAddress.locationSource === "gps" ? "gps" : "manual");
+      setAddressError("");
+
+      try {
+        if (auth && typeof auth.authStateReady === "function") {
+          await auth.authStateReady();
+        }
+
+        const firebaseUser = auth?.currentUser || null;
+        if (!firebaseUser || !firebaseUser.uid) {
+          return;
+        }
+
+        const customerSnapshot = await firebaseCustomerSnapshot(firebaseUser.uid);
+        const customerData = customerSnapshot?.data?.() || {};
+        const customerAddress = normalizeAddress(customerData.address || {});
+
+        if (!active) {
+          return;
+        }
+
+        setAddressCountryId(customerAddress.country || fallbackAddress.country || "");
+        setAddressState(customerAddress.state || fallbackAddress.state || "");
+        setAddressDistrict(customerAddress.district || fallbackAddress.district || "");
+        setAddressCity(customerAddress.city || fallbackAddress.city || "");
+        setAddressArea(customerAddress.area || fallbackAddress.area || "");
+        setAddressFull(customerAddress.fullAddress || fallbackAddress.fullAddress || "");
+        setAddressPincode(customerAddress.pincode || fallbackAddress.pincode || "");
+        setAddressLatitude(customerAddress.lat ?? fallbackAddress.lat ?? null);
+        setAddressLongitude(customerAddress.lon ?? fallbackAddress.lon ?? null);
+        setAddressMode(customerAddress.locationSource === "gps" ? "gps" : fallbackAddress.locationSource === "gps" ? "gps" : "manual");
+      } catch (error) {
+        console.error("[ADDRESS MODAL] Failed to load customer address:", error);
+      }
+    };
+
+    loadCustomerAddress();
+
     const loadCountries = async () => {
       try {
         setAddressLoading((current) => ({ ...current, countries: true }));
@@ -227,9 +268,14 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
   const handleSave = async () => {
     const customer = readRegisteredCustomer();
-    const authUser = auth?.currentUser || null;
 
-    if (!authUser || !authUser.uid) {
+    if (auth && typeof auth.authStateReady === "function") {
+      await auth.authStateReady();
+    }
+
+    const firebaseUser = auth?.currentUser || null;
+
+    if (!firebaseUser || !firebaseUser.uid) {
       setAddressError("Your Firebase session is missing. Please log in again.");
       console.error("[ADDRESS DEBUG] No authenticated Firebase user available for address update.");
       return;
@@ -267,10 +313,10 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
     setAddressError("");
 
     try {
-      const customerUid = authUser.uid;
-      console.log("[ADDRESS DEBUG] auth.currentUser exists:", !!authUser);
-      console.log("[ADDRESS DEBUG] auth UID:", customerUid);
-      console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
+      const customerUid = firebaseUser.uid;
+      console.log("[ADDRESS DEBUG] Firebase auth user:", auth?.currentUser);
+      console.log("[ADDRESS DEBUG] Firebase auth UID:", auth?.currentUser?.uid);
+      console.log("[ADDRESS DEBUG] Updating customer:", `customers/${customerUid}`);
 
       await firebaseUpdateCustomer(customerUid, { address: nextAddress });
       const updatedUser = { ...(customer || {}), uid: customerUid, address: nextAddress };
