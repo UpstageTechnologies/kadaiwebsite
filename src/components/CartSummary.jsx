@@ -1,7 +1,7 @@
 import { FiArrowRight, FiShoppingCart, FiX } from "react-icons/fi";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCart } from "./CardContext";
-import "./cart-summary.css";
+import "../index.css";
 
 const CartSummary = () => {
   const navigate = useNavigate();
