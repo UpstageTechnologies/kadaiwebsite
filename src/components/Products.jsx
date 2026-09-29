@@ -24,6 +24,7 @@ const Products = () => {
     addToCart,
     increaseQuantity,
     decreaseQuantity,
+    isAddingToCart,
   } = useCart();
 
   const productsPerPage = 8;
@@ -200,6 +201,7 @@ const Products = () => {
 
                     <button
                       className="add-product-btn"
+                      disabled={isAddingToCart(product.id)}
                       aria-label={`Add ${product.name} to cart`}
                       onClick={(event) => {
 

@@ -26,6 +26,7 @@ const ProductCard = () => {
     addToCart,
     increaseQuantity,
     decreaseQuantity,
+    isAddingToCart,
   } = useCart();
   const [marketplaceProducts, setMarketplaceProducts] = useState(() =>
     getMarketplaceCatalog()
@@ -255,7 +256,9 @@ const ProductCard = () => {
           ) : (
 
             <button
+              type="button"
               className="product-details-add-btn"
+              disabled={isAddingToCart(product.id)}
               onClick={() =>
                 addToCart(product)
               }

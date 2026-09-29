@@ -35,6 +35,7 @@ const Products = () => {
     addToCart,
     increaseQuantity,
     decreaseQuantity,
+    isAddingToCart,
   } = useCart();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -322,6 +323,7 @@ const Products = () => {
                               <button
                                 type="button"
                                 className="add-cart-btn"
+                                disabled={isAddingToCart(product.id)}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   addToCart(product);
