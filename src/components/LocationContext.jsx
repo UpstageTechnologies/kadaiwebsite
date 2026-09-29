@@ -2,7 +2,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -150,18 +149,6 @@ export const LocationProvider = ({ children }) => {
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
     );
   }, []);
-
-  useEffect(() => {
-    const savedLocation = readStoredLocation();
-
-    if (savedLocation) {
-      setLocation(savedLocation);
-      setStatus("success");
-      return;
-    }
-
-    requestLocation();
-  }, [requestLocation]);
 
   const handleEnableGPS = useCallback(() => {
     openLocationSettings();
