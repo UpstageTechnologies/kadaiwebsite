@@ -64,19 +64,16 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
     let active = true;
 
     const loadCustomerAddress = async () => {
-      const localCustomer = readRegisteredCustomer();
-      const fallbackAddress = normalizeAddress(localCustomer?.address || {});
-
-      setAddressCountryId(fallbackAddress.country || "");
-      setAddressState(fallbackAddress.state || "");
-      setAddressDistrict(fallbackAddress.district || "");
-      setAddressCity(fallbackAddress.city || "");
-      setAddressArea(fallbackAddress.area || "");
-      setAddressFull(fallbackAddress.fullAddress || "");
-      setAddressPincode(fallbackAddress.pincode || "");
-      setAddressLatitude(fallbackAddress.lat ?? null);
-      setAddressLongitude(fallbackAddress.lon ?? null);
-      setAddressMode(fallbackAddress.locationSource === "gps" ? "gps" : "manual");
+      setAddressCountryId("");
+      setAddressState("");
+      setAddressDistrict("");
+      setAddressCity("");
+      setAddressArea("");
+      setAddressFull("");
+      setAddressPincode("");
+      setAddressLatitude(null);
+      setAddressLongitude(null);
+      setAddressMode("manual");
       setAddressError("");
 
       try {
@@ -105,18 +102,21 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
         console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
 
-        setAddressCountryId(customerAddress.country || fallbackAddress.country || "");
-        setAddressState(customerAddress.state || fallbackAddress.state || "");
-        setAddressDistrict(customerAddress.district || fallbackAddress.district || "");
-        setAddressCity(customerAddress.city || fallbackAddress.city || "");
-        setAddressArea(customerAddress.area || fallbackAddress.area || "");
-        setAddressFull(customerAddress.fullAddress || fallbackAddress.fullAddress || "");
-        setAddressPincode(customerAddress.pincode || fallbackAddress.pincode || "");
-        setAddressLatitude(customerAddress.lat ?? fallbackAddress.lat ?? null);
-        setAddressLongitude(customerAddress.lon ?? fallbackAddress.lon ?? null);
-        setAddressMode(customerAddress.locationSource === "gps" ? "gps" : fallbackAddress.locationSource === "gps" ? "gps" : "manual");
+        setAddressCountryId(customerAddress.country || "");
+        setAddressState(customerAddress.state || "");
+        setAddressDistrict(customerAddress.district || "");
+        setAddressCity(customerAddress.city || "");
+        setAddressArea(customerAddress.area || "");
+        setAddressFull(customerAddress.fullAddress || "");
+        setAddressPincode(customerAddress.pincode || "");
+        setAddressLatitude(customerAddress.lat ?? null);
+        setAddressLongitude(customerAddress.lon ?? null);
+        setAddressMode(customerAddress.locationSource === "gps" ? "gps" : "manual");
       } catch (error) {
         console.error("[ADDRESS MODAL] Failed to load customer address:", error);
+        if (active) {
+          setAddressError(error?.message || "Unable to load your saved address. Please try again.");
+        }
       }
     };
 
@@ -312,6 +312,12 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         district: addressDistrict,
         city: addressCity,
         area: addressArea,
+        fullAddress: addressMode === "gps"
+          ? addressFull.trim()
+          : [addressArea, addressCity, addressDistrict, addressState, addressCountryId]
+              .filter(Boolean)
+              .join(", "),
+        pincode: addressPincode.trim(),
         lat: addressMode === "gps" ? addressLatitude : null,
         lon: addressMode === "gps" ? addressLongitude : null,
         locationSource: addressMode === "gps" ? "gps" : "manual",

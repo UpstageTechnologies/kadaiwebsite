@@ -3,6 +3,7 @@ import { FiArrowLeft, FiCheck, FiMapPin } from "react-icons/fi";
 import { useLocation as useRouteLocation, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import AddressChangeModal from "../../components/AddressChangeModal";
+import { auth, firebaseCustomerSnapshot } from "../../services/firebase";
 import { useCart } from "../../components/CardContext";
 import { useLocation } from "../../components/LocationContext";
 import { calculateSubtotal } from "../cart/cart.service";
@@ -27,16 +28,12 @@ const Checkout = () => {
   const routeLocation = useRouteLocation();
   const { cartItems, clearCart } = useCart();
   const { location } = useLocation();
-  const initialAddresses = getSavedAddresses(location);
   const [error, setError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
-  const [addresses, setAddresses] = useState(initialAddresses);
-  const [selectedAddress, setSelectedAddress] = useState(() =>
-    getSelectedAddress(initialAddresses)
-  );
-  const [showAddressOptions, setShowAddressOptions] = useState(
-    initialAddresses.length === 0
-  );
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [showAddressOptions, setShowAddressOptions] = useState(false);
+  const [isAddressLoading, setIsAddressLoading] = useState(true);
 
   const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
 
@@ -52,6 +49,74 @@ const Checkout = () => {
       });
     }
   }, [isLoggedIn, navigate, routeLocation.pathname]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCustomerAddresses = async () => {
+      try {
+        if (auth && typeof auth.authStateReady === "function") {
+          await auth.authStateReady();
+        }
+
+        const firebaseUser = auth?.currentUser;
+        if (!firebaseUser?.uid) {
+          throw new Error("Your Firebase session is missing. Please log in again.");
+        }
+
+        const customerSnapshot = await firebaseCustomerSnapshot(firebaseUser.uid);
+        const customerData = customerSnapshot?.data?.() || {};
+        const savedAddress = customerData.address;
+        const hasSavedAddress = savedAddress && typeof savedAddress === "object"
+          && !Array.isArray(savedAddress) && Object.keys(savedAddress).length > 0;
+        const profileAddress = hasSavedAddress
+          ? {
+              ...savedAddress,
+              id: "saved-profile-address",
+              label: "Saved address",
+              address: savedAddress.fullAddress || savedAddress.address || [
+                savedAddress.area,
+                savedAddress.city,
+                savedAddress.district,
+                savedAddress.state,
+                savedAddress.country,
+                savedAddress.pincode,
+              ].filter(Boolean).join(", "),
+              latitude: savedAddress.lat ?? savedAddress.latitude,
+              longitude: savedAddress.lon ?? savedAddress.longitude,
+            }
+          : null;
+        const cachedAddresses = getSavedAddresses(location).filter(
+          (address) => address.id !== "saved-profile-address"
+        );
+        const nextAddresses = profileAddress
+          ? [profileAddress, ...cachedAddresses]
+          : cachedAddresses;
+
+        if (!active) return;
+
+        setAddresses(nextAddresses);
+        setSelectedAddress(profileAddress || getSelectedAddress(nextAddresses));
+        setShowAddressOptions(!profileAddress && nextAddresses.length === 0);
+        setError("");
+      } catch (addressError) {
+        console.error("[CHECKOUT] Failed to load saved customer address:", addressError);
+        if (active) {
+          setAddresses([]);
+          setSelectedAddress(null);
+          setShowAddressOptions(false);
+          setError(addressError?.message || "Unable to load your saved address.");
+        }
+      } finally {
+        if (active) setIsAddressLoading(false);
+      }
+    };
+
+    loadCustomerAddresses();
+    return () => {
+      active = false;
+    };
+  }, [location]);
 
   const handleSelectAddress = (nextAddress) => {
     if (!nextAddress) {
@@ -227,6 +292,8 @@ const Checkout = () => {
                 </div>
               </div>
 
+              {!isAddressLoading && (
+                <>
               {selectedAddress && !showAddressOptions && (
                 <div className="selected-address-preview">
                   <div className="address-copy">
@@ -329,6 +396,8 @@ const Checkout = () => {
                 >
                   + Add New Address
                 </button>
+              )}
+                </>
               )}
             </div>
 

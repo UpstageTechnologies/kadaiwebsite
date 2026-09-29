@@ -15,6 +15,7 @@ import {
   getDocs,
   query,
   setDoc,
+  updateDoc,
   serverTimestamp,
   where,
   onSnapshot,
@@ -455,7 +456,7 @@ export const firebaseUpdateCustomer = async (uid, data) => {
 
   try {
     console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
-    await setDoc(customerRef, { address: nextAddress }, { merge: true });
+    await updateDoc(customerRef, { address: nextAddress });
     console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
     return true;
   } catch (error) {
