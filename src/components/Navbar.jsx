@@ -12,17 +12,10 @@ import "../index.css";
 import { useCart } from "./CardContext";
 import { useLocation } from "./LocationContext";
 import AddressChangeModal from "./AddressChangeModal";
+import { auth, firebaseCustomerSnapshot } from "../services/firebase";
 
 import { getMarketplaceCatalog } from "../services/marketplace.service";
 import { subscribeCategoryNames } from "../services/category.service";
-
-const readRegisteredCustomer = () => {
-  try {
-    return JSON.parse(localStorage.getItem("registeredUser") || "null");
-  } catch {
-    return null;
-  }
-};
 
 const formatRegisteredAddress = (address) => {
   if (!address) {
@@ -79,6 +72,7 @@ const Navbar = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const [currentProfileAddress, setCurrentProfileAddress] = useState("");
 
   useEffect(() => {
     const handleAuthChange = () => {
@@ -89,10 +83,37 @@ const Navbar = () => {
     return () => window.removeEventListener("kadai-auth-changed", handleAuthChange);
   }, []);
 
-  const currentProfileAddress = useMemo(() => {
-    const customer = readRegisteredCustomer();
-    return formatRegisteredAddress(customer?.address) || "";
-  }, [isLoggedIn, showAddressModal, location, profileRefreshKey]);
+  useEffect(() => {
+    let active = true;
+
+    const loadProfileAddress = async () => {
+      try {
+        if (auth && typeof auth.authStateReady === "function") {
+          await auth.authStateReady();
+        }
+
+        const firebaseUser = auth?.currentUser;
+        if (!firebaseUser?.uid) {
+          if (active) setCurrentProfileAddress("");
+          return;
+        }
+
+        const customerSnapshot = await firebaseCustomerSnapshot(firebaseUser.uid);
+        if (!active) return;
+
+        const customerData = customerSnapshot?.data?.() || {};
+        setCurrentProfileAddress(formatRegisteredAddress(customerData.address));
+      } catch (error) {
+        console.error("[NAVBAR] Failed to load customer address:", error);
+        if (active) setCurrentProfileAddress("");
+      }
+    };
+
+    loadProfileAddress();
+    return () => {
+      active = false;
+    };
+  }, [isLoggedIn, showProfile, showAddressModal, profileRefreshKey]);
 
   // Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -628,7 +649,10 @@ const Navbar = () => {
       <AddressChangeModal
         open={showAddressModal}
         onClose={() => setShowAddressModal(false)}
-        onSaved={() => setProfileRefreshKey((value) => value + 1)}
+        onSaved={(nextAddress) => {
+          setCurrentProfileAddress(formatRegisteredAddress(nextAddress));
+          setProfileRefreshKey((value) => value + 1);
+        }}
       />
 
       {showSearch && (

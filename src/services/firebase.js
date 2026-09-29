@@ -316,13 +316,21 @@ export const firebaseFindCustomerByMobile = async (mobile) => {
 };
 
 export const firebaseCustomerSnapshot = async (uid) => {
-  const customerUid = uid || auth?.currentUser?.uid || JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
+  const authenticatedUid = auth?.currentUser?.uid || "";
 
-  if (!customerUid) {
-    const expired = new Error("Your verification session has expired. Please verify your mobile number again.");
+  if (!authenticatedUid) {
+    const expired = new Error("Your Firebase session is missing. Please log in again.");
     expired.code = "auth/session-expired";
     throw expired;
   }
+
+  if (uid && String(uid) !== String(authenticatedUid)) {
+    const mismatch = new Error("You can only read your own customer profile.");
+    mismatch.code = "auth/uid-mismatch";
+    throw mismatch;
+  }
+
+  const customerUid = authenticatedUid;
 
   if (!db) {
     const unavailable = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
@@ -423,6 +431,13 @@ export const firebaseUpdateCustomer = async (uid, data) => {
     throw mismatch;
   }
 
+  const nextAddress = data?.address;
+  if (!nextAddress || typeof nextAddress !== "object" || Array.isArray(nextAddress)) {
+    const invalidAddress = new Error("Please provide a valid address before saving.");
+    invalidAddress.code = "firestore/invalid-address";
+    throw invalidAddress;
+  }
+
   const customerUid = authenticatedUid;
 
   if (!db) {
@@ -440,7 +455,7 @@ export const firebaseUpdateCustomer = async (uid, data) => {
 
   try {
     console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
-    await setDoc(customerRef, data, { merge: true });
+    await setDoc(customerRef, { address: nextAddress }, { merge: true });
     console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
     return true;
   } catch (error) {
