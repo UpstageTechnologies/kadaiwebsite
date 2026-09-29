@@ -1,5 +1,7 @@
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onRequest } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 
@@ -7,6 +9,32 @@ initializeApp();
 
 const db = getFirestore();
 const messaging = getMessaging();
+
+exports.createCustomerCustomToken = onRequest(async (req, res) => {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed." });
+  }
+
+  const { uid } = req.body || {};
+  if (!uid || typeof uid !== "string") {
+    return res.status(400).json({ error: "Missing customer uid." });
+  }
+
+  const customerRef = db.collection("customers").doc(uid);
+  const customerSnapshot = await customerRef.get();
+
+  if (!customerSnapshot.exists) {
+    return res.status(404).json({ error: "Customer not found." });
+  }
+
+  try {
+    const customToken = await getAuth().createCustomToken(uid);
+    return res.status(200).json({ customToken });
+  } catch (error) {
+    console.error("Custom token creation failed:", error);
+    return res.status(500).json({ error: "Unable to establish the authenticated session." });
+  }
+});
 
 const STATUS_TITLES = {
   "Order Placed": "Order Placed",

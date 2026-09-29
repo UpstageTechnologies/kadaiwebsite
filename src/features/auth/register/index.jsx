@@ -169,15 +169,23 @@ const Register = () => {
     setError("");
 
     try {
-      console.log("[AUTH] OTP verification successful");
-      const credential = await currentConfirmation.confirm(otp.trim());
-      const uid = credential?.user?.uid || auth?.currentUser?.uid || "";
+      await currentConfirmation.confirm(otp.trim());
       clearConfirmation();
+      const authenticatedUser = auth?.currentUser;
+      if (!authenticatedUser?.uid) {
+        const missingUser = new Error("Phone verification succeeded, but the Firebase user is unavailable. Please verify your mobile number again.");
+        missingUser.code = "auth/user-missing";
+        throw missingUser;
+      }
+
+      console.log("[AUTH] OTP verification successful");
+      const uid = authenticatedUser.uid;
       sessionStorage.setItem("kadai.phone.verifiedUid", uid);
       navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}`, uid } });
     } catch (verifyError) {
       const code = verifyError?.code || "";
       let message = "The verification code is incorrect or expired.";
+      if (code === "auth/user-missing") message = verifyError.message;
       if (code === "auth/invalid-verification-code") message = "Invalid OTP. Please try again.";
       if (code === "auth/code-expired") message = "The OTP has expired. Request a new code.";
       if (code === "auth/too-many-requests") message = "Too many attempts. Please try again later.";
@@ -380,8 +388,14 @@ const Register = () => {
       return;
     }
 
-    if (!auth?.currentUser) {
+    const authenticatedUser = auth?.currentUser;
+    if (!authenticatedUser?.uid) {
       setError("Your verification session has expired. Please verify your mobile number again.");
+      return;
+    }
+
+    if (!authenticatedUser.phoneNumber) {
+      setError("The verified mobile number is unavailable. Please verify your mobile number again.");
       return;
     }
 
@@ -389,14 +403,13 @@ const Register = () => {
     setError("");
 
     try {
-      const verifiedPhone = auth.currentUser.phoneNumber || getRegistrationPhone();
-      await updateProfile(auth.currentUser, { displayName: username.trim() });
-      await firebaseUpsertCustomerProfile(auth.currentUser.uid, {
-        uid: auth.currentUser.uid,
+      await updateProfile(authenticatedUser, { displayName: username.trim() });
+      await firebaseUpsertCustomerProfile(authenticatedUser.uid, {
+        uid: authenticatedUser.uid,
         name: username.trim(),
         fullName: username.trim(),
         displayName: username.trim(),
-        mobile: verifiedPhone,
+        mobile: authenticatedUser.phoneNumber,
         address: {
           country: countryId,
           state,

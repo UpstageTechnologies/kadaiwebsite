@@ -349,12 +349,25 @@ export const firebaseCustomerSnapshot = async (uid) => {
 };
 
 export const firebaseUpsertCustomerProfile = async (uid, data) => {
-  const customerUid = uid || auth?.currentUser?.uid || JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
+  const authenticatedUser = auth?.currentUser;
+  const customerUid = authenticatedUser?.uid || "";
 
   if (!customerUid) {
     const expired = new Error("Your verification session has expired. Please verify your mobile number again.");
     expired.code = "auth/session-expired";
     throw expired;
+  }
+
+  if (uid && uid !== customerUid) {
+    const mismatch = new Error("You can only create or update your own customer profile.");
+    mismatch.code = "auth/uid-mismatch";
+    throw mismatch;
+  }
+
+  if (!authenticatedUser.phoneNumber) {
+    const missingPhone = new Error("The verified mobile number is unavailable. Please verify your mobile number again.");
+    missingPhone.code = "auth/phone-number-missing";
+    throw missingPhone;
   }
 
   if (!db) {
@@ -371,12 +384,14 @@ export const firebaseUpsertCustomerProfile = async (uid, data) => {
   }
 
   try {
-    console.log("[FIRESTORE] Writing customer document:", uid);
+    console.log("[FIRESTORE] Writing customer document:", customerUid);
     const existing = await getDoc(customerRef);
     const existingData = existing.exists() ? existing.data() || {} : {};
 
     const payload = {
       ...data,
+      uid: customerUid,
+      mobile: authenticatedUser.phoneNumber,
       createdAt: existingData.createdAt || data.createdAt || serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -384,9 +399,7 @@ export const firebaseUpsertCustomerProfile = async (uid, data) => {
     return await setDoc(customerRef, payload, { merge: true });
   } catch (error) {
     console.error("[FIRESTORE] firebaseUpsertCustomerProfile failed:", error?.code || error?.message || error);
-    const friendly = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
-    friendly.code = error?.code || "firestore/write-failed";
-    throw friendly;
+    throw error;
   }
 };
 
@@ -444,4 +457,3 @@ export const firebaseSaveFcmToken = async () => {
 };
 
 export { onSnapshot, doc, getDoc, setDoc };
-
