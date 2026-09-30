@@ -1,4 +1,4 @@
-import { useState } from "react";
+                                                                                                                                                                import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiPhone, FiArrowLeft } from "react-icons/fi";
 import {
@@ -105,6 +105,11 @@ const validateAndShow = () => {
         setError("Invalid phone number. This phone number is not registered.");
         return;
       }
+
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("registrationInProgress", "false");
+      localStorage.setItem("registeredUser", JSON.stringify(customer));
+      window.dispatchEvent(new Event("kadai-auth-changed"));
 
       setSuccess("Login successful!");
       console.log("[AUTH] Login successful");

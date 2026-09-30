@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+                                                                                                                                                                     import { useEffect, useMemo, useState } from "react";
 import { FiArrowLeft, FiCheck, FiMapPin } from "react-icons/fi";
 import { useLocation as useRouteLocation, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import AddressChangeModal from "../../components/AddressChangeModal";
-import { auth, firebaseCustomerSnapshot, firebaseUpdateCustomer } from "../../services/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { auth, firebaseCustomerSnapshot } from "../../services/firebase";
 import { useCart } from "../../components/CardContext";
 import { useLocation } from "../../components/LocationContext";
 import { calculateSubtotal } from "../cart/cart.service";
@@ -35,10 +34,8 @@ const Checkout = () => {
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [showAddressOptions, setShowAddressOptions] = useState(false);
   const [isAddressLoading, setIsAddressLoading] = useState(true);
-  const [firebaseUser, setFirebaseUser] = useState(null);
-  const [authReady, setAuthReady] = useState(!auth);
 
-  const isLoggedIn = Boolean(firebaseUser?.uid);
+  const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
 
   const summary = useMemo(() => {
     const subtotal = calculateSubtotal(cartItems);
@@ -46,30 +43,25 @@ const Checkout = () => {
   }, [cartItems]);
 
   useEffect(() => {
-    if (!auth) return undefined;
-
-    return onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user);
-      setAuthReady(true);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (authReady && !isLoggedIn) {
+    if (!isLoggedIn) {
       navigate(`/login?redirect=${encodeURIComponent(routeLocation.pathname)}`, {
         replace: true,
       });
     }
-  }, [authReady, isLoggedIn, navigate, routeLocation.pathname]);
+  }, [isLoggedIn, navigate, routeLocation.pathname]);
 
   useEffect(() => {
     let active = true;
 
     const loadCustomerAddresses = async () => {
-      if (!authReady || !firebaseUser?.uid) return;
       try {
         if (auth && typeof auth.authStateReady === "function") {
           await auth.authStateReady();
+        }
+
+        const firebaseUser = auth?.currentUser;
+        if (!firebaseUser?.uid) {
+          throw new Error("Your Firebase session is missing. Please log in again.");
         }
 
         const customerSnapshot = await firebaseCustomerSnapshot(firebaseUser.uid);
@@ -94,10 +86,12 @@ const Checkout = () => {
               longitude: savedAddress.lon ?? savedAddress.longitude,
             }
           : null;
-        const locationAddresses = getSavedAddresses(location);
+        const cachedAddresses = getSavedAddresses(location).filter(
+          (address) => address.id !== "saved-profile-address"
+        );
         const nextAddresses = profileAddress
-          ? [profileAddress, ...locationAddresses]
-          : locationAddresses;
+          ? [profileAddress, ...cachedAddresses]
+          : cachedAddresses;
 
         if (!active) return;
 
@@ -122,7 +116,7 @@ const Checkout = () => {
     return () => {
       active = false;
     };
-  }, [authReady, firebaseUser, location]);
+  }, [location]);
 
   const handleSelectAddress = (nextAddress) => {
     if (!nextAddress) {
@@ -135,23 +129,14 @@ const Checkout = () => {
     setError("");
   };
 
-  const handleDeleteAddress = async (selectedAddressId) => {
+  const handleDeleteAddress = (selectedAddressId) => {
     if (!selectedAddressId) {
       return;
     }
 
-    if (selectedAddressId === "saved-profile-address" && firebaseUser?.uid) {
-      try {
-        await firebaseUpdateCustomer(firebaseUser.uid, { address: null });
-      } catch (deleteError) {
-        setError(deleteError?.message || "Unable to delete your saved address.");
-        return;
-      }
-    }
-
     deleteAddress(selectedAddressId);
 
-    const refreshedAddresses = addresses.filter((address) => address.id !== selectedAddressId);
+    const refreshedAddresses = getSavedAddresses(location);
     setAddresses(refreshedAddresses);
 
     const refreshedSelectedAddress = getSelectedAddress(refreshedAddresses);
@@ -235,7 +220,7 @@ const Checkout = () => {
     setError("");
   };
 
-  if (!authReady || !isLoggedIn) {
+  if (!isLoggedIn) {
     return null;
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+                                                                                                                                                                                         import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiPhone, FiArrowLeft, FiUser } from "react-icons/fi";
 import {
@@ -179,7 +179,9 @@ const Register = () => {
       }
 
       console.log("[AUTH] OTP verification successful");
-      navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}` } });
+      const uid = authenticatedUser.uid;
+      sessionStorage.setItem("kadai.phone.verifiedUid", uid);
+      navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}`, uid } });
     } catch (verifyError) {
       const code = verifyError?.code || "";
       let message = "The verification code is incorrect or expired.";

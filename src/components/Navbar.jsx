@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+                                                                                                                                                                                                 import { useMemo, useState, useEffect } from "react";
 import {
   FiSearch,
   FiShoppingCart,
@@ -13,7 +13,6 @@ import { useCart } from "./CardContext";
 import { useLocation } from "./LocationContext";
 import AddressChangeModal from "./AddressChangeModal";
 import { auth, firebaseCustomerSnapshot } from "../services/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
 
 import { getMarketplaceCatalog } from "../services/marketplace.service";
 import { subscribeCategoryNames } from "../services/category.service";
@@ -53,8 +52,20 @@ const Navbar = () => {
     requestLocation,
   } = useLocation();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return localStorage.getItem("isLoggedIn") === "true";
+  });
+
+  const [userName] = useState(() => {
+    const savedUser = localStorage.getItem("registeredUser");
+
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      return user.fullName || "";
+    }
+
+    return "";
+  });
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -63,18 +74,6 @@ const Navbar = () => {
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [currentProfileAddress, setCurrentProfileAddress] = useState("");
   const [isProfileAddressLoading, setIsProfileAddressLoading] = useState(true);
-
-  useEffect(() => {
-    if (!auth) return undefined;
-    return onAuthStateChanged(auth, (firebaseUser) => {
-      setIsLoggedIn(Boolean(firebaseUser?.uid));
-      if (!firebaseUser?.uid) {
-        setUserName("");
-        setCurrentProfileAddress("");
-        setIsProfileAddressLoading(false);
-      }
-    });
-  }, []);
 
   useEffect(() => {
     const handleAuthChange = () => {
@@ -105,7 +104,6 @@ const Navbar = () => {
 
         const customerData = customerSnapshot?.data?.() || {};
         setCurrentProfileAddress(formatRegisteredAddress(customerData.address));
-        setUserName(customerData.fullName || customerData.displayName || customerData.name || "");
       } catch (error) {
         console.error("[NAVBAR] Failed to load customer address:", error);
         if (active) setCurrentProfileAddress("");
@@ -140,13 +138,11 @@ const Navbar = () => {
     return () => window.removeEventListener("navigate", handleNavigation);
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
+    setIsLoggedIn(false);
     setShowProfile(false);
-    try {
-      if (auth) await signOut(auth);
-    } catch (error) {
-      console.error("[AUTH] Logout failed:", error);
-    }
+    localStorage.removeItem("isLoggedIn");
+    window.dispatchEvent(new Event("kadai-auth-changed"));
   };
 
   const liveProducts = getMarketplaceCatalog();

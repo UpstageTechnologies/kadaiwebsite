@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+                                                                                                                                                                           import { useEffect, useMemo, useState } from "react";
 import {
   useNavigate,
   useSearchParams,
@@ -11,14 +11,13 @@ import {
 
 import { useCart } from "../../components/CardContext";
 import {
-  auth,
   db,
 } from "../../services/firebase";
-import { onAuthStateChanged } from "firebase/auth";
 import {
   DEFAULT_MARKET_MODE,
   MARKET_MODES,
   getAddressCoordinates,
+  getCurrentCustomerUid,
   getNearbySellerIds,
   subscribeMarketplaceProducts,
   subscribeSellerLocations,
@@ -72,41 +71,40 @@ const Products = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (marketMode !== MARKET_MODES.LOCAL) return undefined;
-    if (!auth) {
-      navigate(`/login?redirect=${encodeURIComponent("/products?market=local")}`, { replace: true });
-      return undefined;
+    if (
+      marketMode === MARKET_MODES.LOCAL &&
+      localStorage.getItem("isLoggedIn") !== "true"
+    ) {
+      navigate(
+        `/login?redirect=${encodeURIComponent("/products?market=local")}`,
+        { replace: true }
+      );
     }
-    return onAuthStateChanged(auth, (firebaseUser) => {
-      if (!firebaseUser) {
-        navigate(`/login?redirect=${encodeURIComponent("/products?market=local")}`, { replace: true });
-      }
-    });
   }, [marketMode, navigate]);
 
   useEffect(() => {
-    if (!auth || !db) {
+    const uid = getCurrentCustomerUid();
+
+    if (!uid || !db) {
+      setCustomerLocation(null);
       return undefined;
     }
 
-    let unsubscribeCustomer = () => {};
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-      unsubscribeCustomer();
-      setCustomerLocation(null);
-      if (!firebaseUser?.uid) return;
-      unsubscribeCustomer = onSnapshot(
-        doc(db, "customers", firebaseUser.uid),
-        (snapshot) => setCustomerLocation(getAddressCoordinates(snapshot.data() || {})),
-        (listenerError) => {
-          console.error("[MARKET] Customer location listener failed:", listenerError);
-          setCustomerLocation(null);
-        }
-      );
-    });
-    return () => {
-      unsubscribeCustomer();
-      unsubscribeAuth();
-    };
+    const customerRef = doc(db, "customers", uid);
+    const unsubscribe = onSnapshot(
+      customerRef,
+      (snapshot) => {
+        const customerData = snapshot.data() || {};
+        const coordinates = getAddressCoordinates(customerData);
+        setCustomerLocation(coordinates);
+      },
+      (listenerError) => {
+        console.error("[MARKET] Customer location listener failed:", listenerError);
+        setCustomerLocation(null);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -208,7 +206,10 @@ const Products = () => {
   }, [activeProducts, categoryFromURL, marketMode, searchFromURL]);
 
   const handleMarketChange = (nextMode) => {
-    if (nextMode === MARKET_MODES.LOCAL && !auth?.currentUser?.uid) {
+    if (
+      nextMode === MARKET_MODES.LOCAL &&
+      localStorage.getItem("isLoggedIn") !== "true"
+    ) {
       navigate(
         `/login?redirect=${encodeURIComponent("/products?market=local")}`
       );

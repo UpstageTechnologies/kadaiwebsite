@@ -1,36 +1,43 @@
-import { useEffect, useState } from "react";
+                                                                                                                                                                                                import { useEffect, useState } from "react";
 import { FiArrowRight, FiPackage } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
 
 import Navbar from "../../components/Navbar";
 import {
+  getCurrentCustomerId,
+  getSavedOrders,
   subscribeCustomerOrders,
 } from "./orders.service";
-import { auth } from "../../services/firebase";
 
 import "./orders.css";
 
 const Orders = () => {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState(() => getSavedOrders());
 
   useEffect(() => {
-    if (!auth) return undefined;
-    let unsubscribeOrders = () => {};
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-      unsubscribeOrders();
-      setOrders([]);
-      if (!firebaseUser?.uid) return;
-      unsubscribeOrders = subscribeCustomerOrders({
-        customerId: firebaseUser.uid,
-        onOrders: setOrders,
-      });
+    const unsubscribe = subscribeCustomerOrders({
+      customerId: getCurrentCustomerId(),
+      onOrders: (firestoreOrders) => {
+        const localOrders = getSavedOrders();
+        const remoteById = new Map(
+          firestoreOrders.map((order) => [String(order.id), order])
+        );
+        const mergedOrders = localOrders.map(
+          (order) => remoteById.get(String(order.id)) || order
+        );
+
+        firestoreOrders.forEach((order) => {
+          if (!mergedOrders.some((item) => String(item.id) === String(order.id))) {
+            mergedOrders.push(order);
+          }
+        });
+
+        setOrders(mergedOrders);
+      },
     });
-    return () => {
-      unsubscribeOrders();
-      unsubscribeAuth();
-    };
+
+    return () => unsubscribe();
   }, []);
 
   return (

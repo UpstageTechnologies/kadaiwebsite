@@ -1,4 +1,4 @@
-import {
+                                                   import {
   FiMinus,
   FiPlus,
   FiTrash2,
@@ -8,7 +8,6 @@ import {
 
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../../components/CardContext";
-import { auth } from "../../services/firebase";
 
 import "./cart.css";
 import Navbar from "../../components/Navbar";
@@ -230,7 +229,8 @@ const Cart = () => {
             <button
               className="checkout-btn"
               onClick={() => {
-                const isLoggedIn = Boolean(auth?.currentUser?.uid);
+                const isLoggedIn =
+                  localStorage.getItem("isLoggedIn") === "true";
 
                 navigate(
                   isLoggedIn
