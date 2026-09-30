@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
 
-import { getCurrentCustomerId } from "../features/orders/orders.service";
+import { auth } from "../services/firebase";
 import { initializeWebNotifications } from "../services/notification.service";
 
 const NotificationListener = () => {
   const navigate = useNavigate();
-  const [, setAuthVersion] = useState(0);
-  const uid = getCurrentCustomerId();
+  const [uid, setUid] = useState("");
 
   useEffect(() => {
-    const handleAuthChange = () => setAuthVersion((version) => version + 1);
-    window.addEventListener("kadai-auth-changed", handleAuthChange);
-
-    return () => window.removeEventListener("kadai-auth-changed", handleAuthChange);
+    if (!auth) return undefined;
+    return onAuthStateChanged(auth, (firebaseUser) => setUid(firebaseUser?.uid || ""));
   }, []);
 
   useEffect(() => {

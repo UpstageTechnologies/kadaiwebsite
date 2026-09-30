@@ -9,14 +9,6 @@ import {
   getRegistrationLocationOptions,
 } from "../services/registration-location.service";
 
-const readRegisteredCustomer = () => {
-  try {
-    return JSON.parse(localStorage.getItem("registeredUser") || "null");
-  } catch {
-    return null;
-  }
-};
-
 const normalizeAddress = (value = {}) => ({
   country: value.country || "",
   state: value.state || "",
@@ -275,8 +267,6 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   };
 
   const handleSave = async () => {
-    const customer = readRegisteredCustomer();
-
     try {
       if (auth && typeof auth.authStateReady === "function") {
         await auth.authStateReady();
@@ -335,8 +325,6 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
 
       await firebaseUpdateCustomer(customerUid, { address: nextAddress });
-      const updatedUser = { ...(customer || {}), uid: customerUid, address: nextAddress };
-      localStorage.setItem("registeredUser", JSON.stringify(updatedUser));
       window.dispatchEvent(new Event("kadai-auth-changed"));
       onSaved?.(nextAddress);
       onClose();

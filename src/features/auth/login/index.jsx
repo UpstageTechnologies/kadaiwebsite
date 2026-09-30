@@ -106,11 +106,6 @@ const validateAndShow = () => {
         return;
       }
 
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("registrationInProgress", "false");
-      localStorage.setItem("registeredUser", JSON.stringify(customer));
-      window.dispatchEvent(new Event("kadai-auth-changed"));
-
       setSuccess("Login successful!");
       console.log("[AUTH] Login successful");
 

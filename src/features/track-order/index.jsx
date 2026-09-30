@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiAlertCircle, FiArrowRight, FiCheck, FiClock, FiShoppingCart } from "react-icons/fi";
+import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { useNavigate, useParams } from "react-router-dom";
 
 import Navbar from "../../components/Navbar";
-import { db } from "../../services/firebase";
-import { getCurrentCustomerId, getSavedOrders } from "../orders/orders.service";
+import { auth, db } from "../../services/firebase";
 
 import "./track-order.css";
 
@@ -81,11 +81,20 @@ const getItems = (shop, order) => {
 const TrackOrder = () => {
   const navigate = useNavigate();
   const { orderId = "" } = useParams();
-  const customerId = getCurrentCustomerId();
+  const [customerId, setCustomerId] = useState("");
+  const [authReady, setAuthReady] = useState(!auth);
   const [orderData, setOrderData] = useState(null);
   const [customerName, setCustomerName] = useState("Customer");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!auth) return undefined;
+    return onAuthStateChanged(auth, (firebaseUser) => {
+      setCustomerId(firebaseUser?.uid || "");
+      setAuthReady(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (!customerId || !db) return undefined;
@@ -107,21 +116,6 @@ const TrackOrder = () => {
 
     if (!db) return undefined;
 
-    const showLocalOrder = () => {
-      const localOrder = getSavedOrders().find(
-        (order) => String(order.id || order.orderId) === String(orderId)
-      );
-
-      if (localOrder) {
-        setOrderData(localOrder);
-        setError("");
-        setLoading(false);
-        return true;
-      }
-
-      return false;
-    };
-
     const handleSnapshot = (snapshot, requireCustomerMatch = false) => {
       const data = snapshot.data() || {};
       const belongsToCustomer = !requireCustomerMatch || !data.customerId || data.customerId === customerId;
@@ -141,19 +135,15 @@ const TrackOrder = () => {
             return;
           }
 
-          if (!showLocalOrder()) {
-            setOrderData(null);
-            setError("Unable to load this order right now.");
-            setLoading(false);
-          }
+          setOrderData(null);
+          setError("Unable to load this order right now.");
+          setLoading(false);
         },
         (listenerError) => {
           console.error("[TRACKING] Order listener failed:", listenerError);
-          if (!showLocalOrder()) {
-            setOrderData(null);
-            setError("Unable to load this order right now.");
-            setLoading(false);
-          }
+          setOrderData(null);
+          setError("Unable to load this order right now.");
+          setLoading(false);
         }
       );
     };
@@ -189,7 +179,7 @@ const TrackOrder = () => {
       : [orderData];
   }, [orderData]);
 
-  const missingOrder = !orderId || !customerId;
+  const missingOrder = !orderId || (authReady && !customerId);
   const firebaseUnavailable = !db && !missingOrder;
 
   if (missingOrder) {
@@ -208,7 +198,7 @@ const TrackOrder = () => {
     );
   }
 
-  if (loading) {
+  if (!authReady || loading) {
     return (
       <>
         <Navbar />

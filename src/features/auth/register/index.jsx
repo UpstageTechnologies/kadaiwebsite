@@ -179,9 +179,7 @@ const Register = () => {
       }
 
       console.log("[AUTH] OTP verification successful");
-      const uid = authenticatedUser.uid;
-      sessionStorage.setItem("kadai.phone.verifiedUid", uid);
-      navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}`, uid } });
+      navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}` } });
     } catch (verifyError) {
       const code = verifyError?.code || "";
       let message = "The verification code is incorrect or expired.";

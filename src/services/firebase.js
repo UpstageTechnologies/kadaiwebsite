@@ -9,15 +9,11 @@ import {
 } from "firebase/auth";
 import {
   getFirestore,
-  collection,
   doc,
   getDoc,
-  getDocs,
-  query,
   setDoc,
   updateDoc,
   serverTimestamp,
-  where,
   onSnapshot,
 } from "firebase/firestore";
 
@@ -293,19 +289,24 @@ export const firebaseFindCustomerByMobile = async (mobile) => {
     throw new Error("Please enter a valid 10-digit Indian mobile number.");
   }
 
-  try {
-    const customerQuery = query(
-      collection(db, "customers"),
-      where("mobile", "==", `+91${normalizedMobile}`)
-    );
-    const snapshot = await getDocs(customerQuery);
-    if (snapshot.empty) return null;
+  const authenticatedUser = auth?.currentUser;
+  if (!authenticatedUser?.uid) {
+    const unauthenticated = new Error("Phone lookup cannot establish Firebase Authentication. Sign in through an existing Firebase Auth session to access customer data.");
+    unauthenticated.code = "auth/session-required";
+    throw unauthenticated;
+  }
 
-    const customerDocument = snapshot.docs[0];
-    const customer = customerDocument.data() || {};
+  try {
+    const customerSnapshot = await getDoc(firebaseCustomerDoc(authenticatedUser.uid));
+    if (!customerSnapshot.exists()) return null;
+
+    const customer = customerSnapshot.data() || {};
+    const storedMobile = String(customer.mobile || "").replace(/\D/g, "");
+    if (storedMobile !== normalizedMobile) return null;
+
     return {
       ...customer,
-      uid: customer.uid || customerDocument.id,
+      uid: authenticatedUser.uid,
       mobile: customer.mobile || `+91${normalizedMobile}`,
     };
   } catch (error) {
@@ -433,7 +434,7 @@ export const firebaseUpdateCustomer = async (uid, data) => {
   }
 
   const nextAddress = data?.address;
-  if (!nextAddress || typeof nextAddress !== "object" || Array.isArray(nextAddress)) {
+  if (nextAddress !== null && (typeof nextAddress !== "object" || Array.isArray(nextAddress))) {
     const invalidAddress = new Error("Please provide a valid address before saving.");
     invalidAddress.code = "firestore/invalid-address";
     throw invalidAddress;

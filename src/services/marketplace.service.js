@@ -37,20 +37,7 @@ export const extractSellerIdFromDocPath = (docPath = "") => {
 };
 
 export const getCurrentCustomerUid = () => {
-  if (auth?.currentUser?.uid) {
-    return auth.currentUser.uid;
-  }
-
-  try {
-    const savedUser = JSON.parse(localStorage.getItem("registeredUser") || "null");
-    if (savedUser?.uid) {
-      return savedUser.uid;
-    }
-  } catch {
-    // ignore malformed cached auth state
-  }
-
-  return sessionStorage.getItem("kadai.phone.verifiedUid") || "";
+  return auth?.currentUser?.uid || "";
 };
 
 export const sanitizeLatLon = (value, fallback = null) => {
