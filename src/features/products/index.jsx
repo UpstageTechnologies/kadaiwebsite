@@ -10,6 +10,7 @@ import {
 } from "react-icons/fi";
 
 import { useCart } from "../../components/CardContext";
+import { useAuth } from "../../components/AuthContext";
 import {
   db,
 } from "../../services/firebase";
@@ -17,7 +18,6 @@ import {
   DEFAULT_MARKET_MODE,
   MARKET_MODES,
   getAddressCoordinates,
-  getCurrentCustomerUid,
   getNearbySellerIds,
   subscribeMarketplaceProducts,
   subscribeSellerLocations,
@@ -29,6 +29,7 @@ import Navbar from "../../components/Navbar";
 
 const Products = () => {
   const navigate = useNavigate();
+  const { user, loading: isAuthLoading } = useAuth();
 
   const {
     cartItems,
@@ -71,19 +72,20 @@ const Products = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (isAuthLoading) return;
     if (
       marketMode === MARKET_MODES.LOCAL &&
-      localStorage.getItem("isLoggedIn") !== "true"
+      !user
     ) {
       navigate(
         `/login?redirect=${encodeURIComponent("/products?market=local")}`,
         { replace: true }
       );
     }
-  }, [marketMode, navigate]);
+  }, [isAuthLoading, marketMode, navigate, user]);
 
   useEffect(() => {
-    const uid = getCurrentCustomerUid();
+    const uid = user?.uid || "";
 
     if (!uid || !db) {
       setCustomerLocation(null);
@@ -105,7 +107,7 @@ const Products = () => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [user?.uid]);
 
   useEffect(() => {
     const unsubscribe = subscribeSellerLocations({
@@ -208,7 +210,7 @@ const Products = () => {
   const handleMarketChange = (nextMode) => {
     if (
       nextMode === MARKET_MODES.LOCAL &&
-      localStorage.getItem("isLoggedIn") !== "true"
+      !user
     ) {
       navigate(
         `/login?redirect=${encodeURIComponent("/products?market=local")}`

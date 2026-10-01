@@ -1,11 +1,11 @@
                                                                                                                                                                                      import { useEffect, useMemo, useState } from "react";
 import { FiAlertCircle, FiArrowRight, FiCheck, FiClock, FiShoppingCart } from "react-icons/fi";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { useNavigate, useParams } from "react-router-dom";
 
 import Navbar from "../../components/Navbar";
+import { useAuth } from "../../components/AuthContext";
 import { db } from "../../services/firebase";
-import { getCurrentCustomerId, getSavedOrders } from "../orders/orders.service";
 
 import "./track-order.css";
 
@@ -81,46 +81,17 @@ const getItems = (shop, order) => {
 const TrackOrder = () => {
   const navigate = useNavigate();
   const { orderId = "" } = useParams();
-  const customerId = getCurrentCustomerId();
+  const { user, customer } = useAuth();
+  const customerId = user?.uid || "";
   const [orderData, setOrderData] = useState(null);
-  const [customerName, setCustomerName] = useState("Customer");
+  const customerName = customer?.name || customer?.fullName || customer?.displayName || "Customer";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!customerId || !db) return undefined;
-
-    getDoc(doc(db, "customers", customerId)).then((snapshot) => {
-      if (!snapshot.exists()) return;
-
-      const profile = snapshot.data() || {};
-      setCustomerName(profile.name || profile.fullName || profile.displayName || "Customer");
-    }).catch((profileError) => {
-      console.error("[TRACKING] Customer profile read failed:", profileError);
-    });
-
-    return undefined;
-  }, [customerId]);
 
   useEffect(() => {
     if (!customerId || !orderId) return undefined;
 
     if (!db) return undefined;
-
-    const showLocalOrder = () => {
-      const localOrder = getSavedOrders().find(
-        (order) => String(order.id || order.orderId) === String(orderId)
-      );
-
-      if (localOrder) {
-        setOrderData(localOrder);
-        setError("");
-        setLoading(false);
-        return true;
-      }
-
-      return false;
-    };
 
     const handleSnapshot = (snapshot, requireCustomerMatch = false) => {
       const data = snapshot.data() || {};
@@ -141,19 +112,15 @@ const TrackOrder = () => {
             return;
           }
 
-          if (!showLocalOrder()) {
-            setOrderData(null);
-            setError("Unable to load this order right now.");
-            setLoading(false);
-          }
+          setOrderData(null);
+          setError("Unable to load this order right now.");
+          setLoading(false);
         },
         (listenerError) => {
           console.error("[TRACKING] Order listener failed:", listenerError);
-          if (!showLocalOrder()) {
-            setOrderData(null);
-            setError("Unable to load this order right now.");
-            setLoading(false);
-          }
+          setOrderData(null);
+          setError("Unable to load this order right now.");
+          setLoading(false);
         }
       );
     };

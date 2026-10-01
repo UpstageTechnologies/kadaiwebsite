@@ -12,7 +12,9 @@ import "../index.css";
 import { useCart } from "./CardContext";
 import { useLocation } from "./LocationContext";
 import AddressChangeModal from "./AddressChangeModal";
-import { auth, firebaseCustomerSnapshot } from "../services/firebase";
+import { signOut } from "firebase/auth";
+import { auth } from "../services/firebase";
+import { useAuth } from "./AuthContext";
 
 import { getMarketplaceCatalog } from "../services/marketplace.service";
 import { subscribeCategoryNames } from "../services/category.service";
@@ -45,6 +47,7 @@ const formatRegisteredAddress = (address) => {
 const Navbar = () => {
   const navigate = useNavigate();
   const { cartCount } = useCart();
+  const { user, customer, loading: isProfileAddressLoading } = useAuth();
   const {
     location,
     status: locationStatus,
@@ -52,71 +55,14 @@ const Navbar = () => {
     requestLocation,
   } = useLocation();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem("isLoggedIn") === "true";
-  });
-
-  const [userName] = useState(() => {
-    const savedUser = localStorage.getItem("registeredUser");
-
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      return user.fullName || "";
-    }
-
-    return "";
-  });
+  const isAuthenticated = Boolean(user);
+  const userName = customer?.fullName || customer?.name || user?.displayName || "";
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
-  const [currentProfileAddress, setCurrentProfileAddress] = useState("");
-  const [isProfileAddressLoading, setIsProfileAddressLoading] = useState(true);
-
-  useEffect(() => {
-    const handleAuthChange = () => {
-      setProfileRefreshKey((value) => value + 1);
-    };
-
-    window.addEventListener("kadai-auth-changed", handleAuthChange);
-    return () => window.removeEventListener("kadai-auth-changed", handleAuthChange);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadProfileAddress = async () => {
-      try {
-        if (auth && typeof auth.authStateReady === "function") {
-          await auth.authStateReady();
-        }
-
-        const firebaseUser = auth?.currentUser;
-        if (!firebaseUser?.uid) {
-          if (active) setCurrentProfileAddress("");
-          return;
-        }
-
-        const customerSnapshot = await firebaseCustomerSnapshot(firebaseUser.uid);
-        if (!active) return;
-
-        const customerData = customerSnapshot?.data?.() || {};
-        setCurrentProfileAddress(formatRegisteredAddress(customerData.address));
-      } catch (error) {
-        console.error("[NAVBAR] Failed to load customer address:", error);
-        if (active) setCurrentProfileAddress("");
-      } finally {
-        if (active) setIsProfileAddressLoading(false);
-      }
-    };
-
-    loadProfileAddress();
-    return () => {
-      active = false;
-    };
-  }, [isLoggedIn, showProfile, showAddressModal, profileRefreshKey]);
+  const currentProfileAddress = formatRegisteredAddress(customer?.address);
 
   // Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -138,11 +84,13 @@ const Navbar = () => {
     return () => window.removeEventListener("navigate", handleNavigation);
   }, []);
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
+  const handleLogout = async () => {
     setShowProfile(false);
-    localStorage.removeItem("isLoggedIn");
-    window.dispatchEvent(new Event("kadai-auth-changed"));
+    try {
+      if (auth) await signOut(auth);
+    } catch (error) {
+      console.error("[AUTH] Logout failed:", error);
+    }
   };
 
   const liveProducts = getMarketplaceCatalog();
@@ -478,7 +426,7 @@ const Navbar = () => {
 
           {/* Login / User */}
 
-          {!isLoggedIn ? (
+          {!isAuthenticated ? (
 
             <button
               className="login-btn"
@@ -630,10 +578,6 @@ const Navbar = () => {
       <AddressChangeModal
         open={showAddressModal}
         onClose={() => setShowAddressModal(false)}
-        onSaved={(nextAddress) => {
-          setCurrentProfileAddress(formatRegisteredAddress(nextAddress));
-          setProfileRefreshKey((value) => value + 1);
-        }}
       />
 
       {showSearch && (
@@ -802,7 +746,7 @@ const Navbar = () => {
             </Link>
 
 
-            {!isLoggedIn && (
+            {!isAuthenticated && (
 
               <button
                 className="mobile-nav-login"

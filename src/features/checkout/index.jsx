@@ -1,18 +1,17 @@
-                                                                                                                                                                     import { useEffect, useMemo, useState } from "react";
+                                                                                                                                                                    import { useEffect, useMemo, useState } from "react";
 import { FiArrowLeft, FiCheck, FiMapPin } from "react-icons/fi";
 import { useLocation as useRouteLocation, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import AddressChangeModal from "../../components/AddressChangeModal";
-import { auth, firebaseCustomerSnapshot } from "../../services/firebase";
+import { useAuth } from "../../components/AuthContext";
 import { useCart } from "../../components/CardContext";
 import { useLocation } from "../../components/LocationContext";
+import { firebaseUpdateCustomer } from "../../services/firebase";
 import { calculateSubtotal } from "../cart/cart.service";
 import { getPaymentMethodLabel, placeOrder } from "../orders/orders.service";
 import {
-  deleteAddress,
   getSavedAddresses,
   getSelectedAddress,
-  selectAddress,
 } from "./address.service";
 
 import "./checkout.css";
@@ -28,14 +27,20 @@ const Checkout = () => {
   const routeLocation = useRouteLocation();
   const { cartItems, clearCart } = useCart();
   const { location } = useLocation();
+  const { user, customer, loading: isAuthLoading } = useAuth();
   const [error, setError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
-  const [addresses, setAddresses] = useState([]);
-  const [selectedAddress, setSelectedAddress] = useState(null);
-  const [showAddressOptions, setShowAddressOptions] = useState(false);
-  const [isAddressLoading, setIsAddressLoading] = useState(true);
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [hiddenAddressIds, setHiddenAddressIds] = useState([]);
+  const [isAddressOptionsOpen, setIsAddressOptionsOpen] = useState(false);
 
-  const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+  const isAuthenticated = Boolean(user);
+  const addresses = getSavedAddresses(location, customer?.address)
+    .filter((address) => !hiddenAddressIds.includes(address.id));
+  const selectedAddress = addresses.find((address) => address.id === selectedAddressId)
+    || getSelectedAddress(addresses);
+  const showAddressOptions = isAddressOptionsOpen || (!isAuthLoading && addresses.length === 0);
+  const isAddressLoading = isAuthLoading;
 
   const summary = useMemo(() => {
     const subtotal = calculateSubtotal(cartItems);
@@ -43,151 +48,50 @@ const Checkout = () => {
   }, [cartItems]);
 
   useEffect(() => {
-    if (!isLoggedIn) {
+    if (!isAuthLoading && !isAuthenticated) {
       navigate(`/login?redirect=${encodeURIComponent(routeLocation.pathname)}`, {
         replace: true,
       });
     }
-  }, [isLoggedIn, navigate, routeLocation.pathname]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadCustomerAddresses = async () => {
-      try {
-        if (auth && typeof auth.authStateReady === "function") {
-          await auth.authStateReady();
-        }
-
-        const firebaseUser = auth?.currentUser;
-        if (!firebaseUser?.uid) {
-          throw new Error("Your Firebase session is missing. Please log in again.");
-        }
-
-        const customerSnapshot = await firebaseCustomerSnapshot(firebaseUser.uid);
-        const customerData = customerSnapshot?.data?.() || {};
-        const savedAddress = customerData.address;
-        const hasSavedAddress = savedAddress && typeof savedAddress === "object"
-          && !Array.isArray(savedAddress) && Object.keys(savedAddress).length > 0;
-        const profileAddress = hasSavedAddress
-          ? {
-              ...savedAddress,
-              id: "saved-profile-address",
-              label: "Saved address",
-              address: savedAddress.fullAddress || savedAddress.address || [
-                savedAddress.area,
-                savedAddress.city,
-                savedAddress.district,
-                savedAddress.state,
-                savedAddress.country,
-                savedAddress.pincode,
-              ].filter(Boolean).join(", "),
-              latitude: savedAddress.lat ?? savedAddress.latitude,
-              longitude: savedAddress.lon ?? savedAddress.longitude,
-            }
-          : null;
-        const cachedAddresses = getSavedAddresses(location).filter(
-          (address) => address.id !== "saved-profile-address"
-        );
-        const nextAddresses = profileAddress
-          ? [profileAddress, ...cachedAddresses]
-          : cachedAddresses;
-
-        if (!active) return;
-
-        setAddresses(nextAddresses);
-        setSelectedAddress(profileAddress || getSelectedAddress(nextAddresses));
-        setShowAddressOptions(!profileAddress && nextAddresses.length === 0);
-        setError("");
-      } catch (addressError) {
-        console.error("[CHECKOUT] Failed to load saved customer address:", addressError);
-        if (active) {
-          setAddresses([]);
-          setSelectedAddress(null);
-          setShowAddressOptions(false);
-          setError(addressError?.message || "Unable to load your saved address.");
-        }
-      } finally {
-        if (active) setIsAddressLoading(false);
-      }
-    };
-
-    loadCustomerAddresses();
-    return () => {
-      active = false;
-    };
-  }, [location]);
+  }, [isAuthLoading, isAuthenticated, navigate, routeLocation.pathname]);
 
   const handleSelectAddress = (nextAddress) => {
     if (!nextAddress) {
       return;
     }
 
-    setSelectedAddress(nextAddress);
-    setShowAddressOptions(false);
-    selectAddress(nextAddress);
+    setSelectedAddressId(nextAddress.id);
+    setIsAddressOptionsOpen(false);
     setError("");
   };
 
   const handleDeleteAddress = (selectedAddressId) => {
-    if (!selectedAddressId) {
+    if (!selectedAddressId) return;
+
+    if (selectedAddressId === "saved-profile-address") {
+      firebaseUpdateCustomer(user.uid, { address: {} })
+        .then(() => setSelectedAddressId(""))
+        .catch((addressError) => {
+          setError(addressError?.message || "Unable to remove your saved address.");
+        });
       return;
     }
 
-    deleteAddress(selectedAddressId);
-
-    const refreshedAddresses = getSavedAddresses(location);
-    setAddresses(refreshedAddresses);
-
-    const refreshedSelectedAddress = getSelectedAddress(refreshedAddresses);
-    setSelectedAddress(refreshedSelectedAddress);
-
-    setShowAddressOptions(false);
+    setHiddenAddressIds((current) => [...new Set([...current, selectedAddressId])]);
+    setSelectedAddressId("");
+    setIsAddressOptionsOpen(false);
     setError("");
   };
 
   const handleEditAddress = () => {
-    setShowAddressOptions(true);
+    setIsAddressOptionsOpen(true);
     setError("");
   };
 
   const handleAddressSaved = (nextAddress) => {
-    const formattedAddress = {
-      id: nextAddress.id || "saved-profile-address",
-      label: nextAddress.label || "Saved address",
-      address:
-        nextAddress.fullAddress ||
-        nextAddress.address ||
-        [
-          nextAddress.area,
-          nextAddress.city,
-          nextAddress.district,
-          nextAddress.state,
-          nextAddress.country,
-        ]
-          .filter(Boolean)
-          .join(", "),
-      detectedAt: nextAddress.detectedAt || new Date().toISOString(),
-      ...nextAddress,
-    };
-
-    setAddresses((previousAddresses) => {
-      const existingAddressIndex = previousAddresses.findIndex(
-        (savedAddress) => savedAddress.id === formattedAddress.id
-      );
-
-      if (existingAddressIndex >= 0) {
-        const updatedAddresses = [...previousAddresses];
-        updatedAddresses[existingAddressIndex] = formattedAddress;
-        return updatedAddresses;
-      }
-
-      return [formattedAddress, ...previousAddresses];
-    });
-
-    setSelectedAddress(formattedAddress);
-    selectAddress(formattedAddress);
-    setShowAddressOptions(false);
+    setHiddenAddressIds([]);
+    setSelectedAddressId(nextAddress.id || "saved-profile-address");
+    setIsAddressOptionsOpen(false);
     setError("");
   };
 
@@ -208,6 +112,7 @@ const Checkout = () => {
       paymentMethod: "cod",
       summary,
       paymentStatus: "Pending",
+      customerName: customer?.fullName || customer?.name || user?.displayName || "Customer",
     });
 
     if (!order) {
@@ -220,7 +125,7 @@ const Checkout = () => {
     setError("");
   };
 
-  if (!isLoggedIn) {
+  if (isAuthLoading || !isAuthenticated) {
     return null;
   }
 
@@ -304,7 +209,7 @@ const Checkout = () => {
                     <button
                       className="change-address-btn"
                       type="button"
-                      onClick={() => setShowAddressOptions(true)}
+                      onClick={() => setIsAddressOptionsOpen(true)}
                     >
                       Change address
                     </button>
@@ -380,7 +285,7 @@ const Checkout = () => {
               {showAddressOptions && (
                 <AddressChangeModal
                   open={showAddressOptions}
-                  onClose={() => setShowAddressOptions(false)}
+                  onClose={() => setIsAddressOptionsOpen(false)}
                   onSaved={handleAddressSaved}
                 />
               )}
@@ -390,7 +295,7 @@ const Checkout = () => {
                   className="add-address-btn"
                   type="button"
                   onClick={() => {
-                    setShowAddressOptions(true);
+                    setIsAddressOptionsOpen(true);
                     setError("");
                   }}
                 >

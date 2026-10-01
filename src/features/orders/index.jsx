@@ -3,9 +3,8 @@ import { FiArrowRight, FiPackage } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 
 import Navbar from "../../components/Navbar";
+import { useAuth } from "../../components/AuthContext";
 import {
-  getCurrentCustomerId,
-  getSavedOrders,
   subscribeCustomerOrders,
 } from "./orders.service";
 
@@ -13,32 +12,22 @@ import "./orders.css";
 
 const Orders = () => {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState(() => getSavedOrders());
+  const { user, loading } = useAuth();
+  const [ordersState, setOrdersState] = useState({ customerId: "", orders: [] });
+  const orders = ordersState.customerId === user?.uid ? ordersState.orders : [];
 
   useEffect(() => {
+    if (loading) return undefined;
+    const customerId = user?.uid || "";
+    if (!customerId) return undefined;
+
     const unsubscribe = subscribeCustomerOrders({
-      customerId: getCurrentCustomerId(),
-      onOrders: (firestoreOrders) => {
-        const localOrders = getSavedOrders();
-        const remoteById = new Map(
-          firestoreOrders.map((order) => [String(order.id), order])
-        );
-        const mergedOrders = localOrders.map(
-          (order) => remoteById.get(String(order.id)) || order
-        );
-
-        firestoreOrders.forEach((order) => {
-          if (!mergedOrders.some((item) => String(item.id) === String(order.id))) {
-            mergedOrders.push(order);
-          }
-        });
-
-        setOrders(mergedOrders);
-      },
+      customerId,
+      onOrders: (firestoreOrders) => setOrdersState({ customerId, orders: firestoreOrders }),
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [loading, user?.uid]);
 
   return (
     <>

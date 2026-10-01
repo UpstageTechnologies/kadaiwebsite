@@ -81,13 +81,23 @@ const Register = () => {
       navigate("/register", { replace: true });
     }
 
-    if (routeStep === "username" && !auth?.currentUser) {
-      navigate("/register", { replace: true });
-    }
+    let active = true;
+    const validateAuthenticatedStep = async () => {
+      if (routeStep !== "username" && routeStep !== "address") return;
 
-    if (routeStep === "address" && !auth?.currentUser) {
-      navigate("/register", { replace: true });
-    }
+      if (auth && typeof auth.authStateReady === "function") {
+        await auth.authStateReady();
+      }
+
+      if (active && !auth?.currentUser) {
+        navigate("/register", { replace: true });
+      }
+    };
+
+    validateAuthenticatedStep();
+    return () => {
+      active = false;
+    };
   }, [navigate, routeStep]);
 
   useEffect(() => {
@@ -179,9 +189,7 @@ const Register = () => {
       }
 
       console.log("[AUTH] OTP verification successful");
-      const uid = authenticatedUser.uid;
-      sessionStorage.setItem("kadai.phone.verifiedUid", uid);
-      navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}`, uid } });
+      navigate("/register/username", { replace: true, state: { phone: `${phoneCode}${normalizedPhone(phone)}` } });
     } catch (verifyError) {
       const code = verifyError?.code || "";
       let message = "The verification code is incorrect or expired.";

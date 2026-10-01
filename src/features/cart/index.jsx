@@ -8,12 +8,14 @@
 
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../../components/CardContext";
+import { useAuth } from "../../components/AuthContext";
 
 import "./cart.css";
 import Navbar from "../../components/Navbar";
 
 const Cart = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const {
     cartItems,
@@ -229,11 +231,8 @@ const Cart = () => {
             <button
               className="checkout-btn"
               onClick={() => {
-                const isLoggedIn =
-                  localStorage.getItem("isLoggedIn") === "true";
-
                 navigate(
-                  isLoggedIn
+                  user
                     ? "/checkout"
                     : "/login?redirect=/checkout"
                 );

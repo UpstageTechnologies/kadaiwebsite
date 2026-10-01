@@ -9,15 +9,11 @@ import {
 } from "firebase/auth";
 import {
   getFirestore,
-  collection,
   doc,
   getDoc,
-  getDocs,
-  query,
   setDoc,
   updateDoc,
   serverTimestamp,
-  where,
   onSnapshot,
 } from "firebase/firestore";
 
@@ -278,41 +274,6 @@ export const firebaseCustomerDoc = (uid) => {
   } catch (error) {
     console.error("[FIRESTORE] firebaseCustomerDoc failed:", error);
     return null;
-  }
-};
-
-export const firebaseFindCustomerByMobile = async (mobile) => {
-  if (!db) {
-    const unavailable = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
-    unavailable.code = "firestore/unavailable";
-    throw unavailable;
-  }
-
-  const normalizedMobile = String(mobile || "").replace(/\D/g, "");
-  if (normalizedMobile.length !== 10) {
-    throw new Error("Please enter a valid 10-digit Indian mobile number.");
-  }
-
-  try {
-    const customerQuery = query(
-      collection(db, "customers"),
-      where("mobile", "==", `+91${normalizedMobile}`)
-    );
-    const snapshot = await getDocs(customerQuery);
-    if (snapshot.empty) return null;
-
-    const customerDocument = snapshot.docs[0];
-    const customer = customerDocument.data() || {};
-    return {
-      ...customer,
-      uid: customer.uid || customerDocument.id,
-      mobile: customer.mobile || `+91${normalizedMobile}`,
-    };
-  } catch (error) {
-    console.error("[FIRESTORE] Customer mobile lookup failed:", error?.code || error?.message || error);
-    const friendly = new Error("Firebase Firestore is temporarily unavailable. Please check your connection and try again.");
-    friendly.code = error?.code || "firestore/read-failed";
-    throw friendly;
   }
 };
 

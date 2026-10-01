@@ -1,8 +1,16 @@
                                                                                                                                                                 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiPhone, FiArrowLeft } from "react-icons/fi";
+                                                                                                                                                                import { signOut } from "firebase/auth";
 import {
-  firebaseFindCustomerByMobile,
+                                                                                                                                                                  auth,
+                                                                                                                                                                  firebaseCreatePhoneVerifier,
+                                                                                                                                                                  firebaseSendPhoneOtp,
+                                                                                                                                                                  firebaseClearPhoneVerifier,
+                                                                                                                                                                  firebaseCustomerSnapshot,
+                                                                                                                                                                  firebaseIsPhoneOtpInProgress,
+                                                                                                                                                                  firebaseSetPhoneOtpInProgress,
+                                                                                                                                                                  normalizePhoneOtpError,
 } from "../../../services/firebase";
 
 import "./login.css";
@@ -15,6 +23,8 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [otp, setOtp] = useState("");
+  const [confirmation, setConfirmation] = useState(null);
 const validateAndShow = () => {
   const digits = String(phone || "").replace(/\D/g, "");
 
@@ -97,34 +107,64 @@ const validateAndShow = () => {
     setLoading(true);
 
     try {
-      console.log("[AUTH] Login started");
-     const normalizedPhone = String(phone || "").replace(/\D/g, "");
-      const customer = await firebaseFindCustomerByMobile(normalizedPhone);
+      if (!confirmation) {
+        if (!auth) throw new Error("Firebase auth is not configured.");
+        if (firebaseIsPhoneOtpInProgress()) return;
 
-      if (!customer) {
-        setError("Invalid phone number. This phone number is not registered.");
+        const verifier = await firebaseCreatePhoneVerifier();
+        const result = await firebaseSendPhoneOtp(`+91${phone}`, verifier);
+        setConfirmation(result);
+        setSuccess("Verification code sent.");
         return;
       }
 
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("registrationInProgress", "false");
-      localStorage.setItem("registeredUser", JSON.stringify(customer));
-      window.dispatchEvent(new Event("kadai-auth-changed"));
+      if (!/^\d{6}$/.test(otp.trim())) {
+        setError("Enter the 6-digit OTP.");
+        return;
+      }
+
+      await confirmation.confirm(otp.trim());
+      const authenticatedUser = auth?.currentUser;
+      if (!authenticatedUser?.uid) {
+        throw new Error("Firebase could not establish your login session. Please try again.");
+      }
+
+      const customerSnapshot = await firebaseCustomerSnapshot(authenticatedUser.uid);
+      if (!customerSnapshot.exists()) {
+        await signOut(auth);
+        setConfirmation(null);
+        setOtp("");
+        setError("This phone number is not registered. Please create an account first.");
+        return;
+      }
 
       setSuccess("Login successful!");
-      console.log("[AUTH] Login successful");
-
       requestLocationAfterLogin();
 
       const redirectPath = new URLSearchParams(location.search).get("redirect") || "/";
       navigate(redirectPath || "/", { replace: true });
     } catch (loginError) {
-      const message = loginError?.message || "Login failed. Please try again.";
+      const code = loginError?.code || "";
+      const message = code.startsWith("auth/")
+        ? normalizePhoneOtpError(loginError) || loginError.message
+        : loginError?.message || "Login failed. Please try again.";
       setError(message);
       console.error("[AUTH] Login error:", loginError);
+      if (confirmation) {
+        setOtp("");
+      }
     } finally {
       setLoading(false);
+      firebaseSetPhoneOtpInProgress(false);
     }
+  };
+
+  const resetOtp = () => {
+    setConfirmation(null);
+    setOtp("");
+    setError("");
+    setSuccess("");
+    firebaseClearPhoneVerifier();
   };
 
   return (
@@ -165,6 +205,7 @@ const validateAndShow = () => {
         </section>
 
         <section className="login-card">
+          <div id="recaptcha-container" />
           <div className="login-heading">
             <h2>Login</h2>
             <p>Enter your details to continue</p>
@@ -174,27 +215,48 @@ const validateAndShow = () => {
             <div className="login-field">
               <label htmlFor="phone">Phone Number</label>
 
-              <div className="input-wrapper">
-                <FiPhone />
-                <input
-                  id="phone"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  required
-                  placeholder="Enter 10-digit phone number"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))}
-                />
-              </div>
+              {confirmation ? (
+                <div className="input-wrapper">
+                  <FiPhone />
+                  <input
+                    id="phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required
+                    placeholder="Enter 6-digit OTP"
+                    value={otp}
+                    onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  />
+                </div>
+              ) : (
+                <div className="input-wrapper">
+                  <FiPhone />
+                  <input
+                    id="phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    required
+                    placeholder="Enter 10-digit phone number"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                  />
+                </div>
+              )}
             </div>
 
             {error && <div className="login-message error">{error}</div>}
             {success && <div className="login-message success">{success}</div>}
 
             <button type="submit" className="login-submit-btn" disabled={loading}>
-              {loading ? "Signing in..." : "Login"}
+              {loading ? "Signing in..." : confirmation ? "Verify & Login" : "Login"}
             </button>
+            {confirmation && (
+              <button type="button" className="register-text" onClick={resetOtp}>
+                Change phone number
+              </button>
+            )}
           </form>
 
           <div className="register-text">

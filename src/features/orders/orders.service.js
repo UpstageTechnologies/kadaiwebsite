@@ -1,51 +1,8 @@
                                                                                                                                                                                import { collection, doc, onSnapshot, query, setDoc, where } from "firebase/firestore";
 import { auth, db } from "../../services/firebase";
 
-const getOrderStorageKey = () => {
-  const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
-
-  if (!isLoggedIn) {
-    return "kadai.orders.guest";
-  }
-
-  try {
-    const user = JSON.parse(localStorage.getItem("registeredUser") || "null");
-    const email = user?.email?.trim().toLowerCase();
-    return email ? `kadai.orders.${email}` : "kadai.orders.guest";
-  } catch {
-    return "kadai.orders.guest";
-  }
-};
-
 export const getCurrentCustomerId = () => {
-  if (auth?.currentUser?.uid) {
-    return auth.currentUser.uid;
-  }
-
-  try {
-    return JSON.parse(localStorage.getItem("registeredUser") || "null")?.uid || "";
-  } catch {
-    return "";
-  }
-};
-
-export const getSavedOrders = () => {
-  try {
-    const savedOrders = JSON.parse(
-      localStorage.getItem(getOrderStorageKey()) || "[]"
-    );
-    return Array.isArray(savedOrders) ? savedOrders : [];
-  } catch {
-    return [];
-  }
-};
-
-export const saveOrder = (order) => {
-  const orders = getSavedOrders();
-  localStorage.setItem(
-    getOrderStorageKey(),
-    JSON.stringify([order, ...orders])
-  );
+  return auth?.currentUser?.uid || "";
 };
 
 export const persistOrder = async (order) => {
@@ -113,6 +70,7 @@ export const buildOrderFromCheckout = ({
   cartItems,
   address,
   summary,
+  customerName,
 }) => {
   if (!Array.isArray(cartItems) || cartItems.length === 0) {
     return null;
@@ -122,16 +80,8 @@ export const buildOrderFromCheckout = ({
     return null;
   }
 
-  const savedOrders = getSavedOrders();
-  const orderId = `KADAI-${String(savedOrders.length + 1).padStart(4, "0")}`;
-  let customerName = "Customer";
-
-  try {
-    const savedUser = JSON.parse(localStorage.getItem("registeredUser") || "null");
-    customerName = savedUser?.fullName || savedUser?.name || customerName;
-  } catch {
-    // Keep order creation working when legacy user data is malformed.
-  }
+  const orderId = `KADAI-${Date.now()}`;
+  const orderCustomerName = customerName || auth?.currentUser?.displayName || "Customer";
 
   const shops = new Map();
   cartItems.forEach((item) => {
@@ -152,7 +102,7 @@ export const buildOrderFromCheckout = ({
   const order = {
     id: orderId,
     orderId,
-    customerName,
+    customerName: orderCustomerName,
     items: cartItems.map((item) => ({ ...item })),
     orderedShops: [...shops.values()],
     address,
@@ -177,15 +127,9 @@ export const placeOrder = (payload) => {
     return null;
   }
 
-  const existingOrders = getSavedOrders();
-  const alreadyExists = existingOrders.some((savedOrder) => savedOrder.id === order.id);
-
-  if (!alreadyExists) {
-    saveOrder(order);
-    persistOrder(order).catch((error) => {
-      console.error("[FIRESTORE] Order persistence failed:", error);
-    });
-  }
+  persistOrder(order).catch((error) => {
+    console.error("[FIRESTORE] Order persistence failed:", error);
+  });
 
   return order;
 };
