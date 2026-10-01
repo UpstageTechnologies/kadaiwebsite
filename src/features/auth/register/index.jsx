@@ -470,8 +470,6 @@ const Register = () => {
         </section>
 
         <section className="register-card">
-          <div id="recaptcha-container" className="recaptcha-container" />
-
           {routeStep === "phone" && (
             <>
               <div className="register-title">
@@ -505,6 +503,8 @@ const Register = () => {
                   />
                 </div>
               </div>
+
+              <div id="recaptcha-container" className="recaptcha-container" />
 
               {error && <div className="error-message" role="alert">{error}</div>}
 

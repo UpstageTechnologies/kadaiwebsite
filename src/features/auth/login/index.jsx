@@ -205,7 +205,6 @@ const validateAndShow = () => {
         </section>
 
         <section className="login-card">
-          <div id="recaptcha-container" />
           <div className="login-heading">
             <h2>Login</h2>
             <p>Enter your details to continue</p>
@@ -245,6 +244,8 @@ const validateAndShow = () => {
                 </div>
               )}
             </div>
+
+            <div id="recaptcha-container" />
 
             {error && <div className="login-message error">{error}</div>}
             {success && <div className="login-message success">{success}</div>}

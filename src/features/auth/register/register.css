@@ -283,6 +283,8 @@
 
 #recaptcha-container {
   width: 304px;
+  max-width: 100%;
+  box-sizing: border-box;
   min-height: 78px;
   margin: 0 auto 20px;
   display: flex;
@@ -355,6 +357,19 @@
 
   .error-message {
     font-size: 13px;
+  }
+}
+
+@media (max-width: 400px) {
+  #recaptcha-container {
+    transform: scale(0.85);
+    transform-origin: center top;
+  }
+}
+
+@media (max-width: 360px) {
+  #recaptcha-container {
+    transform: scale(0.75);
   }
 }
 
