@@ -31,7 +31,6 @@ import "./register.css";
 const Register = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialPhone = location.state?.phone || getRegistrationPhone();
   const routeStep = useMemo(() => {
     if (location.pathname === "/register/otp") return "otp";
     if (location.pathname === "/register/username") return "username";
@@ -42,9 +41,10 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [phoneCode, setPhoneCode] = useState("+91");
-  const [phone, setPhone] = useState(initialPhone);
+  const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(30);
+  const [isPhoneRecaptchaVisible, setIsPhoneRecaptchaVisible] = useState(false);
   const [isResendRecaptchaVisible, setIsResendRecaptchaVisible] = useState(false);
   const [isResendVerifierReady, setIsResendVerifierReady] = useState(false);
   const [username, setUsername] = useState(getRegistrationUsername());
@@ -103,7 +103,7 @@ const Register = () => {
   }, [navigate, routeStep]);
 
   useEffect(() => {
-    if (routeStep !== "phone") return undefined;
+    if (routeStep !== "phone" || !isPhoneRecaptchaVisible) return undefined;
 
     let active = true;
     firebaseCreatePhoneVerifier().catch((verifierError) => {
@@ -119,7 +119,7 @@ const Register = () => {
       active = false;
       firebaseClearPhoneVerifier();
     };
-  }, [routeStep]);
+  }, [isPhoneRecaptchaVisible, routeStep]);
 
   useEffect(() => {
     if (routeStep !== "otp" || !isResendRecaptchaVisible) return undefined;
@@ -177,6 +177,12 @@ const Register = () => {
 
     if (loading || firebaseIsPhoneOtpInProgress()) return;
 
+    if (!isPhoneRecaptchaVisible) {
+      setError("");
+      setIsPhoneRecaptchaVisible(true);
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -184,13 +190,14 @@ const Register = () => {
       if (!auth) {
         throw new Error("Firebase auth is not configured. Check your VITE_FIREBASE_* environment variables.");
       }
-      const formatted = `${phoneCode}${normalizedPhone(phone)}`;
+          const formatted = `${phoneCode}${normalizedPhone(phone)}`;
       const verifier = await firebaseCreatePhoneVerifier();
       const newConfirmation = await firebaseSendPhoneOtp(formatted, verifier);
 
       setConfirmation(newConfirmation, formatted);
       firebaseSetPhoneOtpInProgress(false);
       setOtp("");
+      setPhone("");
 
       navigate("/register/otp", { state: { phone: formatted } });
     } catch (sendError) {
@@ -268,7 +275,7 @@ const Register = () => {
     setLoading(true);
     setError("");
     try {
-      const formatted = `${phoneCode}${normalizedPhone(phone)}`;
+      const formatted = location.state?.phone || getRegistrationPhone() || `${phoneCode}${normalizedPhone(phone)}`;
       const verifier = await firebaseCreatePhoneVerifier("recaptcha-resend-container");
       const nextConfirmation = await firebaseSendPhoneOtp(formatted, verifier);
       setConfirmation(nextConfirmation, formatted);
@@ -565,9 +572,12 @@ const Register = () => {
                   <input
                     type="tel"
                     inputMode="numeric"
+                    autoComplete="off"
                     value={phone}
                     onChange={(event) => {
-                      setPhone(event.target.value.replace(/\D/g, "").slice(0, 10));
+                      const nextPhone = event.target.value.replace(/\D/g, "").slice(0, 10);
+                      setPhone(nextPhone);
+                      setIsPhoneRecaptchaVisible(nextPhone.length === 10);
                       setError("");
                     }}
                     placeholder="Mobile number"
@@ -577,11 +587,13 @@ const Register = () => {
                 </div>
               </div>
 
-              <div id="recaptcha-container" className="recaptcha-container" />
+              {isPhoneRecaptchaVisible && (
+                <div id="recaptcha-container" className="recaptcha-container" />
+              )}
 
               {error && <div className="error-message" role="alert">{error}</div>}
 
-              <button className="register-submit" type="button" onClick={sendOtp} disabled={loading}>
+              <button className="register-submit register-phone-submit" type="button" onClick={sendOtp} disabled={loading}>
                 {loading ? "Sending..." : "Send OTP"}
               </button>
             </>
@@ -591,7 +603,7 @@ const Register = () => {
             <>
               <div className="register-title">
                 <h1>Verify your number</h1>
-                <p>Enter the 6-digit code sent to {maskPhone(`${phoneCode}${normalizedPhone(phone)}`)}</p>
+                <p>Enter the 6-digit code sent to {maskPhone(location.state?.phone || getRegistrationPhone() || `${phoneCode}${normalizedPhone(phone)}`)}</p>
               </div>
 
               <div className="register-otp-area">

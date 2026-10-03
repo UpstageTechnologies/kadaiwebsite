@@ -286,8 +286,7 @@
   width: 304px;
   max-width: 100%;
   box-sizing: border-box;
-  min-height: 78px;
-  margin: 0 auto 20px;
+  margin: 0 auto 12px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -306,6 +305,10 @@
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
   margin-top: 24px;
+}
+
+.register-phone-submit {
+  margin-top: 0;
 }
 
 .error-message {

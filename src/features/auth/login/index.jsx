@@ -1,4 +1,4 @@
-                                                                                                                                                                import { useState } from "react";
+                                                                                                                                                                import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiPhone, FiArrowLeft } from "react-icons/fi";
                                                                                                                                                                 import { signOut } from "firebase/auth";
@@ -25,6 +25,25 @@ const Login = () => {
   const [success, setSuccess] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmation, setConfirmation] = useState(null);
+  const [isRecaptchaVisible, setIsRecaptchaVisible] = useState(false);
+
+  useEffect(() => {
+    if (confirmation || !isRecaptchaVisible) return undefined;
+
+    let active = true;
+    firebaseCreatePhoneVerifier().catch((verifierError) => {
+      if (active) {
+        setError(normalizePhoneOtpError(verifierError) || verifierError?.message || "Unable to initialize device verification.");
+        setIsRecaptchaVisible(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      firebaseClearPhoneVerifier();
+    };
+  }, [confirmation, isRecaptchaVisible]);
+
 const validateAndShow = () => {
   const digits = String(phone || "").replace(/\D/g, "");
 
@@ -104,6 +123,12 @@ const validateAndShow = () => {
       return;
     }
 
+    if (!confirmation && !isRecaptchaVisible) {
+      setError("");
+      setIsRecaptchaVisible(true);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -150,6 +175,7 @@ const validateAndShow = () => {
         : loginError?.message || "Login failed. Please try again.";
       setError(message);
       console.error("[AUTH] Login error:", loginError);
+      if (!confirmation) setIsRecaptchaVisible(false);
       if (confirmation) {
         setOtp("");
       }
@@ -161,6 +187,7 @@ const validateAndShow = () => {
 
   const resetOtp = () => {
     setConfirmation(null);
+    setIsRecaptchaVisible(false);
     setOtp("");
     setError("");
     setSuccess("");
@@ -235,17 +262,23 @@ const validateAndShow = () => {
                     id="phone"
                     type="tel"
                     inputMode="numeric"
-                    autoComplete="tel"
+                    autoComplete="off"
                     required
                     placeholder="Enter 10-digit phone number"
                     value={phone}
-                    onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                    onChange={(event) => {
+                      const nextPhone = event.target.value.replace(/\D/g, "").slice(0, 10);
+                      setPhone(nextPhone);
+                      setIsRecaptchaVisible(nextPhone.length === 10);
+                    }}
                   />
                 </div>
               )}
             </div>
 
-            <div id="recaptcha-container" />
+            {!confirmation && isRecaptchaVisible && (
+              <div id="recaptcha-container" className="login-recaptcha" />
+            )}
 
             {error && <div className="login-message error">{error}</div>}
             {success && <div className="login-message success">{success}</div>}

@@ -132,6 +132,16 @@
   margin-bottom: 20px;
 }
 
+.login-recaptcha {
+  width: 304px;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto 12px;
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+}
+
 .login-field label {
   display: block;
   margin-bottom: 8px;
