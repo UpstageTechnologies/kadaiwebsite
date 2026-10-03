@@ -88,14 +88,18 @@ export const firebaseConfigDiagnosticMessage = () => {
 };
 
 let phoneVerifier = null;
+let phoneVerifierContainer = null;
+let phoneVerifierPromise = null;
+let phoneVerifierGeneration = 0;
 let phoneOtpInProgress = false;
 
-const getRecaptchaContainer = () => {
+const getRecaptchaContainer = (containerId = "recaptcha-container") => {
   if (typeof document === "undefined") {
     return null;
   }
 
-  return document.getElementById("recaptcha-container");
+  const container = document.getElementById(containerId);
+  return container?.isConnected ? container : null;
 };
 
 export const firebaseIsPhoneOtpInProgress = () => phoneOtpInProgress;
@@ -103,24 +107,29 @@ export const firebaseSetPhoneOtpInProgress = (value) => {
   phoneOtpInProgress = Boolean(value);
 };
 
-export const firebaseCreatePhoneVerifier = async () => {
+export const firebaseCreatePhoneVerifier = async (containerId = "recaptcha-container") => {
   if (!isFirebaseConfigured() || !auth) {
     throw new Error(
       "Firebase auth is not configured. Check your VITE_FIREBASE_* environment variables."
     );
   }
 
-  const container = getRecaptchaContainer();
+  const container = getRecaptchaContainer(containerId);
 
   if (!container) {
-    throw new Error("reCAPTCHA container is missing.");
+    throw new Error("The device verification box is not ready. Please try again.");
   }
 
-  // Always remove an old verifier before creating a new one
+  if (phoneVerifier && phoneVerifierContainer === container) {
+    return phoneVerifierPromise || phoneVerifier;
+  }
+
   firebaseClearPhoneVerifier();
 
+  let verifier = null;
+
   try {
-    const verifier = new RecaptchaVerifier(auth, container, {
+    verifier = new RecaptchaVerifier(auth, container, {
       size: "normal",
 
       callback: (response) => {
@@ -132,29 +141,41 @@ export const firebaseCreatePhoneVerifier = async () => {
 
       "expired-callback": () => {
         console.warn("[RECAPTCHA] Token expired.");
-        firebaseClearPhoneVerifier();
+        if (phoneVerifier === verifier) firebaseClearPhoneVerifier();
       },
 
       "error-callback": (error) => {
         console.error("[RECAPTCHA] Verification error:", error);
-        firebaseClearPhoneVerifier();
+        if (phoneVerifier === verifier) firebaseClearPhoneVerifier();
       },
     });
 
     phoneVerifier = verifier;
+    phoneVerifierContainer = container;
+    const generation = phoneVerifierGeneration;
+    const renderPromise = verifier.render().then((widgetId) => {
+      if (generation !== phoneVerifierGeneration || phoneVerifier !== verifier) {
+        verifier.clear();
+        throw new Error("The device verification box was closed. Please try again.");
+      }
 
-    const widgetId = await verifier.render();
+      console.log("[RECAPTCHA] Widget rendered successfully:", widgetId);
+      return verifier;
+    });
+    phoneVerifierPromise = renderPromise;
 
-    console.log("[RECAPTCHA] Widget rendered successfully:", widgetId);
-
-    return verifier;
+    return await renderPromise;
   } catch (error) {
     console.error(
       "[RECAPTCHA] Verifier initialization failed:",
       error
     );
 
-    firebaseClearPhoneVerifier();
+    if (phoneVerifier === verifier) {
+      firebaseClearPhoneVerifier();
+    } else if (verifier) {
+      verifier.clear();
+    }
 
     const wrapped = new Error(
       "Unable to initialize device verification. Please refresh the page and try again.",
@@ -168,7 +189,11 @@ export const firebaseCreatePhoneVerifier = async () => {
 };
 
 export const firebaseClearPhoneVerifier = () => {
+  phoneVerifierGeneration += 1;
+  phoneVerifierPromise = null;
+
   if (!phoneVerifier) {
+    phoneVerifierContainer = null;
     return;
   }
 
@@ -181,6 +206,7 @@ export const firebaseClearPhoneVerifier = () => {
   }
 
   phoneVerifier = null;
+  phoneVerifierContainer = null;
 };
 
 export const firebaseSendPhoneOtp = async (phoneNumber, verifier) => {

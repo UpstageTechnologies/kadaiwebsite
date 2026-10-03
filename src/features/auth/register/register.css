@@ -281,7 +281,8 @@
   background: #eef6ea;
 }
 
-#recaptcha-container {
+#recaptcha-container,
+#recaptcha-resend-container {
   width: 304px;
   max-width: 100%;
   box-sizing: border-box;
@@ -361,14 +362,16 @@
 }
 
 @media (max-width: 400px) {
-  #recaptcha-container {
+  #recaptcha-container,
+  #recaptcha-resend-container {
     transform: scale(0.85);
     transform-origin: center top;
   }
 }
 
 @media (max-width: 360px) {
-  #recaptcha-container {
+  #recaptcha-container,
+  #recaptcha-resend-container {
     transform: scale(0.75);
   }
 }

@@ -45,6 +45,8 @@ const Register = () => {
   const [phone, setPhone] = useState(initialPhone);
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(30);
+  const [isResendRecaptchaVisible, setIsResendRecaptchaVisible] = useState(false);
+  const [isResendVerifierReady, setIsResendVerifierReady] = useState(false);
   const [username, setUsername] = useState(getRegistrationUsername());
   const [countryId, setCountryId] = useState("");
   const [countryOptions, setCountryOptions] = useState([]);
@@ -99,6 +101,50 @@ const Register = () => {
       active = false;
     };
   }, [navigate, routeStep]);
+
+  useEffect(() => {
+    if (routeStep !== "phone") return undefined;
+
+    let active = true;
+    firebaseCreatePhoneVerifier().catch((verifierError) => {
+      if (active) {
+        const message = verifierError?.code || verifierError?.cause?.code
+          ? normalizePhoneOtpError(verifierError)
+          : verifierError?.message || "Unable to initialize device verification. Please try again.";
+        setError(message);
+      }
+    });
+
+    return () => {
+      active = false;
+      firebaseClearPhoneVerifier();
+    };
+  }, [routeStep]);
+
+  useEffect(() => {
+    if (routeStep !== "otp" || !isResendRecaptchaVisible) return undefined;
+
+    let active = true;
+    firebaseCreatePhoneVerifier("recaptcha-resend-container")
+      .then(() => {
+        if (active) setIsResendVerifierReady(true);
+      })
+      .catch((verifierError) => {
+        if (active) {
+          const message = verifierError?.code || verifierError?.cause?.code
+            ? normalizePhoneOtpError(verifierError)
+            : verifierError?.message || "Unable to initialize device verification. Please try again.";
+          setError(message);
+          setIsResendRecaptchaVisible(false);
+          setIsResendVerifierReady(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      firebaseClearPhoneVerifier();
+    };
+  }, [isResendRecaptchaVisible, routeStep]);
 
   useEffect(() => {
     if (seconds <= 0) return undefined;
@@ -181,6 +227,9 @@ const Register = () => {
     try {
       await currentConfirmation.confirm(otp.trim());
       clearConfirmation();
+      firebaseClearPhoneVerifier();
+      setIsResendRecaptchaVisible(false);
+      setIsResendVerifierReady(false);
       const authenticatedUser = auth?.currentUser;
       if (!authenticatedUser?.uid) {
         const missingUser = new Error("Phone verification succeeded, but the Firebase user is unavailable. Please verify your mobile number again.");
@@ -208,14 +257,25 @@ const Register = () => {
 
   const resendOtp = async () => {
     if (seconds > 0 || loading || firebaseIsPhoneOtpInProgress()) return;
+    if (!isResendRecaptchaVisible) {
+      setError("");
+      setIsResendVerifierReady(false);
+      setIsResendRecaptchaVisible(true);
+      return;
+    }
+    if (!isResendVerifierReady) return;
 
+    setLoading(true);
+    setError("");
     try {
       const formatted = `${phoneCode}${normalizedPhone(phone)}`;
-      const verifier = await firebaseCreatePhoneVerifier();
+      const verifier = await firebaseCreatePhoneVerifier("recaptcha-resend-container");
       const nextConfirmation = await firebaseSendPhoneOtp(formatted, verifier);
       setConfirmation(nextConfirmation, formatted);
       setSeconds(30);
       setOtp("");
+      setIsResendRecaptchaVisible(false);
+      setIsResendVerifierReady(false);
     } catch (resendError) {
       console.error(resendError);
       const mapped = normalizePhoneOtpError(resendError);
@@ -223,7 +283,20 @@ const Register = () => {
       setError(mapped || fallback);
       firebaseClearPhoneVerifier();
       firebaseSetPhoneOtpInProgress(false);
+      setIsResendRecaptchaVisible(false);
+      setIsResendVerifierReady(false);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const leaveRegistration = () => {
+    clearConfirmation();
+    firebaseClearPhoneVerifier();
+    firebaseSetPhoneOtpInProgress(false);
+    setIsResendRecaptchaVisible(false);
+    setIsResendVerifierReady(false);
+    navigate("/");
   };
 
   const createAccount = async () => {
@@ -444,7 +517,7 @@ const Register = () => {
 
   return (
     <main className="register-page">
-      <button className="register-back" type="button" onClick={() => navigate("/")}>
+      <button className="register-back" type="button" onClick={leaveRegistration}>
         <FiArrowLeft /> Back to Home
       </button>
 
@@ -543,9 +616,17 @@ const Register = () => {
                 {loading ? "Verifying..." : "Verify & Continue"}
               </button>
 
+              {isResendRecaptchaVisible && (
+                <div id="recaptcha-resend-container" className="recaptcha-container" />
+              )}
+
               <div className="register-resend">
                 <span>Didn't receive the code?</span>
-                <button type="button" onClick={resendOtp} disabled={loading || seconds > 0}>
+                <button
+                  type="button"
+                  onClick={resendOtp}
+                  disabled={loading || seconds > 0 || (isResendRecaptchaVisible && !isResendVerifierReady)}
+                >
                   {seconds > 0 ? `Resend in 00:${String(seconds).padStart(2, "0")}` : "Resend OTP"}
                 </button>
               </div>
