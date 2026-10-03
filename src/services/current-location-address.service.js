@@ -27,22 +27,44 @@ const getCoordinates = () => new Promise((resolve, reject) => {
     return;
   }
 
-  navigator.geolocation.getCurrentPosition(
-    ({ coords }) => resolve({
-      latitude: Number(coords.latitude),
-      longitude: Number(coords.longitude),
-    }),
-    (error) => {
-      const message = error?.code === LOCATION_ERROR_CODES.PERMISSION_DENIED
-        ? "Location permission is disabled. Please enable location access and try again."
-        : error?.code === LOCATION_ERROR_CODES.POSITION_UNAVAILABLE
-          ? "GPS/location is currently unavailable. Turn on location and try again."
-          : error?.code === LOCATION_ERROR_CODES.TIMEOUT
-            ? "Location request timed out. Please try again."
-            : "Unable to detect your current location. Please try again.";
-      reject(new Error(message));
-    },
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
+  const onSuccess = ({ coords }) => resolve({
+    latitude: Number(coords.latitude),
+    longitude: Number(coords.longitude),
+  });
+  const requestLocation = (options, onError) => {
+    navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
+  };
+
+  requestLocation(
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+    (highAccuracyError) => {
+      if (highAccuracyError?.code === LOCATION_ERROR_CODES.PERMISSION_DENIED) {
+        reject(new Error("Location permission is disabled. Please allow this site to access your location, then try again."));
+        return;
+      }
+
+      if (
+        highAccuracyError?.code !== LOCATION_ERROR_CODES.TIMEOUT
+        && highAccuracyError?.code !== LOCATION_ERROR_CODES.POSITION_UNAVAILABLE
+      ) {
+        reject(new Error("Unable to detect your current location. Please try again."));
+        return;
+      }
+
+      requestLocation(
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 },
+        (fallbackError) => {
+          const message = fallbackError?.code === LOCATION_ERROR_CODES.PERMISSION_DENIED
+            ? "Location permission is disabled. Please allow this site to access your location, then try again."
+            : fallbackError?.code === LOCATION_ERROR_CODES.TIMEOUT
+              ? "Location request timed out after trying GPS and a standard location request. Please try again."
+              : fallbackError?.code === LOCATION_ERROR_CODES.POSITION_UNAVAILABLE
+                ? "Your location is currently unavailable. Check that location services are on and try again."
+                : "Unable to detect your current location. Please try again.";
+          reject(new Error(message));
+        }
+      );
+    }
   );
 });
 
