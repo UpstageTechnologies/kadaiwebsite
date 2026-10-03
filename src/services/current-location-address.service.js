@@ -80,43 +80,88 @@ export const getCurrentLocationAddress = async () => {
   }
 
   const data = await response.json();
-  const parts = data.address || {};
-  const house = firstValue(parts.house_number, parts.house_name, parts.building);
-  const road = firstValue(parts.road, parts.pedestrian, parts.residential);
+  const parts = data?.address || {};
+  const house = firstValue(parts.house_number, parts["addr:housenumber"]);
+  const building = firstValue(
+    parts.building !== "yes" ? parts.building : "",
+    parts.house_name,
+    parts.building_name,
+    parts["building:name"]
+  );
+  const flat = firstValue(
+    parts.unit,
+    parts.apartment,
+    parts.door,
+    parts.room,
+    parts["addr:unit"],
+    parts["addr:door"],
+    parts["addr:flats"]
+  );
+  const road = firstValue(
+    parts.road,
+    parts.pedestrian,
+    parts.residential,
+    parts.street,
+    parts.footway,
+    parts.path
+  );
   const area = firstValue(
     parts.suburb,
     parts.neighbourhood,
     parts.quarter,
+    parts.city_district,
     parts.hamlet,
     parts.locality,
     parts.village
   );
+  const landmark = firstValue(
+    parts.amenity,
+    parts.attraction,
+    parts.shop,
+    parts.tourism,
+    parts.leisure,
+    parts.historic,
+    parts.office,
+    parts.entrance
+  );
+  const village = firstValue(parts.village, parts.hamlet);
   const city = firstValue(parts.city, parts.town, parts.municipality, parts.village);
   const district = firstValue(parts.state_district, parts.county, parts.district);
   const state = firstValue(parts.state);
   const country = firstValue(parts.country);
   const pincode = firstValue(parts.postcode);
+  const formattedAddress = firstValue(
+    data?.display_name,
+    [
+      house,
+      building,
+      flat,
+      road,
+      area,
+      village,
+      city,
+      district,
+      state,
+      country,
+      pincode,
+    ].filter((value, index, values) => value && values.indexOf(value) === index).join(", ")
+  );
   const normalizedAddress = {
     ...coordinates,
     house,
+    building,
+    flat,
     road,
-    area: area || road,
+    area,
+    landmark,
+    village,
     pincode,
     city,
     district,
     country,
     state,
-    fullAddress: [
-      house,
-      road,
-      area,
-      city,
-      district,
-      state,
-      pincode,
-    ].filter((value, index, values) => value && values.indexOf(value) === index).join(", ")
-      || data.display_name
-      || `${coordinates.latitude}, ${coordinates.longitude}`,
+    formattedAddress,
+    fullAddress: formattedAddress,
     locationSource: "gps",
   };
 

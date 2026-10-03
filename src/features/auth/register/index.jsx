@@ -56,8 +56,13 @@ const Register = () => {
   const [city, setCity] = useState("");
   const [area, setArea] = useState("");
   const [house, setHouse] = useState("");
+  const [building, setBuilding] = useState("");
+  const [flat, setFlat] = useState("");
   const [road, setRoad] = useState("");
+  const [landmark, setLandmark] = useState("");
+  const [village, setVillage] = useState("");
   const [pincode, setPincode] = useState("");
+  const [formattedAddress, setFormattedAddress] = useState("");
   const [detectedFullAddress, setDetectedFullAddress] = useState("");
   const [locationMode, setLocationMode] = useState("manual");
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -461,6 +466,20 @@ const Register = () => {
     setError("");
     setLatitude(null);
     setLongitude(null);
+    setCountryId("");
+    setState("");
+    setDistrict("");
+    setCity("");
+    setArea("");
+    setHouse("");
+    setBuilding("");
+    setFlat("");
+    setRoad("");
+    setLandmark("");
+    setVillage("");
+    setPincode("");
+    setFormattedAddress("");
+    setDetectedFullAddress("");
     try {
       const detectedAddress = await getCurrentLocationAddress();
       if (detectionId !== locationDetectionId.current) return;
@@ -470,14 +489,19 @@ const Register = () => {
       locationRequestIds.current.cities += 1;
       locationRequestIds.current.areas += 1;
       setCountryOptions(detectedAddress.options.countries);
-      setCountryId(detectedAddress.matches.country?.value || detectedAddress.country);
-      setState(detectedAddress.matches.state?.value || detectedAddress.state);
-      setDistrict(detectedAddress.matches.district?.value || detectedAddress.district);
-      setCity(detectedAddress.matches.city?.value || detectedAddress.city);
-      setArea(detectedAddress.matches.area?.value || detectedAddress.area);
+      setCountryId(detectedAddress.country);
+      setState(detectedAddress.state);
+      setDistrict(detectedAddress.district);
+      setCity(detectedAddress.city);
+      setArea(detectedAddress.area);
       setHouse(detectedAddress.house);
+      setBuilding(detectedAddress.building);
+      setFlat(detectedAddress.flat);
       setRoad(detectedAddress.road);
+      setLandmark(detectedAddress.landmark);
+      setVillage(detectedAddress.village);
       setPincode(detectedAddress.pincode);
+      setFormattedAddress(detectedAddress.formattedAddress);
       setDetectedFullAddress(detectedAddress.fullAddress);
       setLatitude(detectedAddress.latitude);
       setLongitude(detectedAddress.longitude);
@@ -536,7 +560,20 @@ const Register = () => {
       const isGpsAddress = locationMode === "gps";
       const countryLabel = countryOptions.find((option) => option.value === countryId)?.label || countryId;
       const addressFields = isGpsAddress
-        ? [house, road, pincode]
+        ? [
+          house,
+          building,
+          flat,
+          road,
+          area,
+          landmark,
+          village,
+          city,
+          district,
+          state,
+          countryId,
+          pincode,
+        ]
         : [area, city, district, state, countryLabel];
       await firebaseUpsertCustomerProfile(authenticatedUser.uid, {
         uid: authenticatedUser.uid,
@@ -545,16 +582,21 @@ const Register = () => {
         displayName: username.trim(),
         mobile: authenticatedUser.phoneNumber,
         address: {
-          country: isGpsAddress ? "" : countryId,
-          state: isGpsAddress ? "" : state,
-          district: isGpsAddress ? "" : district,
-          city: isGpsAddress ? "" : city,
-          area: isGpsAddress ? "" : area,
+          country: countryId,
+          state,
+          district,
+          city,
+          area,
           house: isGpsAddress ? house : "",
+          building: isGpsAddress ? building : "",
+          flat: isGpsAddress ? flat : "",
           road: isGpsAddress ? road : "",
+          landmark: isGpsAddress ? landmark : "",
+          village: isGpsAddress ? village : "",
           fullAddress: addressFields
             .filter(Boolean)
             .join(", ") || (locationMode === "gps" ? detectedFullAddress : ""),
+          formattedAddress: isGpsAddress ? formattedAddress : "",
           pincode: isGpsAddress ? pincode : "",
           lat: isGpsAddress ? latitude : null,
           lon: isGpsAddress ? longitude : null,
@@ -756,8 +798,13 @@ const Register = () => {
                     setLongitude(null);
                     setDetectedFullAddress("");
                     setHouse("");
+                    setBuilding("");
+                    setFlat("");
                     setRoad("");
+                    setLandmark("");
+                    setVillage("");
                     setPincode("");
+                    setFormattedAddress("");
                     setCountryId("");
                     setState("");
                     setDistrict("");
@@ -777,13 +824,53 @@ const Register = () => {
                       <input value={house} onChange={(event) => setHouse(event.target.value)} disabled={loading} />
                   </div>
                   <div className="register-field">
-                    <span>Road Name / Area / Colony</span>
-                    <input value={road} onChange={(event) => setRoad(event.target.value)} disabled={loading} />
+                      <span>Building Name</span>
+                      <input value={building} onChange={(event) => setBuilding(event.target.value)} disabled={loading} />
                   </div>
                   <div className="register-field">
-                    <span>Pincode</span>
-                    <input value={pincode} onChange={(event) => setPincode(event.target.value)} disabled={loading} />
+                      <span>Flat / Door Number</span>
+                      <input value={flat} onChange={(event) => setFlat(event.target.value)} disabled={loading} />
                   </div>
+                    <div className="register-field">
+                      <span>Road Name / Area / Colony</span>
+                      <input value={road} onChange={(event) => setRoad(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>Area / Locality / Colony</span>
+                      <input value={area} onChange={(event) => setArea(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>Landmark</span>
+                      <input value={landmark} onChange={(event) => setLandmark(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>Village</span>
+                      <input value={village} onChange={(event) => setVillage(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>City / Town</span>
+                      <input value={city} onChange={(event) => setCity(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>District</span>
+                      <input value={district} onChange={(event) => setDistrict(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>State</span>
+                      <input value={state} onChange={(event) => setState(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>Country</span>
+                      <input value={countryId} onChange={(event) => setCountryId(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>Pincode</span>
+                      <input value={pincode} onChange={(event) => setPincode(event.target.value)} disabled={loading} />
+                    </div>
+                    <div className="register-field">
+                      <span>Formatted Address</span>
+                      <input value={formattedAddress} onChange={(event) => setFormattedAddress(event.target.value)} disabled={loading} />
+                    </div>
                 </div>
               ) : (
                 <div className="register-form-grid">

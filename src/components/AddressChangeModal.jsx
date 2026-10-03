@@ -13,12 +13,17 @@ import { getCurrentLocationAddress } from "../services/current-location-address.
 const normalizeAddress = (value = {}) => ({
   country: value.country || "",
   house: value.house || "",
+  building: value.building || "",
+  flat: value.flat || "",
   road: value.road || "",
   state: value.state || "",
   district: value.district || "",
   city: value.city || "",
   area: value.area || "",
+  landmark: value.landmark || "",
+  village: value.village || "",
   fullAddress: value.fullAddress || value.address || "",
+  formattedAddress: value.formattedAddress || value.fullAddress || value.address || "",
   pincode: value.pincode || "",
   lat: value.lat ?? null,
   lon: value.lon ?? null,
@@ -41,7 +46,12 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   const [addressCity, setAddressCity] = useState("");
   const [addressArea, setAddressArea] = useState("");
   const [addressHouse, setAddressHouse] = useState("");
+  const [addressBuilding, setAddressBuilding] = useState("");
+  const [addressFlat, setAddressFlat] = useState("");
   const [addressRoad, setAddressRoad] = useState("");
+  const [addressLandmark, setAddressLandmark] = useState("");
+  const [addressVillage, setAddressVillage] = useState("");
+  const [addressFormatted, setAddressFormatted] = useState("");
   const [addressFullFallback, setAddressFullFallback] = useState("");
   const [addressPincode, setAddressPincode] = useState("");
   const [addressLatitude, setAddressLatitude] = useState(null);
@@ -70,7 +80,12 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       setAddressCity("");
       setAddressArea("");
       setAddressHouse("");
+      setAddressBuilding("");
+      setAddressFlat("");
       setAddressRoad("");
+      setAddressLandmark("");
+      setAddressVillage("");
+      setAddressFormatted("");
       setAddressFullFallback("");
       setAddressPincode("");
       setAddressLatitude(null);
@@ -106,7 +121,12 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
         setAddressCountryId(customerAddress.country || "");
         setAddressHouse(customerAddress.house || "");
+        setAddressBuilding(customerAddress.building || "");
+        setAddressFlat(customerAddress.flat || "");
         setAddressRoad(customerAddress.road || "");
+        setAddressLandmark(customerAddress.landmark || "");
+        setAddressVillage(customerAddress.village || "");
+        setAddressFormatted(customerAddress.formattedAddress || customerAddress.fullAddress || "");
         setAddressFullFallback(customerAddress.fullAddress || "");
         setAddressState(customerAddress.state || "");
         setAddressDistrict(customerAddress.district || "");
@@ -235,8 +255,18 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
     setAddressCity("");
     setAddressArea("");
     setAddressHouse("");
+    setAddressBuilding("");
+    setAddressFlat("");
     setAddressRoad("");
+    setAddressLandmark("");
+    setAddressVillage("");
+    setAddressFormatted("");
     setAddressPincode("");
+    setAddressCity("");
+    setAddressDistrict("");
+    setAddressState("");
+    setAddressCountryId("");
+    setAddressArea("");
     setAddressLatitude(null);
     setAddressLongitude(null);
     setAddressFullFallback("");
@@ -248,16 +278,21 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       const detectedAddress = await getCurrentLocationAddress();
       if (detectionId !== addressDetectionId.current) return;
       setAddressHouse(detectedAddress.house);
+      setAddressBuilding(detectedAddress.building);
+      setAddressFlat(detectedAddress.flat);
       setAddressRoad(detectedAddress.road);
-      setAddressFullFallback(detectedAddress.fullAddress);
+      setAddressLandmark(detectedAddress.landmark);
+      setAddressVillage(detectedAddress.village);
+      setAddressFormatted(detectedAddress.formattedAddress);
+      setAddressFullFallback(detectedAddress.formattedAddress);
       setAddressPincode(detectedAddress.pincode);
       setAddressLatitude(detectedAddress.latitude);
       setAddressLongitude(detectedAddress.longitude);
-      setAddressCountryId(detectedAddress.matches.country?.id || detectedAddress.country);
-      setAddressState(detectedAddress.matches.state?.id || detectedAddress.state);
-      setAddressDistrict(detectedAddress.matches.district?.id || detectedAddress.district);
-      setAddressCity(detectedAddress.matches.city?.id || detectedAddress.city);
-      setAddressArea(detectedAddress.matches.area?.id || detectedAddress.area);
+      setAddressCountryId(detectedAddress.country);
+      setAddressState(detectedAddress.state);
+      setAddressDistrict(detectedAddress.district);
+      setAddressCity(detectedAddress.city);
+      setAddressArea(detectedAddress.area);
       setAddressCountryOptions(detectedAddress.options.countries);
       setAddressStateOptions(detectedAddress.options.states);
       setAddressDistrictOptions(detectedAddress.options.districts);
@@ -314,7 +349,20 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       const optionLabel = (options, value) =>
         options.find((option) => option.id === value || option.value === value)?.label || value;
       const addressParts = addressMode === "gps"
-        ? [addressHouse, addressRoad, addressPincode]
+        ? [
+          addressHouse,
+          addressBuilding,
+          addressFlat,
+          addressRoad,
+          addressArea,
+          addressLandmark,
+          addressVillage,
+          addressCity,
+          addressDistrict,
+          addressState,
+          addressCountryId,
+          addressPincode,
+        ]
         : [
           optionLabel(addressAreaOptions, addressArea),
           optionLabel(addressCityOptions, addressCity),
@@ -322,19 +370,26 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
           optionLabel(addressStateOptions, addressState),
           optionLabel(addressCountryOptions, addressCountryId),
         ];
-      const fullAddress = addressParts
+      const composedAddress = addressParts
         .map((part) => String(part || "").trim())
         .filter((part, index, parts) => part && parts.indexOf(part) === index)
-        .join(", ") || (addressMode === "gps" ? addressFullFallback : "");
+        .join(", ");
+      const fullAddress = composedAddress
+        || (addressMode === "gps" ? addressFormatted || addressFullFallback : "");
       const nextAddress = {
-        country: addressMode === "manual" ? addressCountryId : "",
+        country: addressCountryId,
         house: addressMode === "gps" ? addressHouse.trim() : "",
+        building: addressMode === "gps" ? addressBuilding.trim() : "",
+        flat: addressMode === "gps" ? addressFlat.trim() : "",
         road: addressMode === "gps" ? addressRoad.trim() : "",
-        state: addressMode === "manual" ? addressState : "",
-        district: addressMode === "manual" ? addressDistrict : "",
-        city: addressMode === "manual" ? addressCity : "",
-        area: addressMode === "manual" ? addressArea : "",
+        state: addressState,
+        district: addressDistrict,
+        city: addressCity,
+        area: addressMode === "gps" ? addressArea.trim() : addressArea,
+        landmark: addressMode === "gps" ? addressLandmark.trim() : "",
+        village: addressMode === "gps" ? addressVillage.trim() : "",
         fullAddress,
+        formattedAddress: addressMode === "gps" ? addressFormatted.trim() : "",
         pincode: addressMode === "gps" ? addressPincode.trim() : "",
         lat: addressMode === "gps" ? addressLatitude : null,
         lon: addressMode === "gps" ? addressLongitude : null,
@@ -454,7 +509,12 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
                 setIsDetectingAddress(false);
                 setAddressMode("manual");
                 setAddressHouse("");
+                setAddressBuilding("");
+                setAddressFlat("");
                 setAddressRoad("");
+                setAddressLandmark("");
+                setAddressVillage("");
+                setAddressFormatted("");
                 setAddressPincode("");
                 setAddressLatitude(null);
                 setAddressLongitude(null);
@@ -493,9 +553,72 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
             />
             <input
               type="text"
+              value={addressBuilding}
+              onChange={(event) => setAddressBuilding(event.target.value)}
+              placeholder="Building Name"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressFlat}
+              onChange={(event) => setAddressFlat(event.target.value)}
+              placeholder="Flat / Door Number"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
               value={addressRoad}
               onChange={(event) => setAddressRoad(event.target.value)}
               placeholder="Road Name / Area / Colony"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressArea}
+              onChange={(event) => setAddressArea(event.target.value)}
+              placeholder="Area / Locality / Colony"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressLandmark}
+              onChange={(event) => setAddressLandmark(event.target.value)}
+              placeholder="Landmark"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressVillage}
+              onChange={(event) => setAddressVillage(event.target.value)}
+              placeholder="Village"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressCity}
+              onChange={(event) => setAddressCity(event.target.value)}
+              placeholder="City / Town"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressDistrict}
+              onChange={(event) => setAddressDistrict(event.target.value)}
+              placeholder="District"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressState}
+              onChange={(event) => setAddressState(event.target.value)}
+              placeholder="State"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressCountryId}
+              onChange={(event) => setAddressCountryId(event.target.value)}
+              placeholder="Country"
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             />
             <input
@@ -504,6 +627,13 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
               onChange={(event) => setAddressPincode(event.target.value)}
               placeholder="Pincode"
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <textarea
+              value={addressFormatted}
+              onChange={(event) => setAddressFormatted(event.target.value)}
+              placeholder="Formatted Address"
+              rows={3}
+              style={{ gridColumn: "1 / -1", width: "100%", resize: "vertical", padding: 10, borderRadius: 8, border: "1px solid #d1d5db", font: "inherit" }}
             />
             </div>
           ) : (
