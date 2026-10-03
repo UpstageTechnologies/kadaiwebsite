@@ -30,7 +30,17 @@ const normalizeAddress = (value = {}) => ({
   locationSource: value.locationSource === "gps" ? "gps" : "manual",
 });
 
-export default function AddressChangeModal({ open, onClose, onSaved }) {
+const resolveLocationOptionId = (options, value) => {
+  const normalizedValue = String(value || "").trim().toLocaleLowerCase();
+  return options.find((option) =>
+    option.id === value
+    || option.value === value
+    || String(option.label || "").trim().toLocaleLowerCase() === normalizedValue
+  )?.id || value;
+};
+
+export default function AddressChangeModal({ open, onClose, onSaved, flow = "change" }) {
+  const isAddFlow = flow === "add";
   const [addressError, setAddressError] = useState("");
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [isDetectingAddress, setIsDetectingAddress] = useState(false);
@@ -64,6 +74,21 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
     cities: false,
     areas: false,
   });
+  const selectedCountryId = isAddFlow
+    ? resolveLocationOptionId(addressCountryOptions, addressCountryId)
+    : addressCountryId;
+  const selectedStateId = isAddFlow
+    ? resolveLocationOptionId(addressStateOptions, addressState)
+    : addressState;
+  const selectedDistrictId = isAddFlow
+    ? resolveLocationOptionId(addressDistrictOptions, addressDistrict)
+    : addressDistrict;
+  const selectedCityId = isAddFlow
+    ? resolveLocationOptionId(addressCityOptions, addressCity)
+    : addressCity;
+  const selectedAreaId = isAddFlow
+    ? resolveLocationOptionId(addressAreaOptions, addressArea)
+    : addressArea;
 
   useEffect(() => {
     if (!open) {
@@ -135,7 +160,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         setAddressPincode(customerAddress.pincode || "");
         setAddressLatitude(customerAddress.lat ?? null);
         setAddressLongitude(customerAddress.lon ?? null);
-        setAddressMode(customerAddress.locationSource === "gps" ? "gps" : "manual");
+        setAddressMode(!isAddFlow && customerAddress.locationSource === "gps" ? "gps" : "manual");
       } catch (error) {
         console.error("[ADDRESS MODAL] Failed to load customer address:", error);
         if (active) {
@@ -168,7 +193,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       active = false;
       addressDetectionId.current += 1;
     };
-  }, [open]);
+  }, [open, isAddFlow]);
 
   const loadAddressOptions = async (level, values) => {
     const detectionId = addressDetectionId.current;
@@ -201,48 +226,60 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   };
 
   useEffect(() => {
-    if (!open || addressMode !== "manual" || !addressCountryId) {
+    if (!open || addressMode !== "manual" || !selectedCountryId) {
+      return;
+    }
+    if (isAddFlow && !addressCountryOptions.some((option) => option.id === selectedCountryId)) {
       return;
     }
 
-    loadAddressOptions("states", { countryId: addressCountryId });
-  }, [open, addressMode, addressCountryId]);
+    loadAddressOptions("states", { countryId: selectedCountryId });
+  }, [open, addressMode, isAddFlow, selectedCountryId, addressCountryOptions]);
 
   useEffect(() => {
-    if (!open || addressMode !== "manual" || !addressCountryId || !addressState) {
+    if (!open || addressMode !== "manual" || !selectedCountryId || !selectedStateId) {
+      return;
+    }
+    if (isAddFlow && !addressStateOptions.some((option) => option.id === selectedStateId)) {
       return;
     }
 
     loadAddressOptions("districts", {
-      countryId: addressCountryId,
-      stateId: addressState,
+      countryId: selectedCountryId,
+      stateId: selectedStateId,
     });
-  }, [open, addressMode, addressCountryId, addressState]);
+  }, [open, addressMode, isAddFlow, selectedCountryId, selectedStateId, addressStateOptions]);
 
   useEffect(() => {
-    if (!open || addressMode !== "manual" || !addressCountryId || !addressState || !addressDistrict) {
+    if (!open || addressMode !== "manual" || !selectedCountryId || !selectedStateId || !selectedDistrictId) {
+      return;
+    }
+    if (isAddFlow && !addressDistrictOptions.some((option) => option.id === selectedDistrictId)) {
       return;
     }
 
     loadAddressOptions("cities", {
-      countryId: addressCountryId,
-      stateId: addressState,
-      districtId: addressDistrict,
+      countryId: selectedCountryId,
+      stateId: selectedStateId,
+      districtId: selectedDistrictId,
     });
-  }, [open, addressMode, addressCountryId, addressState, addressDistrict]);
+  }, [open, addressMode, isAddFlow, selectedCountryId, selectedStateId, selectedDistrictId, addressDistrictOptions]);
 
   useEffect(() => {
-    if (!open || addressMode !== "manual" || !addressCountryId || !addressState || !addressDistrict || !addressCity) {
+    if (!open || addressMode !== "manual" || !selectedCountryId || !selectedStateId || !selectedDistrictId || !selectedCityId) {
+      return;
+    }
+    if (isAddFlow && !addressCityOptions.some((option) => option.id === selectedCityId)) {
       return;
     }
 
     loadAddressOptions("areas", {
-      countryId: addressCountryId,
-      stateId: addressState,
-      districtId: addressDistrict,
-      cityId: addressCity,
+      countryId: selectedCountryId,
+      stateId: selectedStateId,
+      districtId: selectedDistrictId,
+      cityId: selectedCityId,
     });
-  }, [open, addressMode, addressCountryId, addressState, addressDistrict, addressCity]);
+  }, [open, addressMode, isAddFlow, selectedCountryId, selectedStateId, selectedDistrictId, selectedCityId, addressCityOptions]);
 
   const handleCurrentLocation = async () => {
     const detectionId = ++addressDetectionId.current;
@@ -334,11 +371,16 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       const customerUid = firebaseUser.uid;
       console.log("[ADDRESS DEBUG] Firebase auth UID:", customerUid);
 
-      if (addressMode === "manual") {
+      if (!isAddFlow && addressMode === "manual") {
         if (!addressCountryId || !addressState || !addressDistrict || !addressCity || !addressArea) {
           setAddressError("Please select Country, State, District, City, and Area.");
           return;
         }
+      }
+
+      if (isAddFlow && (!selectedCountryId || !selectedStateId || !selectedDistrictId || !selectedCityId || !selectedAreaId)) {
+        setAddressError("Please enter Country, State, District, City, and Area.");
+        return;
       }
 
       if (addressMode === "gps" && (addressLatitude === null || addressLongitude === null)) {
@@ -348,7 +390,19 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
       const optionLabel = (options, value) =>
         options.find((option) => option.id === value || option.value === value)?.label || value;
-      const addressParts = addressMode === "gps"
+      const addressParts = isAddFlow
+        ? [
+          addressHouse,
+          addressRoad,
+          optionLabel(addressAreaOptions, selectedAreaId),
+          addressLandmark,
+          optionLabel(addressCityOptions, selectedCityId),
+          optionLabel(addressDistrictOptions, selectedDistrictId),
+          optionLabel(addressStateOptions, selectedStateId),
+          optionLabel(addressCountryOptions, selectedCountryId),
+          addressPincode,
+        ]
+        : addressMode === "gps"
         ? [
           addressHouse,
           addressBuilding,
@@ -374,23 +428,28 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         .map((part) => String(part || "").trim())
         .filter((part, index, parts) => part && parts.indexOf(part) === index)
         .join(", ");
-      const fullAddress = composedAddress
+      const fullAddress = (isAddFlow ? addressFormatted.trim() : composedAddress)
+        || composedAddress
         || (addressMode === "gps" ? addressFormatted || addressFullFallback : "");
       const nextAddress = {
-        country: addressCountryId,
-        house: addressMode === "gps" ? addressHouse.trim() : "",
+        country: isAddFlow ? selectedCountryId : addressCountryId,
+        house: addressMode === "gps" || isAddFlow ? addressHouse.trim() : "",
         building: addressMode === "gps" ? addressBuilding.trim() : "",
         flat: addressMode === "gps" ? addressFlat.trim() : "",
-        road: addressMode === "gps" ? addressRoad.trim() : "",
-        state: addressState,
-        district: addressDistrict,
-        city: addressCity,
-        area: addressMode === "gps" ? addressArea.trim() : addressArea,
-        landmark: addressMode === "gps" ? addressLandmark.trim() : "",
+        road: addressMode === "gps" || isAddFlow ? addressRoad.trim() : "",
+        state: isAddFlow ? selectedStateId : addressState,
+        district: isAddFlow ? selectedDistrictId : addressDistrict,
+        city: isAddFlow ? selectedCityId : addressCity,
+        area: isAddFlow
+          ? selectedAreaId
+          : addressMode === "gps"
+            ? addressArea.trim()
+            : addressArea,
+        landmark: addressMode === "gps" || isAddFlow ? addressLandmark.trim() : "",
         village: addressMode === "gps" ? addressVillage.trim() : "",
         fullAddress,
-        formattedAddress: addressMode === "gps" ? addressFormatted.trim() : "",
-        pincode: addressMode === "gps" ? addressPincode.trim() : "",
+        formattedAddress: addressMode === "gps" || isAddFlow ? addressFormatted.trim() : "",
+        pincode: addressMode === "gps" || isAddFlow ? addressPincode.trim() : "",
         lat: addressMode === "gps" ? addressLatitude : null,
         lon: addressMode === "gps" ? addressLongitude : null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
@@ -486,6 +545,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         )}
 
         <div style={{ display: "grid", gap: 12 }}>
+          {!isAddFlow && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               type="button"
@@ -541,8 +601,119 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
               Manual Address
             </button>
           </div>
+          )}
 
-          {addressMode === "gps" ? (
+          {isAddFlow ? (
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+              <input
+                type="text"
+                value={addressHouse}
+                onChange={(event) => setAddressHouse(event.target.value)}
+                placeholder="House No. / Building"
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              />
+              <input
+                type="text"
+                value={addressRoad}
+                onChange={(event) => setAddressRoad(event.target.value)}
+                placeholder="Road Name / Area / Colony"
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              />
+              <input
+                type="text"
+                value={addressPincode}
+                onChange={(event) => setAddressPincode(event.target.value)}
+                placeholder="Pincode"
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              />
+              <select
+                value={selectedCountryId}
+                onChange={(event) => {
+                  setAddressCountryId(event.target.value);
+                  setAddressState("");
+                  setAddressDistrict("");
+                  setAddressCity("");
+                  setAddressArea("");
+                }}
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              >
+                <option value="">Select Country</option>
+                {addressCountryOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+              <select
+                value={selectedStateId}
+                onChange={(event) => {
+                  setAddressState(event.target.value);
+                  setAddressDistrict("");
+                  setAddressCity("");
+                  setAddressArea("");
+                }}
+                disabled={!selectedCountryId || addressLoading.states}
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              >
+                <option value="">Select State</option>
+                {addressStateOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+              <select
+                value={selectedDistrictId}
+                onChange={(event) => {
+                  setAddressDistrict(event.target.value);
+                  setAddressCity("");
+                  setAddressArea("");
+                }}
+                disabled={!selectedStateId || addressLoading.districts}
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              >
+                <option value="">Select District</option>
+                {addressDistrictOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+              <select
+                value={selectedCityId}
+                onChange={(event) => {
+                  setAddressCity(event.target.value);
+                  setAddressArea("");
+                }}
+                disabled={!selectedDistrictId || addressLoading.cities}
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              >
+                <option value="">Select City</option>
+                {addressCityOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+              <select
+                value={selectedAreaId}
+                onChange={(event) => setAddressArea(event.target.value)}
+                disabled={!selectedCityId || addressLoading.areas}
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              >
+                <option value="">Select Area</option>
+                {addressAreaOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={addressLandmark}
+                onChange={(event) => setAddressLandmark(event.target.value)}
+                placeholder="Landmark"
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              />
+              <textarea
+                value={addressFormatted}
+                onChange={(event) => setAddressFormatted(event.target.value)}
+                placeholder="Formatted Address"
+                rows={3}
+                style={{ gridColumn: "1 / -1", width: "100%", resize: "vertical", padding: 10, borderRadius: 8, border: "1px solid #d1d5db", font: "inherit" }}
+              />
+            </div>
+          ) : addressMode === "gps" ? (
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             <input
               type="text"

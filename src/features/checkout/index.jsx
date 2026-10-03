@@ -33,6 +33,7 @@ const Checkout = () => {
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [hiddenAddressIds, setHiddenAddressIds] = useState([]);
   const [isAddressOptionsOpen, setIsAddressOptionsOpen] = useState(false);
+  const [isAddingAddress, setIsAddingAddress] = useState(false);
 
   const isAuthenticated = Boolean(user);
   const addresses = getSavedAddresses(location, customer?.address)
@@ -84,6 +85,7 @@ const Checkout = () => {
   };
 
   const handleEditAddress = () => {
+    setIsAddingAddress(false);
     setIsAddressOptionsOpen(true);
     setError("");
   };
@@ -91,6 +93,7 @@ const Checkout = () => {
   const handleAddressSaved = (nextAddress) => {
     setHiddenAddressIds([]);
     setSelectedAddressId(nextAddress.id || "saved-profile-address");
+    setIsAddingAddress(false);
     setIsAddressOptionsOpen(false);
     setError("");
   };
@@ -209,7 +212,10 @@ const Checkout = () => {
                     <button
                       className="change-address-btn"
                       type="button"
-                      onClick={() => setIsAddressOptionsOpen(true)}
+                      onClick={() => {
+                        setIsAddingAddress(false);
+                        setIsAddressOptionsOpen(true);
+                      }}
                     >
                       Change address
                     </button>
@@ -285,7 +291,11 @@ const Checkout = () => {
               {showAddressOptions && (
                 <AddressChangeModal
                   open={showAddressOptions}
-                  onClose={() => setIsAddressOptionsOpen(false)}
+                  flow={isAddingAddress || addresses.length === 0 ? "add" : "change"}
+                  onClose={() => {
+                    setIsAddingAddress(false);
+                    setIsAddressOptionsOpen(false);
+                  }}
                   onSaved={handleAddressSaved}
                 />
               )}
@@ -295,6 +305,7 @@ const Checkout = () => {
                   className="add-address-btn"
                   type="button"
                   onClick={() => {
+                    setIsAddingAddress(true);
                     setIsAddressOptionsOpen(true);
                     setError("");
                   }}
