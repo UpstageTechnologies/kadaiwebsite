@@ -1,4 +1,4 @@
-                                                                                                     import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   auth,
   firebaseCustomerSnapshot,
@@ -39,8 +39,16 @@ const resolveLocationOptionId = (options, value) => {
   )?.id || value;
 };
 
-export default function AddressChangeModal({ open, onClose, onSaved, flow = "change" }) {
+export default function AddressChangeModal({
+  open,
+  onClose,
+  onSaved,
+  flow = "change",
+  initialAddress = null,
+}) {
   const isAddFlow = flow === "add";
+  const isCheckoutFlow = flow === "checkout";
+  const isDirectAddressFlow = isAddFlow || isCheckoutFlow;
   const [addressError, setAddressError] = useState("");
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [isDetectingAddress, setIsDetectingAddress] = useState(false);
@@ -67,6 +75,7 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
   const [addressLatitude, setAddressLatitude] = useState(null);
   const [addressLongitude, setAddressLongitude] = useState(null);
   const addressDetectionId = useRef(0);
+  const checkoutAddressInitialized = useRef(false);
   const [addressLoading, setAddressLoading] = useState({
     countries: false,
     states: false,
@@ -74,19 +83,19 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
     cities: false,
     areas: false,
   });
-  const selectedCountryId = isAddFlow
+  const selectedCountryId = isDirectAddressFlow
     ? resolveLocationOptionId(addressCountryOptions, addressCountryId)
     : addressCountryId;
-  const selectedStateId = isAddFlow
+  const selectedStateId = isDirectAddressFlow
     ? resolveLocationOptionId(addressStateOptions, addressState)
     : addressState;
-  const selectedDistrictId = isAddFlow
+  const selectedDistrictId = isDirectAddressFlow
     ? resolveLocationOptionId(addressDistrictOptions, addressDistrict)
     : addressDistrict;
-  const selectedCityId = isAddFlow
+  const selectedCityId = isDirectAddressFlow
     ? resolveLocationOptionId(addressCityOptions, addressCity)
     : addressCity;
-  const selectedAreaId = isAddFlow
+  const selectedAreaId = isDirectAddressFlow
     ? resolveLocationOptionId(addressAreaOptions, addressArea)
     : addressArea;
 
@@ -99,6 +108,27 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
     const detectionId = addressDetectionId.current;
 
     const loadCustomerAddress = async () => {
+      if (isCheckoutFlow) {
+        if (!checkoutAddressInitialized.current) {
+          const checkoutAddress = normalizeAddress(initialAddress || {});
+          setAddressCountryId(checkoutAddress.country);
+          setAddressHouse(checkoutAddress.house);
+          setAddressRoad(checkoutAddress.road);
+          setAddressLandmark(checkoutAddress.landmark);
+          setAddressFormatted(checkoutAddress.formattedAddress);
+          setAddressFullFallback(checkoutAddress.fullAddress);
+          setAddressState(checkoutAddress.state);
+          setAddressDistrict(checkoutAddress.district);
+          setAddressCity(checkoutAddress.city);
+          setAddressArea(checkoutAddress.area);
+          setAddressPincode(checkoutAddress.pincode);
+          setAddressMode("manual");
+          checkoutAddressInitialized.current = true;
+        }
+        setAddressError("");
+        return;
+      }
+
       setAddressCountryId("");
       setAddressState("");
       setAddressDistrict("");
@@ -160,7 +190,7 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
         setAddressPincode(customerAddress.pincode || "");
         setAddressLatitude(customerAddress.lat ?? null);
         setAddressLongitude(customerAddress.lon ?? null);
-        setAddressMode(!isAddFlow && customerAddress.locationSource === "gps" ? "gps" : "manual");
+        setAddressMode(customerAddress.locationSource === "gps" ? "gps" : "manual");
       } catch (error) {
         console.error("[ADDRESS MODAL] Failed to load customer address:", error);
         if (active) {
@@ -193,7 +223,7 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
       active = false;
       addressDetectionId.current += 1;
     };
-  }, [open, isAddFlow]);
+  }, [open, isAddFlow, isCheckoutFlow, initialAddress]);
 
   const loadAddressOptions = async (level, values) => {
     const detectionId = addressDetectionId.current;
@@ -229,18 +259,18 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
     if (!open || addressMode !== "manual" || !selectedCountryId) {
       return;
     }
-    if (isAddFlow && !addressCountryOptions.some((option) => option.id === selectedCountryId)) {
+    if (isDirectAddressFlow && !addressCountryOptions.some((option) => option.id === selectedCountryId)) {
       return;
     }
 
     loadAddressOptions("states", { countryId: selectedCountryId });
-  }, [open, addressMode, isAddFlow, selectedCountryId, addressCountryOptions]);
+  }, [open, addressMode, isDirectAddressFlow, selectedCountryId, addressCountryOptions]);
 
   useEffect(() => {
     if (!open || addressMode !== "manual" || !selectedCountryId || !selectedStateId) {
       return;
     }
-    if (isAddFlow && !addressStateOptions.some((option) => option.id === selectedStateId)) {
+    if (isDirectAddressFlow && !addressStateOptions.some((option) => option.id === selectedStateId)) {
       return;
     }
 
@@ -248,13 +278,13 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
       countryId: selectedCountryId,
       stateId: selectedStateId,
     });
-  }, [open, addressMode, isAddFlow, selectedCountryId, selectedStateId, addressStateOptions]);
+  }, [open, addressMode, isDirectAddressFlow, selectedCountryId, selectedStateId, addressStateOptions]);
 
   useEffect(() => {
     if (!open || addressMode !== "manual" || !selectedCountryId || !selectedStateId || !selectedDistrictId) {
       return;
     }
-    if (isAddFlow && !addressDistrictOptions.some((option) => option.id === selectedDistrictId)) {
+    if (isDirectAddressFlow && !addressDistrictOptions.some((option) => option.id === selectedDistrictId)) {
       return;
     }
 
@@ -263,13 +293,13 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
       stateId: selectedStateId,
       districtId: selectedDistrictId,
     });
-  }, [open, addressMode, isAddFlow, selectedCountryId, selectedStateId, selectedDistrictId, addressDistrictOptions]);
+  }, [open, addressMode, isDirectAddressFlow, selectedCountryId, selectedStateId, selectedDistrictId, addressDistrictOptions]);
 
   useEffect(() => {
     if (!open || addressMode !== "manual" || !selectedCountryId || !selectedStateId || !selectedDistrictId || !selectedCityId) {
       return;
     }
-    if (isAddFlow && !addressCityOptions.some((option) => option.id === selectedCityId)) {
+    if (isDirectAddressFlow && !addressCityOptions.some((option) => option.id === selectedCityId)) {
       return;
     }
 
@@ -279,7 +309,7 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
       districtId: selectedDistrictId,
       cityId: selectedCityId,
     });
-  }, [open, addressMode, isAddFlow, selectedCountryId, selectedStateId, selectedDistrictId, selectedCityId, addressCityOptions]);
+  }, [open, addressMode, isDirectAddressFlow, selectedCountryId, selectedStateId, selectedDistrictId, selectedCityId, addressCityOptions]);
 
   const handleCurrentLocation = async () => {
     const detectionId = ++addressDetectionId.current;
@@ -355,23 +385,26 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
 
   const handleSave = async () => {
     try {
-      if (auth && typeof auth.authStateReady === "function") {
-        await auth.authStateReady();
+      let customerUid = "";
+      if (!isCheckoutFlow) {
+        if (auth && typeof auth.authStateReady === "function") {
+          await auth.authStateReady();
+        }
+
+        const firebaseUser = auth?.currentUser || null;
+        console.log("[ADDRESS DEBUG] Firebase auth user:", firebaseUser);
+
+        if (!firebaseUser || !firebaseUser.uid) {
+          setAddressError("Your Firebase session is missing. Please log in again.");
+          console.error("[ADDRESS DEBUG] No authenticated Firebase user available for address update.");
+          return;
+        }
+
+        customerUid = firebaseUser.uid;
+        console.log("[ADDRESS DEBUG] Firebase auth UID:", customerUid);
       }
 
-      const firebaseUser = auth?.currentUser || null;
-      console.log("[ADDRESS DEBUG] Firebase auth user:", firebaseUser);
-
-      if (!firebaseUser || !firebaseUser.uid) {
-        setAddressError("Your Firebase session is missing. Please log in again.");
-        console.error("[ADDRESS DEBUG] No authenticated Firebase user available for address update.");
-        return;
-      }
-
-      const customerUid = firebaseUser.uid;
-      console.log("[ADDRESS DEBUG] Firebase auth UID:", customerUid);
-
-      if (!isAddFlow && addressMode === "manual") {
+      if (!isDirectAddressFlow && addressMode === "manual") {
         if (!addressCountryId || !addressState || !addressDistrict || !addressCity || !addressArea) {
           setAddressError("Please select Country, State, District, City, and Area.");
           return;
@@ -383,6 +416,15 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
         return;
       }
 
+      if (
+        isCheckoutFlow
+        && (!addressHouse.trim() || !addressRoad.trim() || !addressPincode.trim()
+          || !selectedCountryId || !selectedStateId || !selectedDistrictId || !selectedCityId || !selectedAreaId)
+      ) {
+        setAddressError("Please complete House No. / Building, Road, Pincode, Country, State, District, City, and Area.");
+        return;
+      }
+
       if (addressMode === "gps" && (addressLatitude === null || addressLongitude === null)) {
         setAddressError("Please wait for your current location to be detected.");
         return;
@@ -390,7 +432,7 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
 
       const optionLabel = (options, value) =>
         options.find((option) => option.id === value || option.value === value)?.label || value;
-      const addressParts = isAddFlow
+      const addressParts = isDirectAddressFlow
         ? [
           addressHouse,
           addressRoad,
@@ -428,28 +470,28 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
         .map((part) => String(part || "").trim())
         .filter((part, index, parts) => part && parts.indexOf(part) === index)
         .join(", ");
-      const fullAddress = (isAddFlow ? addressFormatted.trim() : composedAddress)
+      const fullAddress = (isDirectAddressFlow ? addressFormatted.trim() : composedAddress)
         || composedAddress
         || (addressMode === "gps" ? addressFormatted || addressFullFallback : "");
       const nextAddress = {
-        country: isAddFlow ? selectedCountryId : addressCountryId,
-        house: addressMode === "gps" || isAddFlow ? addressHouse.trim() : "",
+        country: isDirectAddressFlow ? selectedCountryId : addressCountryId,
+        house: addressMode === "gps" || isDirectAddressFlow ? addressHouse.trim() : "",
         building: addressMode === "gps" ? addressBuilding.trim() : "",
         flat: addressMode === "gps" ? addressFlat.trim() : "",
-        road: addressMode === "gps" || isAddFlow ? addressRoad.trim() : "",
-        state: isAddFlow ? selectedStateId : addressState,
-        district: isAddFlow ? selectedDistrictId : addressDistrict,
-        city: isAddFlow ? selectedCityId : addressCity,
-        area: isAddFlow
+        road: addressMode === "gps" || isDirectAddressFlow ? addressRoad.trim() : "",
+        state: isDirectAddressFlow ? selectedStateId : addressState,
+        district: isDirectAddressFlow ? selectedDistrictId : addressDistrict,
+        city: isDirectAddressFlow ? selectedCityId : addressCity,
+        area: isDirectAddressFlow
           ? selectedAreaId
           : addressMode === "gps"
             ? addressArea.trim()
             : addressArea,
-        landmark: addressMode === "gps" || isAddFlow ? addressLandmark.trim() : "",
+        landmark: addressMode === "gps" || isDirectAddressFlow ? addressLandmark.trim() : "",
         village: addressMode === "gps" ? addressVillage.trim() : "",
         fullAddress,
-        formattedAddress: addressMode === "gps" || isAddFlow ? addressFormatted.trim() : "",
-        pincode: addressMode === "gps" || isAddFlow ? addressPincode.trim() : "",
+        formattedAddress: addressMode === "gps" || isDirectAddressFlow ? addressFormatted.trim() : "",
+        pincode: addressMode === "gps" || isDirectAddressFlow ? addressPincode.trim() : "",
         lat: addressMode === "gps" ? addressLatitude : null,
         lon: addressMode === "gps" ? addressLongitude : null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
@@ -459,10 +501,11 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
       setIsSavingAddress(true);
       setAddressError("");
 
-      console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
-      console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
-
-      await firebaseUpdateCustomer(customerUid, { address: nextAddress });
+      if (!isCheckoutFlow) {
+        console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
+        console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
+        await firebaseUpdateCustomer(customerUid, { address: nextAddress });
+      }
       onSaved?.(nextAddress);
       onClose();
     } catch (error) {
@@ -545,7 +588,7 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
         )}
 
         <div style={{ display: "grid", gap: 12 }}>
-          {!isAddFlow && (
+          {!isDirectAddressFlow && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               type="button"
@@ -603,7 +646,7 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
           </div>
           )}
 
-          {isAddFlow ? (
+          {isDirectAddressFlow ? (
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
               <input
                 type="text"
@@ -897,7 +940,11 @@ export default function AddressChangeModal({ open, onClose, onSaved, flow = "cha
               opacity: isSavingAddress ? 0.7 : 1,
             }}
           >
-            {isSavingAddress ? "Saving..." : "Save Address"}
+            {isSavingAddress
+              ? "Saving..."
+              : isCheckoutFlow
+                ? "Save and Continue"
+                : "Save Address"}
           </button>
         </div>
       </div>

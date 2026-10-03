@@ -5,14 +5,8 @@ import Navbar from "../../components/Navbar";
 import AddressChangeModal from "../../components/AddressChangeModal";
 import { useAuth } from "../../components/AuthContext";
 import { useCart } from "../../components/CardContext";
-import { useLocation } from "../../components/LocationContext";
-import { firebaseUpdateCustomer } from "../../services/firebase";
 import { calculateSubtotal } from "../cart/cart.service";
 import { getPaymentMethodLabel, placeOrder } from "../orders/orders.service";
-import {
-  getSavedAddresses,
-  getSelectedAddress,
-} from "./address.service";
 
 import "./checkout.css";
 
@@ -26,22 +20,13 @@ const Checkout = () => {
   const navigate = useNavigate();
   const routeLocation = useRouteLocation();
   const { cartItems, clearCart } = useCart();
-  const { location } = useLocation();
-  const { user, customer, loading: isAuthLoading } = useAuth();
+  const { user, loading: isAuthLoading } = useAuth();
   const [error, setError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
-  const [selectedAddressId, setSelectedAddressId] = useState("");
-  const [hiddenAddressIds, setHiddenAddressIds] = useState([]);
-  const [isAddressOptionsOpen, setIsAddressOptionsOpen] = useState(false);
-  const [isAddingAddress, setIsAddingAddress] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState(null);
+  const [isAddressFormOpen, setIsAddressFormOpen] = useState(true);
 
   const isAuthenticated = Boolean(user);
-  const addresses = getSavedAddresses(location, customer?.address)
-    .filter((address) => !hiddenAddressIds.includes(address.id));
-  const selectedAddress = addresses.find((address) => address.id === selectedAddressId)
-    || getSelectedAddress(addresses);
-  const showAddressOptions = isAddressOptionsOpen || (!isAuthLoading && addresses.length === 0);
-  const isAddressLoading = isAuthLoading;
 
   const summary = useMemo(() => {
     const subtotal = calculateSubtotal(cartItems);
@@ -56,51 +41,20 @@ const Checkout = () => {
     }
   }, [isAuthLoading, isAuthenticated, navigate, routeLocation.pathname]);
 
-  const handleSelectAddress = (nextAddress) => {
-    if (!nextAddress) {
-      return;
-    }
-
-    setSelectedAddressId(nextAddress.id);
-    setIsAddressOptionsOpen(false);
-    setError("");
-  };
-
-  const handleDeleteAddress = (selectedAddressId) => {
-    if (!selectedAddressId) return;
-
-    if (selectedAddressId === "saved-profile-address") {
-      firebaseUpdateCustomer(user.uid, { address: {} })
-        .then(() => setSelectedAddressId(""))
-        .catch((addressError) => {
-          setError(addressError?.message || "Unable to remove your saved address.");
-        });
-      return;
-    }
-
-    setHiddenAddressIds((current) => [...new Set([...current, selectedAddressId])]);
-    setSelectedAddressId("");
-    setIsAddressOptionsOpen(false);
-    setError("");
-  };
-
-  const handleEditAddress = () => {
-    setIsAddingAddress(false);
-    setIsAddressOptionsOpen(true);
-    setError("");
-  };
-
   const handleAddressSaved = (nextAddress) => {
-    setHiddenAddressIds([]);
-    setSelectedAddressId(nextAddress.id || "saved-profile-address");
-    setIsAddingAddress(false);
-    setIsAddressOptionsOpen(false);
+    setDeliveryAddress({
+      ...nextAddress,
+      id: "checkout-delivery-address",
+      label: "Delivery address",
+      address: nextAddress.fullAddress || nextAddress.address,
+    });
+    setIsAddressFormOpen(false);
     setError("");
   };
 
   const handlePlaceOrder = () => {
-    if (!selectedAddress) {
-      setError("Please select a delivery address.");
+    if (!deliveryAddress) {
+      setError("Please enter and save a delivery address.");
       return;
     }
 
@@ -111,11 +65,11 @@ const Checkout = () => {
 
     const order = placeOrder({
       cartItems,
-      address: selectedAddress,
+      address: deliveryAddress,
       paymentMethod: "cod",
       summary,
       paymentStatus: "Pending",
-      customerName: customer?.fullName || customer?.name || user?.displayName || "Customer",
+      customerName: user?.displayName || "Customer",
     });
 
     if (!order) {
@@ -200,29 +154,17 @@ const Checkout = () => {
                 </div>
               </div>
 
-              {!isAddressLoading && (
-                <>
-              {selectedAddress && !showAddressOptions && (
+              {deliveryAddress && !isAddressFormOpen && (
                 <div className="selected-address-preview">
                   <div className="address-copy">
-                    <strong>{selectedAddress.label || "Selected address"}</strong>
-                    <span>{selectedAddress.address}</span>
+                    <strong>{deliveryAddress.label}</strong>
+                    <span>{deliveryAddress.address}</span>
                   </div>
                   <div className="address-preview-actions">
                     <button
-                      className="change-address-btn"
-                      type="button"
-                      onClick={() => {
-                        setIsAddingAddress(false);
-                        setIsAddressOptionsOpen(true);
-                      }}
-                    >
-                      Change address
-                    </button>
-                    <button
                       className="edit-address-btn"
                       type="button"
-                      onClick={handleEditAddress}
+                      onClick={() => setIsAddressFormOpen(true)}
                     >
                       Edit
                     </button>
@@ -230,90 +172,22 @@ const Checkout = () => {
                 </div>
               )}
 
-              {(!selectedAddress || showAddressOptions) && addresses.length > 0 && (
-                <div className="address-list">
-                  {addresses.map((savedAddress) => (
-                    <label
-                      className={`saved-address ${selectedAddress?.id === savedAddress.id ? "selected" : ""}`}
-                      key={savedAddress.id}
-                    >
-                      <input
-                        type="radio"
-                        name="deliveryAddress"
-                        checked={selectedAddress?.id === savedAddress.id}
-                        onChange={() => handleSelectAddress(savedAddress)}
-                      />
-                      <span className="address-radio" />
-                      <span className="address-copy">
-                        <strong>{savedAddress.label}</strong>
-                        <span>{savedAddress.address}</span>
-                        {typeof savedAddress.latitude === "number" && (
-                          <small>
-                            {savedAddress.latitude.toFixed(5)}, {savedAddress.longitude.toFixed(5)}
-                          </small>
-                        )}
-                      </span>
-                      <span className="address-actions">
-                        <button
-                          className="inline-edit-address-btn"
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            handleEditAddress();
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="inline-delete-address-btn"
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            handleDeleteAddress(savedAddress.id);
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
+              <AddressChangeModal
+                open={isAddressFormOpen}
+                flow="checkout"
+                initialAddress={deliveryAddress}
+                onClose={() => setIsAddressFormOpen(false)}
+                onSaved={handleAddressSaved}
+              />
 
-              {!selectedAddress && addresses.length === 0 && (
-                <div className="address-missing">
-                  <p>No delivery address saved yet.</p>
-                </div>
-              )}
-
-              {showAddressOptions && (
-                <AddressChangeModal
-                  open={showAddressOptions}
-                  flow={isAddingAddress || addresses.length === 0 ? "add" : "change"}
-                  onClose={() => {
-                    setIsAddingAddress(false);
-                    setIsAddressOptionsOpen(false);
-                  }}
-                  onSaved={handleAddressSaved}
-                />
-              )}
-
-              {!selectedAddress && (
+              {!deliveryAddress && !isAddressFormOpen && (
                 <button
                   className="add-address-btn"
                   type="button"
-                  onClick={() => {
-                    setIsAddingAddress(true);
-                    setIsAddressOptionsOpen(true);
-                    setError("");
-                  }}
+                  onClick={() => setIsAddressFormOpen(true)}
                 >
-                  + Add New Address
+                  + Enter Delivery Address
                 </button>
-              )}
-                </>
               )}
             </div>
 
