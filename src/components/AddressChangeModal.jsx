@@ -25,6 +25,7 @@ const normalizeAddress = (value = {}) => ({
 export default function AddressChangeModal({ open, onClose, onSaved }) {
   const [addressError, setAddressError] = useState("");
   const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [isDetectingAddress, setIsDetectingAddress] = useState(false);
   const [addressMode, setAddressMode] = useState("manual");
   const [addressCountryOptions, setAddressCountryOptions] = useState([]);
   const [addressStateOptions, setAddressStateOptions] = useState([]);
@@ -214,6 +215,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
     setAddressMode("gps");
     setAddressError("");
+    setIsDetectingAddress(true);
 
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
@@ -233,25 +235,134 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
           }
 
           const data = await response.json();
-          const detectedAddress = data.display_name || `${latitude}, ${longitude}`;
-          const detectedPincode = data.address?.postcode || "";
+          const parts = data.address || {};
+          const firstValue = (...values) => values.find((value) => String(value || "").trim()) || "";
+          const normalizeLabel = (value) => String(value || "")
+            .trim()
+            .toLocaleLowerCase()
+            .replace(/\s+/g, " ");
+          const findOption = (options, values) => {
+            const labels = values.map(normalizeLabel).filter(Boolean);
+            return options.find((option) => labels.includes(normalizeLabel(option.label)));
+          };
+          const house = firstValue(parts.house_number, parts.house_name, parts.building);
+          const road = firstValue(parts.road, parts.pedestrian, parts.residential);
+          const locality = firstValue(
+            parts.suburb,
+            parts.neighbourhood,
+            parts.quarter,
+            parts.hamlet,
+            parts.locality,
+            parts.village
+          );
+          const cityName = firstValue(parts.city, parts.town, parts.municipality, parts.village);
+          const districtName = firstValue(parts.state_district, parts.county, parts.district);
+          const stateName = firstValue(parts.state);
+          const countryName = firstValue(parts.country);
+          const detectedPincode = firstValue(parts.postcode);
+          const detectedAddress = [house, road, locality, cityName, districtName, stateName]
+            .filter((part, index, addressParts) => part && addressParts.indexOf(part) === index)
+            .join(", ") || data.display_name || `${latitude}, ${longitude}`;
+
+          let resolvedLocation = {
+            country: countryName,
+            state: stateName,
+            district: districtName,
+            city: cityName,
+            area: locality,
+            stateOptions: [],
+            districtOptions: [],
+            cityOptions: [],
+            areaOptions: [],
+          };
+
+          try {
+            const countryOptions = addressCountryOptions.length
+              ? addressCountryOptions
+              : await getRegistrationCountries();
+            const countryOption = countryOptions.find((option) =>
+              (parts.country_code && option.code?.toLowerCase() === parts.country_code.toLowerCase())
+              || normalizeLabel(option.label) === normalizeLabel(countryName)
+            );
+
+            if (countryOption) {
+              const stateOptions = await getRegistrationLocationOptions({
+                countryId: countryOption.id,
+                level: "states",
+              });
+              const stateOption = findOption(stateOptions, [stateName]);
+              resolvedLocation = {
+                ...resolvedLocation,
+                country: countryOption.id,
+                state: stateOption?.id || stateName,
+                stateOptions,
+              };
+
+              if (stateOption) {
+                const districtOptions = await getRegistrationLocationOptions({
+                  countryId: countryOption.id,
+                  stateId: stateOption.id,
+                  level: "districts",
+                });
+                const districtOption = findOption(districtOptions, [districtName]);
+                resolvedLocation = {
+                  ...resolvedLocation,
+                  district: districtOption?.id || districtName,
+                  districtOptions,
+                };
+
+                if (districtOption) {
+                  const cityOptions = await getRegistrationLocationOptions({
+                    countryId: countryOption.id,
+                    stateId: stateOption.id,
+                    districtId: districtOption.id,
+                    level: "cities",
+                  });
+                  const cityOption = findOption(cityOptions, [cityName]);
+                  resolvedLocation = {
+                    ...resolvedLocation,
+                    city: cityOption?.id || cityName,
+                    cityOptions,
+                  };
+
+                  if (cityOption) {
+                    const areaOptions = await getRegistrationLocationOptions({
+                      countryId: countryOption.id,
+                      stateId: stateOption.id,
+                      districtId: districtOption.id,
+                      cityId: cityOption.id,
+                      level: "areas",
+                    });
+                    const areaOption = findOption(areaOptions, [locality, road]);
+                    resolvedLocation = {
+                      ...resolvedLocation,
+                      area: areaOption?.id || locality,
+                      areaOptions,
+                    };
+                  }
+                }
+              }
+            }
+          } catch (locationMasterError) {
+            console.warn("[ADDRESS MODAL] Location master match failed:", locationMasterError);
+          }
+
           setAddressFull(detectedAddress);
           setAddressPincode(detectedPincode);
-
-          localStorage.setItem(
-            "currentLocation",
-            JSON.stringify({
-              latitude,
-              longitude,
-              address: detectedAddress,
-              pincode: detectedPincode,
-              detectedAt: new Date().toISOString(),
-            })
-          );
+          setAddressCountryId(resolvedLocation.country || "");
+          setAddressState(resolvedLocation.state || "");
+          setAddressDistrict(resolvedLocation.district || "");
+          setAddressCity(resolvedLocation.city || "");
+          setAddressArea(resolvedLocation.area || "");
+          setAddressStateOptions(resolvedLocation.stateOptions);
+          setAddressDistrictOptions(resolvedLocation.districtOptions);
+          setAddressCityOptions(resolvedLocation.cityOptions);
+          setAddressAreaOptions(resolvedLocation.areaOptions);
         } catch (error) {
           console.warn("[ADDRESS MODAL] Reverse geocode failed:", error);
-          setAddressFull(`${latitude}, ${longitude}`);
-          setAddressPincode("");
+          setAddressError("We could not convert your current location into an address. Please enter your address manually.");
+        } finally {
+          setIsDetectingAddress(false);
         }
       },
       (locationError) => {
@@ -261,6 +372,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
             ? "Location permission is disabled. Please enable location access and try again."
             : "Unable to detect your current location. Please try again."
         );
+          setIsDetectingAddress(false);
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
     );
@@ -410,6 +522,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               type="button"
+              disabled={isDetectingAddress}
               onClick={() => {
                 setAddressMode("gps");
                 handleCurrentLocation();
@@ -423,7 +536,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
                 cursor: "pointer",
               }}
             >
-              Use Current Location
+              {isDetectingAddress ? "Detecting Location..." : "Use Current Location"}
             </button>
             <button
               type="button"
