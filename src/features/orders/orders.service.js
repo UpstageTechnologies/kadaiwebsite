@@ -1,8 +1,45 @@
-                                                                                                                                                                               import { collection, doc, onSnapshot, query, setDoc, where } from "firebase/firestore";
+﻿import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db } from "../../services/firebase";
 
-export const getCurrentCustomerId = () => {
-  return auth?.currentUser?.uid || "";
+export const getCurrentCustomerId = () => auth?.currentUser?.uid || "";
+
+const toEpochMillis = (value) => {
+  if (!value) {
+    return 0;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof value?.toDate === "function") {
+    const parsed = value.toDate();
+    return parsed instanceof Date && !Number.isNaN(parsed.getTime()) ? parsed.getTime() : 0;
+  }
+
+  if (typeof value?.seconds === "number") {
+    const seconds = Number(value.seconds) * 1000;
+    const nanoseconds = Number(value.nanoseconds || 0) / 1_000_000;
+    return seconds + nanoseconds;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+};
+
+export const compareOrderDates = (a, b) => {
+  const left = toEpochMillis(a);
+  const right = toEpochMillis(b);
+  return right - left;
 };
 
 export const persistOrder = async (order) => {
@@ -15,6 +52,7 @@ export const persistOrder = async (order) => {
   const orderData = {
     ...order,
     customerId,
+    paymentMethod: "cod",
   };
 
   await Promise.all([
@@ -31,24 +69,27 @@ export const subscribeCustomerOrders = ({ customerId, onOrders, onError }) => {
     return () => {};
   }
 
-  const ordersQuery = query(
-    collection(db, "orders"),
-    where("customerId", "==", customerId)
-  );
+  const customerOrdersRef = collection(db, "customers", customerId, "orders");
 
   return onSnapshot(
-    ordersQuery,
+    customerOrdersRef,
     (snapshot) => {
-      const orders = snapshot.docs.map((orderSnapshot) => {
-        const data = orderSnapshot.data() || {};
-        return {
-          ...data,
-          id: orderSnapshot.id,
-          createdAt: data.createdAt?.toDate
-            ? data.createdAt.toDate().toISOString()
-            : data.createdAt,
-        };
-      });
+      const orders = snapshot.docs
+        .map((orderSnapshot) => {
+          const data = orderSnapshot.data() || {};
+          const createdAtRaw = data.createdAt;
+
+          return {
+            ...data,
+            id: orderSnapshot.id,
+            orderId: data.orderId || orderSnapshot.id,
+            paymentMethod: "cod",
+            createdAt: createdAtRaw?.toDate
+              ? createdAtRaw.toDate().toISOString()
+              : createdAtRaw,
+          };
+        })
+        .sort((left, right) => compareOrderDates(left.createdAt, right.createdAt));
 
       onOrders?.(orders);
     },
@@ -60,10 +101,11 @@ export const subscribeCustomerOrders = ({ customerId, onOrders, onError }) => {
 };
 
 export const getPaymentMethodLabel = (paymentMethod) => {
-  if (paymentMethod === "cod") return "Cash on Delivery";
-  if (paymentMethod === "google-pay") return "Google Pay";
-  if (paymentMethod === "razorpay") return "Razorpay";
-  return paymentMethod || "Payment";
+  if (!paymentMethod || paymentMethod === "cod") {
+    return "Cash on Delivery";
+  }
+
+  return "Cash on Delivery";
 };
 
 export const buildOrderFromCheckout = ({
