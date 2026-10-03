@@ -16,14 +16,6 @@ const normalizeLabel = (value) => String(value || "")
   .toLocaleLowerCase()
   .replace(/\s+/g, " ");
 
-const withDetectedOption = (options, value) => {
-  if (!value || options.some((option) => normalizeLabel(option.label) === normalizeLabel(value))) {
-    return options;
-  }
-
-  return [...options, { id: value, value, label: value }];
-};
-
 const findOption = (options, values) => {
   const labels = values.map(normalizeLabel).filter(Boolean);
   return options.find((option) => labels.includes(normalizeLabel(option.label)));
@@ -169,12 +161,6 @@ export const getCurrentLocationAddress = async () => {
   } catch (locationMasterError) {
     console.warn("[LOCATION] location_master match failed:", locationMasterError);
   }
-
-  options.countries = withDetectedOption(options.countries, country);
-  options.states = withDetectedOption(options.states, state);
-  options.districts = withDetectedOption(options.districts, district);
-  options.cities = withDetectedOption(options.cities, city);
-  options.areas = withDetectedOption(options.areas, normalizedAddress.area);
 
   return { ...normalizedAddress, options, matches };
 };

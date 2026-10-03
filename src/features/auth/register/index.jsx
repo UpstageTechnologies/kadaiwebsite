@@ -83,6 +83,7 @@ const Register = () => {
     cities: 0,
     areas: 0,
   });
+  const locationDetectionId = useRef(0);
 
   useEffect(() => {
     if (routeStep === "otp" && !getConfirmation()) {
@@ -454,12 +455,15 @@ const Register = () => {
   };
 
   const useCurrentLocation = async () => {
+    const detectionId = ++locationDetectionId.current;
+    setLocationMode("gps");
     setIsDetectingLocation(true);
     setError("");
     setLatitude(null);
     setLongitude(null);
     try {
       const detectedAddress = await getCurrentLocationAddress();
+      if (detectionId !== locationDetectionId.current) return;
       locationRequestIds.current.countries += 1;
       locationRequestIds.current.states += 1;
       locationRequestIds.current.districts += 1;
@@ -492,10 +496,13 @@ const Register = () => {
       });
       setLocationMode("gps");
     } catch (locationError) {
+      if (detectionId !== locationDetectionId.current) return;
       console.error("[AUTH] Current location detection failed:", locationError);
       setError(locationError?.message || "Unable to detect your current location. Please try again.");
     } finally {
-      setIsDetectingLocation(false);
+      if (detectionId === locationDetectionId.current) {
+        setIsDetectingLocation(false);
+      }
     }
   };
 
@@ -505,8 +512,8 @@ const Register = () => {
       return;
     }
 
-    if (locationMode === "manual" && (!state || !district || !city || !area)) {
-      setError("Please select State, District, City, and Area.");
+    if (locationMode === "manual" && (!countryId || !state || !district || !city || !area)) {
+      setError("Please select Country, State, District, City, and Area.");
       return;
     }
 
@@ -526,7 +533,11 @@ const Register = () => {
 
     try {
       await updateProfile(authenticatedUser, { displayName: username.trim() });
+      const isGpsAddress = locationMode === "gps";
       const countryLabel = countryOptions.find((option) => option.value === countryId)?.label || countryId;
+      const addressFields = isGpsAddress
+        ? [house, road, pincode]
+        : [area, city, district, state, countryLabel];
       await firebaseUpsertCustomerProfile(authenticatedUser.uid, {
         uid: authenticatedUser.uid,
         name: username.trim(),
@@ -534,19 +545,19 @@ const Register = () => {
         displayName: username.trim(),
         mobile: authenticatedUser.phoneNumber,
         address: {
-          country: countryId,
-          state,
-          district,
-          city,
-          area,
-          house,
-          road,
-          fullAddress: [house, road, area, city, district, state, countryLabel, pincode]
+          country: isGpsAddress ? "" : countryId,
+          state: isGpsAddress ? "" : state,
+          district: isGpsAddress ? "" : district,
+          city: isGpsAddress ? "" : city,
+          area: isGpsAddress ? "" : area,
+          house: isGpsAddress ? house : "",
+          road: isGpsAddress ? road : "",
+          fullAddress: addressFields
             .filter(Boolean)
             .join(", ") || (locationMode === "gps" ? detectedFullAddress : ""),
-          pincode,
-          lat: locationMode === "gps" ? latitude : null,
-          lon: locationMode === "gps" ? longitude : null,
+          pincode: isGpsAddress ? pincode : "",
+          lat: isGpsAddress ? latitude : null,
+          lon: isGpsAddress ? longitude : null,
           locationSource: locationMode,
         },
       });
@@ -738,20 +749,32 @@ const Register = () => {
                   className={locationMode === "manual" ? "active" : ""}
                   type="button"
                   onClick={() => {
+                    locationDetectionId.current += 1;
+                    setIsDetectingLocation(false);
                     setLocationMode("manual");
                     setLatitude(null);
                     setLongitude(null);
                     setDetectedFullAddress("");
+                    setHouse("");
+                    setRoad("");
+                    setPincode("");
+                    setCountryId("");
+                    setState("");
+                    setDistrict("");
+                    setCity("");
+                    setArea("");
+                    setLocationOptions({ states: [], districts: [], cities: [], areas: [] });
                   }}
                 >
-                  Add Manually
-                </button>
-              </div>
+                    Manual Address
+                  </button>
+                </div>
 
-              <div className="register-form-grid">
-                  <div className="register-field">
-                    <span>House no. / Building Name</span>
-                    <input value={house} onChange={(event) => setHouse(event.target.value)} disabled={loading} />
+                {locationMode === "gps" ? (
+                  <div className="register-form-grid">
+                    <div className="register-field">
+                      <span>House no. / Building Name</span>
+                      <input value={house} onChange={(event) => setHouse(event.target.value)} disabled={loading} />
                   </div>
                   <div className="register-field">
                     <span>Road Name / Area / Colony</span>
@@ -761,6 +784,9 @@ const Register = () => {
                     <span>Pincode</span>
                     <input value={pincode} onChange={(event) => setPincode(event.target.value)} disabled={loading} />
                   </div>
+                </div>
+              ) : (
+                <div className="register-form-grid">
                   <div className="register-field">
                     <span>Country</span>
                     <select
@@ -804,12 +830,7 @@ const Register = () => {
                       {locationOptions.areas.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
-              </div>
-
-              {locationMode === "gps" && latitude !== null && (
-                <p className="register-location-status">
-                  Location detected: {latitude.toFixed(5)}, {longitude.toFixed(5)}
-                </p>
+                </div>
               )}
 
               {error && <div className="error-message" role="alert">{error}</div>}

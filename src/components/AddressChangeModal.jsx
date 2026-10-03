@@ -46,7 +46,6 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   const [addressPincode, setAddressPincode] = useState("");
   const [addressLatitude, setAddressLatitude] = useState(null);
   const [addressLongitude, setAddressLongitude] = useState(null);
-  const isResolvingCurrentLocation = useRef(false);
   const addressDetectionId = useRef(0);
   const [addressLoading, setAddressLoading] = useState({
     countries: false,
@@ -62,7 +61,6 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
     }
 
     let active = true;
-    isResolvingCurrentLocation.current = false;
     const detectionId = addressDetectionId.current;
 
     const loadCustomerAddress = async () => {
@@ -100,7 +98,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         const customerData = customerSnapshot?.data?.() || {};
         const customerAddress = normalizeAddress(customerData.address || {});
 
-        if (!active) {
+        if (!active || detectionId !== addressDetectionId.current) {
           return;
         }
 
@@ -132,7 +130,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       try {
         setAddressLoading((current) => ({ ...current, countries: true }));
         const countries = await getRegistrationCountries();
-        if (active && detectionId === addressDetectionId.current) {
+        if (active) {
           setAddressCountryOptions(countries);
         }
       } catch (error) {
@@ -148,6 +146,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
     return () => {
       active = false;
+      addressDetectionId.current += 1;
     };
   }, [open]);
 
@@ -182,7 +181,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   };
 
   useEffect(() => {
-    if (!open || isResolvingCurrentLocation.current || !addressCountryId) {
+    if (!open || addressMode !== "manual" || !addressCountryId) {
       return;
     }
 
@@ -190,7 +189,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   }, [open, addressMode, addressCountryId]);
 
   useEffect(() => {
-    if (!open || isResolvingCurrentLocation.current || !addressCountryId || !addressState) {
+    if (!open || addressMode !== "manual" || !addressCountryId || !addressState) {
       return;
     }
 
@@ -201,7 +200,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   }, [open, addressMode, addressCountryId, addressState]);
 
   useEffect(() => {
-    if (!open || isResolvingCurrentLocation.current || !addressCountryId || !addressState || !addressDistrict) {
+    if (!open || addressMode !== "manual" || !addressCountryId || !addressState || !addressDistrict) {
       return;
     }
 
@@ -213,7 +212,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   }, [open, addressMode, addressCountryId, addressState, addressDistrict]);
 
   useEffect(() => {
-    if (!open || isResolvingCurrentLocation.current || !addressCountryId || !addressState || !addressDistrict || !addressCity) {
+    if (!open || addressMode !== "manual" || !addressCountryId || !addressState || !addressDistrict || !addressCity) {
       return;
     }
 
@@ -226,16 +225,28 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   }, [open, addressMode, addressCountryId, addressState, addressDistrict, addressCity]);
 
   const handleCurrentLocation = async () => {
-    addressDetectionId.current += 1;
-    isResolvingCurrentLocation.current = true;
+    const detectionId = ++addressDetectionId.current;
     setAddressMode("gps");
     setAddressError("");
     setIsDetectingAddress(true);
+    setAddressCountryId("");
+    setAddressState("");
+    setAddressDistrict("");
+    setAddressCity("");
+    setAddressArea("");
+    setAddressHouse("");
+    setAddressRoad("");
+    setAddressPincode("");
     setAddressLatitude(null);
     setAddressLongitude(null);
     setAddressFullFallback("");
+    setAddressStateOptions([]);
+    setAddressDistrictOptions([]);
+    setAddressCityOptions([]);
+    setAddressAreaOptions([]);
     try {
       const detectedAddress = await getCurrentLocationAddress();
+      if (detectionId !== addressDetectionId.current) return;
       setAddressHouse(detectedAddress.house);
       setAddressRoad(detectedAddress.road);
       setAddressFullFallback(detectedAddress.fullAddress);
@@ -253,18 +264,20 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       setAddressCityOptions(detectedAddress.options.cities);
       setAddressAreaOptions(detectedAddress.options.areas);
     } catch (error) {
+      if (detectionId !== addressDetectionId.current) return;
       console.error("[ADDRESS MODAL] Current location detection failed:", error);
       setAddressError(error?.message || "We could not convert your current location into an address. Please enter your address manually.");
     } finally {
-      isResolvingCurrentLocation.current = false;
-      setAddressLoading({
-        countries: false,
-        states: false,
-        districts: false,
-        cities: false,
-        areas: false,
-      });
-      setIsDetectingAddress(false);
+      if (detectionId === addressDetectionId.current) {
+        setAddressLoading({
+          countries: false,
+          states: false,
+          districts: false,
+          cities: false,
+          areas: false,
+        });
+        setIsDetectingAddress(false);
+      }
     }
   };
 
@@ -288,7 +301,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
       if (addressMode === "manual") {
         if (!addressCountryId || !addressState || !addressDistrict || !addressCity || !addressArea) {
-          setAddressError("Please complete the location hierarchy before saving.");
+          setAddressError("Please select Country, State, District, City, and Area.");
           return;
         }
       }
@@ -300,30 +313,29 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
 
       const optionLabel = (options, value) =>
         options.find((option) => option.id === value || option.value === value)?.label || value;
-      const addressParts = [
-        addressHouse,
-        addressRoad,
-        optionLabel(addressAreaOptions, addressArea),
-        optionLabel(addressCityOptions, addressCity),
-        optionLabel(addressDistrictOptions, addressDistrict),
-        optionLabel(addressStateOptions, addressState),
-        optionLabel(addressCountryOptions, addressCountryId),
-        addressPincode,
-      ];
+      const addressParts = addressMode === "gps"
+        ? [addressHouse, addressRoad, addressPincode]
+        : [
+          optionLabel(addressAreaOptions, addressArea),
+          optionLabel(addressCityOptions, addressCity),
+          optionLabel(addressDistrictOptions, addressDistrict),
+          optionLabel(addressStateOptions, addressState),
+          optionLabel(addressCountryOptions, addressCountryId),
+        ];
       const fullAddress = addressParts
         .map((part) => String(part || "").trim())
         .filter((part, index, parts) => part && parts.indexOf(part) === index)
         .join(", ") || (addressMode === "gps" ? addressFullFallback : "");
       const nextAddress = {
-        country: addressCountryId,
-        house: addressHouse.trim(),
-        road: addressRoad.trim(),
-        state: addressState,
-        district: addressDistrict,
-        city: addressCity,
-        area: addressArea,
+        country: addressMode === "manual" ? addressCountryId : "",
+        house: addressMode === "gps" ? addressHouse.trim() : "",
+        road: addressMode === "gps" ? addressRoad.trim() : "",
+        state: addressMode === "manual" ? addressState : "",
+        district: addressMode === "manual" ? addressDistrict : "",
+        city: addressMode === "manual" ? addressCity : "",
+        area: addressMode === "manual" ? addressArea : "",
         fullAddress,
-        pincode: addressPincode.trim(),
+        pincode: addressMode === "gps" ? addressPincode.trim() : "",
         lat: addressMode === "gps" ? addressLatitude : null,
         lon: addressMode === "gps" ? addressLongitude : null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
@@ -437,7 +449,26 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
             </button>
             <button
               type="button"
-              onClick={() => setAddressMode("manual")}
+              onClick={() => {
+                addressDetectionId.current += 1;
+                setIsDetectingAddress(false);
+                setAddressMode("manual");
+                setAddressHouse("");
+                setAddressRoad("");
+                setAddressPincode("");
+                setAddressLatitude(null);
+                setAddressLongitude(null);
+                setAddressFullFallback("");
+                setAddressCountryId("");
+                setAddressState("");
+                setAddressDistrict("");
+                setAddressCity("");
+                setAddressArea("");
+                setAddressStateOptions([]);
+                setAddressDistrictOptions([]);
+                setAddressCityOptions([]);
+                setAddressAreaOptions([]);
+              }}
               style={{
                 border: addressMode === "manual" ? "1px solid #65a91a" : "1px solid #cbd5e1",
                 background: addressMode === "manual" ? "#f7fbf3" : "#fff",
@@ -451,7 +482,8 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
             </button>
           </div>
 
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+          {addressMode === "gps" ? (
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             <input
               type="text"
               value={addressHouse}
@@ -473,9 +505,9 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
               placeholder="Pincode"
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             />
-          </div>
-
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             <select
               value={addressCountryId}
               onChange={(event) => {
@@ -552,7 +584,8 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
-          </div>
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
