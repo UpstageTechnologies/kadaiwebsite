@@ -1,4 +1,4 @@
-                                                                                                     import { useEffect, useState } from "react";
+                                                                                                     import { useEffect, useRef, useState } from "react";
 import {
   auth,
   firebaseCustomerSnapshot,
@@ -8,9 +8,12 @@ import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "../services/registration-location.service";
+import { getCurrentLocationAddress } from "../services/current-location-address.service";
 
 const normalizeAddress = (value = {}) => ({
   country: value.country || "",
+  house: value.house || "",
+  road: value.road || "",
   state: value.state || "",
   district: value.district || "",
   city: value.city || "",
@@ -37,10 +40,14 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   const [addressDistrict, setAddressDistrict] = useState("");
   const [addressCity, setAddressCity] = useState("");
   const [addressArea, setAddressArea] = useState("");
-  const [addressFull, setAddressFull] = useState("");
+  const [addressHouse, setAddressHouse] = useState("");
+  const [addressRoad, setAddressRoad] = useState("");
+  const [addressFullFallback, setAddressFullFallback] = useState("");
   const [addressPincode, setAddressPincode] = useState("");
   const [addressLatitude, setAddressLatitude] = useState(null);
   const [addressLongitude, setAddressLongitude] = useState(null);
+  const isResolvingCurrentLocation = useRef(false);
+  const addressDetectionId = useRef(0);
   const [addressLoading, setAddressLoading] = useState({
     countries: false,
     states: false,
@@ -55,6 +62,8 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
     }
 
     let active = true;
+    isResolvingCurrentLocation.current = false;
+    const detectionId = addressDetectionId.current;
 
     const loadCustomerAddress = async () => {
       setAddressCountryId("");
@@ -62,7 +71,9 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       setAddressDistrict("");
       setAddressCity("");
       setAddressArea("");
-      setAddressFull("");
+      setAddressHouse("");
+      setAddressRoad("");
+      setAddressFullFallback("");
       setAddressPincode("");
       setAddressLatitude(null);
       setAddressLongitude(null);
@@ -96,11 +107,13 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
 
         setAddressCountryId(customerAddress.country || "");
+        setAddressHouse(customerAddress.house || "");
+        setAddressRoad(customerAddress.road || "");
+        setAddressFullFallback(customerAddress.fullAddress || "");
         setAddressState(customerAddress.state || "");
         setAddressDistrict(customerAddress.district || "");
         setAddressCity(customerAddress.city || "");
         setAddressArea(customerAddress.area || "");
-        setAddressFull(customerAddress.fullAddress || "");
         setAddressPincode(customerAddress.pincode || "");
         setAddressLatitude(customerAddress.lat ?? null);
         setAddressLongitude(customerAddress.lon ?? null);
@@ -119,7 +132,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       try {
         setAddressLoading((current) => ({ ...current, countries: true }));
         const countries = await getRegistrationCountries();
-        if (active) {
+        if (active && detectionId === addressDetectionId.current) {
           setAddressCountryOptions(countries);
         }
       } catch (error) {
@@ -139,9 +152,11 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
   }, [open]);
 
   const loadAddressOptions = async (level, values) => {
+    const detectionId = addressDetectionId.current;
     try {
       setAddressLoading((current) => ({ ...current, [level]: true }));
       const options = await getRegistrationLocationOptions({ ...values, level });
+      if (detectionId !== addressDetectionId.current) return;
 
       if (level === "states") {
         setAddressStateOptions(options);
@@ -156,23 +171,26 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         setAddressAreaOptions(options);
       }
     } catch (error) {
+      if (detectionId !== addressDetectionId.current) return;
       console.error("[ADDRESS MODAL] Address level load failed:", error);
       setAddressError("Unable to load location details. Please try again.");
     } finally {
-      setAddressLoading((current) => ({ ...current, [level]: false }));
+      if (detectionId === addressDetectionId.current) {
+        setAddressLoading((current) => ({ ...current, [level]: false }));
+      }
     }
   };
 
   useEffect(() => {
-    if (!open || !addressCountryId) {
+    if (!open || isResolvingCurrentLocation.current || !addressCountryId) {
       return;
     }
 
     loadAddressOptions("states", { countryId: addressCountryId });
-  }, [open, addressCountryId]);
+  }, [open, addressMode, addressCountryId]);
 
   useEffect(() => {
-    if (!open || !addressCountryId || !addressState) {
+    if (!open || isResolvingCurrentLocation.current || !addressCountryId || !addressState) {
       return;
     }
 
@@ -180,10 +198,10 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       countryId: addressCountryId,
       stateId: addressState,
     });
-  }, [open, addressCountryId, addressState]);
+  }, [open, addressMode, addressCountryId, addressState]);
 
   useEffect(() => {
-    if (!open || !addressCountryId || !addressState || !addressDistrict) {
+    if (!open || isResolvingCurrentLocation.current || !addressCountryId || !addressState || !addressDistrict) {
       return;
     }
 
@@ -192,10 +210,10 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       stateId: addressState,
       districtId: addressDistrict,
     });
-  }, [open, addressCountryId, addressState, addressDistrict]);
+  }, [open, addressMode, addressCountryId, addressState, addressDistrict]);
 
   useEffect(() => {
-    if (!open || !addressCountryId || !addressState || !addressDistrict || !addressCity) {
+    if (!open || isResolvingCurrentLocation.current || !addressCountryId || !addressState || !addressDistrict || !addressCity) {
       return;
     }
 
@@ -205,177 +223,49 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
       districtId: addressDistrict,
       cityId: addressCity,
     });
-  }, [open, addressCountryId, addressState, addressDistrict, addressCity]);
+  }, [open, addressMode, addressCountryId, addressState, addressDistrict, addressCity]);
 
-  const handleCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setAddressError("Location is not supported by this browser.");
-      return;
-    }
-
+  const handleCurrentLocation = async () => {
+    addressDetectionId.current += 1;
+    isResolvingCurrentLocation.current = true;
     setAddressMode("gps");
     setAddressError("");
     setIsDetectingAddress(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        const latitude = Number(coords.latitude);
-        const longitude = Number(coords.longitude);
-        setAddressLatitude(latitude);
-        setAddressLongitude(longitude);
-
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
-            { headers: { Accept: "application/json" } }
-          );
-
-          if (!response.ok) {
-            throw new Error("Unable to reverse geocode current location.");
-          }
-
-          const data = await response.json();
-          const parts = data.address || {};
-          const firstValue = (...values) => values.find((value) => String(value || "").trim()) || "";
-          const normalizeLabel = (value) => String(value || "")
-            .trim()
-            .toLocaleLowerCase()
-            .replace(/\s+/g, " ");
-          const findOption = (options, values) => {
-            const labels = values.map(normalizeLabel).filter(Boolean);
-            return options.find((option) => labels.includes(normalizeLabel(option.label)));
-          };
-          const house = firstValue(parts.house_number, parts.house_name, parts.building);
-          const road = firstValue(parts.road, parts.pedestrian, parts.residential);
-          const locality = firstValue(
-            parts.suburb,
-            parts.neighbourhood,
-            parts.quarter,
-            parts.hamlet,
-            parts.locality,
-            parts.village
-          );
-          const cityName = firstValue(parts.city, parts.town, parts.municipality, parts.village);
-          const districtName = firstValue(parts.state_district, parts.county, parts.district);
-          const stateName = firstValue(parts.state);
-          const countryName = firstValue(parts.country);
-          const detectedPincode = firstValue(parts.postcode);
-          const detectedAddress = [house, road, locality, cityName, districtName, stateName]
-            .filter((part, index, addressParts) => part && addressParts.indexOf(part) === index)
-            .join(", ") || data.display_name || `${latitude}, ${longitude}`;
-
-          let resolvedLocation = {
-            country: countryName,
-            state: stateName,
-            district: districtName,
-            city: cityName,
-            area: locality,
-            stateOptions: [],
-            districtOptions: [],
-            cityOptions: [],
-            areaOptions: [],
-          };
-
-          try {
-            const countryOptions = addressCountryOptions.length
-              ? addressCountryOptions
-              : await getRegistrationCountries();
-            const countryOption = countryOptions.find((option) =>
-              (parts.country_code && option.code?.toLowerCase() === parts.country_code.toLowerCase())
-              || normalizeLabel(option.label) === normalizeLabel(countryName)
-            );
-
-            if (countryOption) {
-              const stateOptions = await getRegistrationLocationOptions({
-                countryId: countryOption.id,
-                level: "states",
-              });
-              const stateOption = findOption(stateOptions, [stateName]);
-              resolvedLocation = {
-                ...resolvedLocation,
-                country: countryOption.id,
-                state: stateOption?.id || stateName,
-                stateOptions,
-              };
-
-              if (stateOption) {
-                const districtOptions = await getRegistrationLocationOptions({
-                  countryId: countryOption.id,
-                  stateId: stateOption.id,
-                  level: "districts",
-                });
-                const districtOption = findOption(districtOptions, [districtName]);
-                resolvedLocation = {
-                  ...resolvedLocation,
-                  district: districtOption?.id || districtName,
-                  districtOptions,
-                };
-
-                if (districtOption) {
-                  const cityOptions = await getRegistrationLocationOptions({
-                    countryId: countryOption.id,
-                    stateId: stateOption.id,
-                    districtId: districtOption.id,
-                    level: "cities",
-                  });
-                  const cityOption = findOption(cityOptions, [cityName]);
-                  resolvedLocation = {
-                    ...resolvedLocation,
-                    city: cityOption?.id || cityName,
-                    cityOptions,
-                  };
-
-                  if (cityOption) {
-                    const areaOptions = await getRegistrationLocationOptions({
-                      countryId: countryOption.id,
-                      stateId: stateOption.id,
-                      districtId: districtOption.id,
-                      cityId: cityOption.id,
-                      level: "areas",
-                    });
-                    const areaOption = findOption(areaOptions, [locality, road]);
-                    resolvedLocation = {
-                      ...resolvedLocation,
-                      area: areaOption?.id || locality,
-                      areaOptions,
-                    };
-                  }
-                }
-              }
-            }
-          } catch (locationMasterError) {
-            console.warn("[ADDRESS MODAL] Location master match failed:", locationMasterError);
-          }
-
-          setAddressFull(detectedAddress);
-          setAddressPincode(detectedPincode);
-          setAddressCountryId(resolvedLocation.country || "");
-          setAddressState(resolvedLocation.state || "");
-          setAddressDistrict(resolvedLocation.district || "");
-          setAddressCity(resolvedLocation.city || "");
-          setAddressArea(resolvedLocation.area || "");
-          setAddressStateOptions(resolvedLocation.stateOptions);
-          setAddressDistrictOptions(resolvedLocation.districtOptions);
-          setAddressCityOptions(resolvedLocation.cityOptions);
-          setAddressAreaOptions(resolvedLocation.areaOptions);
-        } catch (error) {
-          console.warn("[ADDRESS MODAL] Reverse geocode failed:", error);
-          setAddressError("We could not convert your current location into an address. Please enter your address manually.");
-        } finally {
-          setIsDetectingAddress(false);
-        }
-      },
-      (locationError) => {
-        console.error("[ADDRESS MODAL] Geo location failed:", locationError);
-        setAddressError(
-          locationError?.code === 1
-            ? "Location permission is disabled. Please enable location access and try again."
-            : "Unable to detect your current location. Please try again."
-        );
-          setIsDetectingAddress(false);
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
-    );
+    setAddressLatitude(null);
+    setAddressLongitude(null);
+    setAddressFullFallback("");
+    try {
+      const detectedAddress = await getCurrentLocationAddress();
+      setAddressHouse(detectedAddress.house);
+      setAddressRoad(detectedAddress.road);
+      setAddressFullFallback(detectedAddress.fullAddress);
+      setAddressPincode(detectedAddress.pincode);
+      setAddressLatitude(detectedAddress.latitude);
+      setAddressLongitude(detectedAddress.longitude);
+      setAddressCountryId(detectedAddress.matches.country?.id || detectedAddress.country);
+      setAddressState(detectedAddress.matches.state?.id || detectedAddress.state);
+      setAddressDistrict(detectedAddress.matches.district?.id || detectedAddress.district);
+      setAddressCity(detectedAddress.matches.city?.id || detectedAddress.city);
+      setAddressArea(detectedAddress.matches.area?.id || detectedAddress.area);
+      setAddressCountryOptions(detectedAddress.options.countries);
+      setAddressStateOptions(detectedAddress.options.states);
+      setAddressDistrictOptions(detectedAddress.options.districts);
+      setAddressCityOptions(detectedAddress.options.cities);
+      setAddressAreaOptions(detectedAddress.options.areas);
+    } catch (error) {
+      console.error("[ADDRESS MODAL] Current location detection failed:", error);
+      setAddressError(error?.message || "We could not convert your current location into an address. Please enter your address manually.");
+    } finally {
+      isResolvingCurrentLocation.current = false;
+      setAddressLoading({
+        countries: false,
+        states: false,
+        districts: false,
+        cities: false,
+        areas: false,
+      });
+      setIsDetectingAddress(false);
+    }
   };
 
   const handleSave = async () => {
@@ -403,31 +293,41 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
         }
       }
 
-      if (addressMode === "gps" && !addressFull.trim()) {
+      if (addressMode === "gps" && (addressLatitude === null || addressLongitude === null)) {
         setAddressError("Please wait for your current location to be detected.");
         return;
       }
 
+      const optionLabel = (options, value) =>
+        options.find((option) => option.id === value || option.value === value)?.label || value;
+      const addressParts = [
+        addressHouse,
+        addressRoad,
+        optionLabel(addressAreaOptions, addressArea),
+        optionLabel(addressCityOptions, addressCity),
+        optionLabel(addressDistrictOptions, addressDistrict),
+        optionLabel(addressStateOptions, addressState),
+        optionLabel(addressCountryOptions, addressCountryId),
+        addressPincode,
+      ];
+      const fullAddress = addressParts
+        .map((part) => String(part || "").trim())
+        .filter((part, index, parts) => part && parts.indexOf(part) === index)
+        .join(", ") || (addressMode === "gps" ? addressFullFallback : "");
       const nextAddress = {
         country: addressCountryId,
+        house: addressHouse.trim(),
+        road: addressRoad.trim(),
         state: addressState,
         district: addressDistrict,
         city: addressCity,
         area: addressArea,
-        fullAddress: addressMode === "gps"
-          ? addressFull.trim()
-          : [addressArea, addressCity, addressDistrict, addressState, addressCountryId]
-              .filter(Boolean)
-              .join(", "),
+        fullAddress,
         pincode: addressPincode.trim(),
         lat: addressMode === "gps" ? addressLatitude : null,
         lon: addressMode === "gps" ? addressLongitude : null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
-        address: addressMode === "gps"
-          ? addressFull.trim()
-          : [addressArea, addressCity, addressDistrict, addressState, addressCountryId]
-              .filter(Boolean)
-              .join(", "),
+        address: fullAddress,
       };
 
       setIsSavingAddress(true);
@@ -523,10 +423,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
             <button
               type="button"
               disabled={isDetectingAddress}
-              onClick={() => {
-                setAddressMode("gps");
-                handleCurrentLocation();
-              }}
+              onClick={handleCurrentLocation}
               style={{
                 border: addressMode === "gps" ? "1px solid #65a91a" : "1px solid #cbd5e1",
                 background: addressMode === "gps" ? "#f7fbf3" : "#fff",
@@ -554,106 +451,108 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
             </button>
           </div>
 
-          {addressMode === "manual" && (
-            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-              <select
-                value={addressCountryId}
-                onChange={(event) => {
-                  setAddressCountryId(event.target.value);
-                  setAddressState("");
-                  setAddressDistrict("");
-                  setAddressCity("");
-                  setAddressArea("");
-                }}
-                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-              >
-                <option value="">Select Country</option>
-                {addressCountryOptions.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <input
+              type="text"
+              value={addressHouse}
+              onChange={(event) => setAddressHouse(event.target.value)}
+              placeholder="House no. / Building Name"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressRoad}
+              onChange={(event) => setAddressRoad(event.target.value)}
+              placeholder="Road Name / Area / Colony"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressPincode}
+              onChange={(event) => setAddressPincode(event.target.value)}
+              placeholder="Pincode"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+          </div>
 
-              <select
-                value={addressState}
-                onChange={(event) => {
-                  setAddressState(event.target.value);
-                  setAddressDistrict("");
-                  setAddressCity("");
-                  setAddressArea("");
-                }}
-                disabled={!addressCountryId || addressLoading.states}
-                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-              >
-                <option value="">Select State</option>
-                {addressStateOptions.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <select
+              value={addressCountryId}
+              onChange={(event) => {
+                setAddressCountryId(event.target.value);
+                setAddressState("");
+                setAddressDistrict("");
+                setAddressCity("");
+                setAddressArea("");
+              }}
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            >
+              <option value="">Select Country</option>
+              {addressCountryOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
 
-              <select
-                value={addressDistrict}
-                onChange={(event) => {
-                  setAddressDistrict(event.target.value);
-                  setAddressCity("");
-                  setAddressArea("");
-                }}
-                disabled={!addressState || addressLoading.districts}
-                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-              >
-                <option value="">Select District</option>
-                {addressDistrictOptions.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
+            <select
+              value={addressState}
+              onChange={(event) => {
+                setAddressState(event.target.value);
+                setAddressDistrict("");
+                setAddressCity("");
+                setAddressArea("");
+              }}
+              disabled={!addressCountryId || addressLoading.states}
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            >
+              <option value="">Select State</option>
+              {addressStateOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
 
-              <select
-                value={addressCity}
-                onChange={(event) => {
-                  setAddressCity(event.target.value);
-                  setAddressArea("");
-                }}
-                disabled={!addressDistrict || addressLoading.cities}
-                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-              >
-                <option value="">Select City</option>
-                {addressCityOptions.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
+            <select
+              value={addressDistrict}
+              onChange={(event) => {
+                setAddressDistrict(event.target.value);
+                setAddressCity("");
+                setAddressArea("");
+              }}
+              disabled={!addressState || addressLoading.districts}
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            >
+              <option value="">Select District</option>
+              {addressDistrictOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
 
-              <select
-                value={addressArea}
-                onChange={(event) => setAddressArea(event.target.value)}
-                disabled={!addressCity || addressLoading.areas}
-                style={{ gridColumn: "1 / -1", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-              >
-                <option value="">Select Area</option>
-                {addressAreaOptions.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
+            <select
+              value={addressCity}
+              onChange={(event) => {
+                setAddressCity(event.target.value);
+                setAddressArea("");
+              }}
+              disabled={!addressDistrict || addressLoading.cities}
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            >
+              <option value="">Select City</option>
+              {addressCityOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
 
-          {addressMode === "gps" && (
-            <>
-              <textarea
-                value={addressFull}
-                onChange={(event) => setAddressFull(event.target.value)}
-                placeholder="Detected current address"
-                rows={4}
-                style={{ width: "100%", resize: "vertical", padding: 12, borderRadius: 8, border: "1px solid #d1d5db" }}
-              />
-
-              <input
-                type="text"
-                value={addressPincode}
-                onChange={(event) => setAddressPincode(event.target.value)}
-                placeholder="Pincode"
-                style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #d1d5db" }}
-              />
-            </>
-          )}
+            <select
+              value={addressArea}
+              onChange={(event) => setAddressArea(event.target.value)}
+              disabled={!addressCity || addressLoading.areas}
+              style={{ gridColumn: "1 / -1", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            >
+              <option value="">Select Area</option>
+              {addressAreaOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>

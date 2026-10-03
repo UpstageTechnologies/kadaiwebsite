@@ -26,6 +26,7 @@ import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "../../../services/registration-location.service";
+import { getCurrentLocationAddress } from "../../../services/current-location-address.service";
 import "./register.css";
 
 const Register = () => {
@@ -54,7 +55,12 @@ const Register = () => {
   const [district, setDistrict] = useState("");
   const [city, setCity] = useState("");
   const [area, setArea] = useState("");
+  const [house, setHouse] = useState("");
+  const [road, setRoad] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [detectedFullAddress, setDetectedFullAddress] = useState("");
   const [locationMode, setLocationMode] = useState("manual");
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [locationOptions, setLocationOptions] = useState({
@@ -447,30 +453,58 @@ const Register = () => {
     loadLocationLevel("areas", { countryId, stateId, districtId, cityId });
   };
 
-  const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setError("Location is not supported by this browser.");
-      return;
-    }
-
-    setLoading(true);
+  const useCurrentLocation = async () => {
+    setIsDetectingLocation(true);
     setError("");
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setLatitude(coords.latitude);
-        setLongitude(coords.longitude);
-        setLocationMode("gps");
-        setLoading(false);
-      },
-      (locationError) => {
-        setLoading(false);
-        setError(locationError.code === 1 ? "Location permission was denied." : "Unable to detect your current location.");
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
-    );
+    setLatitude(null);
+    setLongitude(null);
+    try {
+      const detectedAddress = await getCurrentLocationAddress();
+      locationRequestIds.current.countries += 1;
+      locationRequestIds.current.states += 1;
+      locationRequestIds.current.districts += 1;
+      locationRequestIds.current.cities += 1;
+      locationRequestIds.current.areas += 1;
+      setCountryOptions(detectedAddress.options.countries);
+      setCountryId(detectedAddress.matches.country?.value || detectedAddress.country);
+      setState(detectedAddress.matches.state?.value || detectedAddress.state);
+      setDistrict(detectedAddress.matches.district?.value || detectedAddress.district);
+      setCity(detectedAddress.matches.city?.value || detectedAddress.city);
+      setArea(detectedAddress.matches.area?.value || detectedAddress.area);
+      setHouse(detectedAddress.house);
+      setRoad(detectedAddress.road);
+      setPincode(detectedAddress.pincode);
+      setDetectedFullAddress(detectedAddress.fullAddress);
+      setLatitude(detectedAddress.latitude);
+      setLongitude(detectedAddress.longitude);
+      setLocationOptions({
+        states: detectedAddress.options.states,
+        districts: detectedAddress.options.districts,
+        cities: detectedAddress.options.cities,
+        areas: detectedAddress.options.areas,
+      });
+      setLocationLoading({
+        countries: false,
+        states: false,
+        districts: false,
+        cities: false,
+        areas: false,
+      });
+      setLocationMode("gps");
+    } catch (locationError) {
+      console.error("[AUTH] Current location detection failed:", locationError);
+      setError(locationError?.message || "Unable to detect your current location. Please try again.");
+    } finally {
+      setIsDetectingLocation(false);
+    }
   };
 
   const saveRegistration = async () => {
+    if (locationMode === "gps" && (latitude === null || longitude === null)) {
+      setError("Please wait for your current location to be detected.");
+      return;
+    }
+
     if (locationMode === "manual" && (!state || !district || !city || !area)) {
       setError("Please select State, District, City, and Area.");
       return;
@@ -492,6 +526,7 @@ const Register = () => {
 
     try {
       await updateProfile(authenticatedUser, { displayName: username.trim() });
+      const countryLabel = countryOptions.find((option) => option.value === countryId)?.label || countryId;
       await firebaseUpsertCustomerProfile(authenticatedUser.uid, {
         uid: authenticatedUser.uid,
         name: username.trim(),
@@ -504,8 +539,12 @@ const Register = () => {
           district,
           city,
           area,
-          fullAddress: "",
-          pincode: "",
+          house,
+          road,
+          fullAddress: [house, road, area, city, district, state, countryLabel, pincode]
+            .filter(Boolean)
+            .join(", ") || (locationMode === "gps" ? detectedFullAddress : ""),
+          pincode,
           lat: locationMode === "gps" ? latitude : null,
           lon: locationMode === "gps" ? longitude : null,
           locationSource: locationMode,
@@ -691,9 +730,9 @@ const Register = () => {
                   className={locationMode === "gps" ? "active" : ""}
                   type="button"
                   onClick={useCurrentLocation}
-                  disabled={loading}
+                  disabled={loading || isDetectingLocation}
                 >
-                  Use Current Location
+                  {isDetectingLocation ? "Detecting Location..." : "Use Current Location"}
                 </button>
                 <button
                   className={locationMode === "manual" ? "active" : ""}
@@ -702,14 +741,26 @@ const Register = () => {
                     setLocationMode("manual");
                     setLatitude(null);
                     setLongitude(null);
+                    setDetectedFullAddress("");
                   }}
                 >
                   Add Manually
                 </button>
               </div>
 
-              {locationMode === "manual" && (
-                <div className="register-form-grid">
+              <div className="register-form-grid">
+                  <div className="register-field">
+                    <span>House no. / Building Name</span>
+                    <input value={house} onChange={(event) => setHouse(event.target.value)} disabled={loading} />
+                  </div>
+                  <div className="register-field">
+                    <span>Road Name / Area / Colony</span>
+                    <input value={road} onChange={(event) => setRoad(event.target.value)} disabled={loading} />
+                  </div>
+                  <div className="register-field">
+                    <span>Pincode</span>
+                    <input value={pincode} onChange={(event) => setPincode(event.target.value)} disabled={loading} />
+                  </div>
                   <div className="register-field">
                     <span>Country</span>
                     <select
@@ -753,8 +804,7 @@ const Register = () => {
                       {locationOptions.areas.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
-                </div>
-              )}
+              </div>
 
               {locationMode === "gps" && latitude !== null && (
                 <p className="register-location-status">
@@ -764,8 +814,8 @@ const Register = () => {
 
               {error && <div className="error-message" role="alert">{error}</div>}
 
-              <button className="register-submit" type="button" onClick={saveRegistration} disabled={loading}>
-                {loading ? "Saving..." : "Complete Registration"}
+              <button className="register-submit" type="button" onClick={saveRegistration} disabled={loading || isDetectingLocation}>
+                {loading ? "Saving..." : "Save Address and Continue"}
               </button>
             </>
           )}
