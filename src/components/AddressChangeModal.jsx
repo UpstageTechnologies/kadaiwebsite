@@ -548,21 +548,7 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
               type="text"
               value={addressHouse}
               onChange={(event) => setAddressHouse(event.target.value)}
-              placeholder="House no. / Building Name"
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-            />
-            <input
-              type="text"
-              value={addressBuilding}
-              onChange={(event) => setAddressBuilding(event.target.value)}
-              placeholder="Building Name"
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-            />
-            <input
-              type="text"
-              value={addressFlat}
-              onChange={(event) => setAddressFlat(event.target.value)}
-              placeholder="Flat / Door Number"
+              placeholder="House no. / Building"
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             />
             <input
@@ -584,13 +570,6 @@ export default function AddressChangeModal({ open, onClose, onSaved }) {
               value={addressLandmark}
               onChange={(event) => setAddressLandmark(event.target.value)}
               placeholder="Landmark"
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-            />
-            <input
-              type="text"
-              value={addressVillage}
-              onChange={(event) => setAddressVillage(event.target.value)}
-              placeholder="Village"
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             />
             <input
