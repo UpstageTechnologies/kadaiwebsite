@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiShoppingCart,
   FiStar,
@@ -6,18 +6,24 @@ import {
   FiChevronRight,
   FiArrowRight,
 } from "react-icons/fi";
+import { doc, onSnapshot } from "firebase/firestore";
 
 import "../index.css";
 import { useCart } from "./CardContext";
+import { useAuth } from "./AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
-  getMarketplaceCatalog,
+  getAddressCoordinates,
+  getNearbySellerIds,
   MARKET_MODES,
   subscribeMarketplaceProducts,
+  subscribeSellerLocations,
 } from "../services/marketplace.service";
+import { db } from "../services/firebase";
 
 const Products = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const {
     cartItems,
@@ -31,28 +37,84 @@ const Products = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [showAll, setShowAll] = useState(false);
-  const [liveProducts, setLiveProducts] = useState(() => getMarketplaceCatalog());
+  const [localProducts, setLocalProducts] = useState([]);
+  const [sellerLocations, setSellerLocations] = useState({});
+  const [customerLocation, setCustomerLocation] = useState(null);
+  const [isLoading, setIsLoading] = useState(Boolean(user));
 
   useEffect(() => {
-    return subscribeMarketplaceProducts({
-      marketMode: MARKET_MODES.GLOBAL,
-      onProducts: setLiveProducts,
+    if (!user?.uid || !db) {
+      setCustomerLocation(null);
+      return undefined;
+    }
+
+    const customerRef = doc(db, "customers", user.uid);
+    const unsubscribe = onSnapshot(
+      customerRef,
+      (snapshot) => {
+        const customerData = snapshot.data() || {};
+        setCustomerLocation(getAddressCoordinates(customerData?.address || customerData));
+      },
+      () => setCustomerLocation(null)
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeSellerLocations({
+      onLocations: setSellerLocations,
+      onError: () => setSellerLocations({}),
     });
+
+    return () => unsubscribe();
   }, []);
 
-  const totalPages = Math.ceil(
-    liveProducts.length / productsPerPage
+  useEffect(() => {
+    setIsLoading(Boolean(user));
+
+    if (!user?.uid) {
+      setLocalProducts([]);
+      return undefined;
+    }
+
+    const unsubscribe = subscribeMarketplaceProducts({
+      marketMode: MARKET_MODES.LOCAL,
+      onProducts: (products) => {
+        setLocalProducts(Array.isArray(products) ? products : []);
+        setIsLoading(false);
+      },
+      onError: () => {
+        setLocalProducts([]);
+        setIsLoading(false);
+      },
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  const nearbySellerIds = useMemo(
+    () => getNearbySellerIds(customerLocation, sellerLocations),
+    [customerLocation, sellerLocations]
   );
 
-  const startIndex =
-    (currentPage - 1) * productsPerPage;
+  const filteredLocalProducts = useMemo(() => {
+    if (!nearbySellerIds.length) {
+      return [];
+    }
 
-  const endIndex =
-    startIndex + productsPerPage;
+    return localProducts.filter((product) =>
+      nearbySellerIds.includes(product.shopId || product.sellerId)
+    );
+  }, [localProducts, nearbySellerIds]);
 
+  const totalPages = Math.ceil(filteredLocalProducts.length / productsPerPage);
+
+  const startIndex = (currentPage - 1) * productsPerPage;
+  const endIndex = startIndex + productsPerPage;
   const visibleProducts = showAll
-    ? liveProducts
-    : liveProducts.slice(startIndex, endIndex);
+    ? filteredLocalProducts
+    : filteredLocalProducts.slice(startIndex, endIndex);
 
   const getProductQuantity = (productId) => {
     const cartItem = cartItems.find(
@@ -74,7 +136,7 @@ const Products = () => {
   };
 
   const handleViewAll = () => {
-    setShowAll(true);
+    navigate("/products?market=global");
   };
 
   return (
@@ -99,12 +161,10 @@ const Products = () => {
 
         </div>
 
-        {/* VIEW ALL */}
-
         {!showAll && (
           <button
             className="view-all-btn"
-            onClick={() => navigate("/products")}
+            onClick={handleViewAll}
           >
             View All Products
 
@@ -116,172 +176,160 @@ const Products = () => {
 
       </div>
 
-      <div className="products-grid">
+      {isLoading ? (
+        <div className="no-products">
+          <h3>Loading nearby products...</h3>
+        </div>
+      ) : visibleProducts.length === 0 ? (
+        <div className="no-products">
+          <h3>No local products available within 3 KM</h3>
+          <p>Try the global catalog for more products from other stores.</p>
+        </div>
+      ) : (
+        <div className="products-grid">
 
-        {visibleProducts.map((product) => {
+          {visibleProducts.map((product) => {
 
-          const quantity = getProductQuantity(
-            product.id
-          );
+            const quantity = getProductQuantity(
+              product.id
+            );
 
-          return (
-            <article
-              className="product-card"
-              key={product.id}
-              onClick={()=> navigate(`/product/${product.id}`) }
-            >
+            return (
+              <article
+                className="product-card"
+                key={product.id}
+                onClick={()=> navigate(`/product/${product.id}`) }
+              >
 
-              <div className="product-image-box">
+                <div className="product-image-box">
 
-                <span className="product-category">
-                  {product.category}
-                </span>
-
-                <img
-                  src={product.image}
-                  alt={product.name}
-                />
-
-              </div>
-
-
-              <div className="product-info">
-
-                {/* RATING */}
-
-                <div className="product-rating">
-
-                  <FiStar />
-
-                  <span>
-                    {product.rating}
+                  <span className="product-category">
+                    {product.category}
                   </span>
+
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                  />
 
                 </div>
 
 
-                {/* NAME */}
+                <div className="product-info">
 
-                <h3>
-                  {product.name}
-                </h3>
+                  <div className="product-rating">
 
+                    <FiStar />
 
-                {/* DESCRIPTION */}
-
-                <p>
-                  {product.description}
-                </p>
-
-                <div className="product-bottom">
-
-                  {/* PRICE */}
-
-                  <div className="product-price">
-
-                    <span className="old-price">
-                      ₹
-                      {product.oldPrice.toFixed(2)}
+                    <span>
+                      {product.rating}
                     </span>
-
-                    <strong>
-                      ₹
-                      {product.price.toFixed(2)}
-                    </strong>
-
-                    <small>
-                      / {product.unit}
-                    </small>
 
                   </div>
 
-                  {quantity === 0 ? (
+                  <h3>
+                    {product.name}
+                  </h3>
 
-                    /* ADD BUTTON */
+                  <p>
+                    {product.description}
+                  </p>
 
-                    <button
-                      className="add-product-btn"
-                      disabled={isAddingToCart(product.id)}
-                      aria-label={`Add ${product.name} to cart`}
-                      onClick={(event) => {
+                  <div className="product-bottom">
 
-                        event.stopPropagation();
+                    <div className="product-price">
 
-                        addToCart(product);
-
-                      }}
-                    >
-
-                      <span>
-                        Add
+                      <span className="old-price">
+                        ₹
+                        {product.oldPrice.toFixed(2)}
                       </span>
 
-                      <FiShoppingCart />
+                      <strong>
+                        ₹
+                        {product.price.toFixed(2)}
+                      </strong>
 
-                    </button>
-
-                  ) : (
-
-                    /* QUANTITY CONTROL */
-
-                    <div
-                      className="product-quantity-control"
-                      onClick={(event) =>
-                        event.stopPropagation()
-                      }
-                    >
-
-                      {/* DECREASE */}
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          decreaseQuantity(product.id)
-                        }
-                        aria-label={`Decrease ${product.name} quantity`}
-                      >
-                        −
-                      </button>
-
-
-                      {/* QUANTITY */}
-
-                      <span>
-                        {quantity}
-                      </span>
-
-
-                      {/* INCREASE */}
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          increaseQuantity(product.id)
-                        }
-                        aria-label={`Increase ${product.name} quantity`}
-                      >
-                        +
-                      </button>
+                      <small>
+                        / {product.unit}
+                      </small>
 
                     </div>
 
-                  )}
+                    {quantity === 0 ? (
+
+                      <button
+                        className="add-product-btn"
+                        disabled={isAddingToCart(product.id)}
+                        aria-label={`Add ${product.name} to cart`}
+                        onClick={(event) => {
+
+                          event.stopPropagation();
+
+                          addToCart(product);
+
+                        }}
+                      >
+
+                        <span>
+                          Add
+                        </span>
+
+                        <FiShoppingCart />
+
+                      </button>
+
+                    ) : (
+
+                      <div
+                        className="product-quantity-control"
+                        onClick={(event) =>
+                          event.stopPropagation()
+                        }
+                      >
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            decreaseQuantity(product.id)
+                          }
+                          aria-label={`Decrease ${product.name} quantity`}
+                        >
+                          −
+                        </button>
+
+                        <span>
+                          {quantity}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            increaseQuantity(product.id)
+                          }
+                          aria-label={`Increase ${product.name} quantity`}
+                        >
+                          +
+                        </button>
+
+                      </div>
+
+                    )}
+
+                  </div>
 
                 </div>
 
-              </div>
+              </article>
+            );
 
-            </article>
-          );
+          })}
 
-        })}
+        </div>
+      )}
 
-      </div>
-      {!showAll && totalPages > 1 && (
+      {!showAll && !isLoading && filteredLocalProducts.length > 8 && (
 
         <div className="products-pagination">
-
-          {/* PREVIOUS */}
 
           <button
             className="pagination-arrow"
@@ -295,9 +343,6 @@ const Products = () => {
           >
             <FiChevronLeft />
           </button>
-
-
-          {/* PAGE NUMBERS */}
 
           {Array.from(
             { length: totalPages },
@@ -319,9 +364,6 @@ const Products = () => {
             </button>
 
           ))}
-
-
-          {/* NEXT */}
 
           <button
             className="pagination-arrow"
