@@ -1,12 +1,12 @@
-                                                                                                     let _confirmation = null;
-const PHONE_SESSION_KEY = "kadai.registration.phone";
-const USERNAME_SESSION_KEY = "kadai.registration.username";
+let _confirmation = null;
+let _phone = "";
+let _username = "";
 
 export function setConfirmation(conf, phone = "") {
   _confirmation = conf;
 
   if (phone) {
-    sessionStorage.setItem(PHONE_SESSION_KEY, phone);
+    _phone = phone;
   }
 }
 
@@ -19,21 +19,21 @@ export function clearConfirmation() {
 }
 
 export function getRegistrationPhone() {
-  return sessionStorage.getItem(PHONE_SESSION_KEY) || "";
+  return _phone;
 }
 
 export function clearRegistrationPhone() {
-  sessionStorage.removeItem(PHONE_SESSION_KEY);
+  _phone = "";
 }
 
 export function setRegistrationUsername(username) {
-  sessionStorage.setItem(USERNAME_SESSION_KEY, username);
+  _username = username;
 }
 
 export function getRegistrationUsername() {
-  return sessionStorage.getItem(USERNAME_SESSION_KEY) || "";
+  return _username;
 }
 
 export function clearRegistrationUsername() {
-  sessionStorage.removeItem(USERNAME_SESSION_KEY);
+  _username = "";
 }

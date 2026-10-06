@@ -20,6 +20,26 @@ exports.createCustomerCustomToken = onRequest(async (req, res) => {
     return res.status(400).json({ error: "Missing customer uid." });
   }
 
+  const authorization = req.get("Authorization") || "";
+  const idToken = authorization.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length)
+    : "";
+  if (!idToken) {
+    return res.status(401).json({ error: "A Firebase ID token is required." });
+  }
+
+  let authenticatedUser;
+  try {
+    authenticatedUser = await getAuth().verifyIdToken(idToken);
+  } catch (error) {
+    console.warn("Customer custom token request had an invalid Firebase ID token:", error);
+    return res.status(401).json({ error: "The Firebase ID token is invalid or expired." });
+  }
+
+  if (authenticatedUser.uid !== uid) {
+    return res.status(403).json({ error: "You can only request a token for your own account." });
+  }
+
   const customerRef = db.collection("customers").doc(uid);
   const customerSnapshot = await customerRef.get();
 
@@ -67,13 +87,23 @@ exports.sendOrderStatusNotification = onDocumentWritten(
     const oldStatus = beforeData.status;
     const newStatus = afterData.status;
 
-    if (oldStatus === newStatus) {
+    const previousShopStatuses = new Map(
+      (Array.isArray(beforeData.orderedShops) ? beforeData.orderedShops : [])
+        .map((shop) => [String(shop.shopId || ""), shop.status || "Order Placed"])
+    );
+    const changedShop = (Array.isArray(afterData.orderedShops) ? afterData.orderedShops : [])
+      .find((shop) =>
+        previousShopStatuses.get(String(shop.shopId || "")) !== (shop.status || "Order Placed")
+      );
+
+    if (oldStatus === newStatus && !changedShop) {
       console.log("Order status did not change. Ignoring notification.");
       return;
     }
 
-    const title = STATUS_TITLES[newStatus];
-    const actionText = STATUS_MESSAGES[newStatus];
+    const notificationStatus = changedShop?.status || newStatus;
+    const title = STATUS_TITLES[notificationStatus];
+    const actionText = STATUS_MESSAGES[notificationStatus];
     if (!title || !actionText) {
       console.log("Unknown order status:", newStatus);
       return;
@@ -94,10 +124,14 @@ exports.sendOrderStatusNotification = onDocumentWritten(
         token: fcmToken,
         data: {
           orderId: String(orderId),
-          status: String(newStatus),
+          status: String(notificationStatus),
+          shopId: String(changedShop?.shopId || ""),
+          shopName: String(changedShop?.shopName || ""),
           screen: "TrackOrderScreen",
           title,
-          body: `Your order ${orderId} ${actionText}.`,
+          body: changedShop?.shopName
+            ? `Your order ${orderId} from ${changedShop.shopName} ${actionText}.`
+            : `Your order ${orderId} ${actionText}.`,
         },
         android: { priority: "high" },
       });

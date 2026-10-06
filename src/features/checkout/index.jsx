@@ -1,4 +1,4 @@
-                                                                                                                                                                    import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiArrowLeft, FiCheck, FiMapPin } from "react-icons/fi";
 import { useLocation as useRouteLocation, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
@@ -20,11 +20,12 @@ const Checkout = () => {
   const navigate = useNavigate();
   const routeLocation = useRouteLocation();
   const { cartItems, clearCart } = useCart();
-  const { user, loading: isAuthLoading } = useAuth();
+  const { user, customer, loading: isAuthLoading } = useAuth();
   const [error, setError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
   const [deliveryAddress, setDeliveryAddress] = useState(null);
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(true);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   const isAuthenticated = Boolean(user);
 
@@ -52,7 +53,7 @@ const Checkout = () => {
     setError("");
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (!deliveryAddress) {
       setError("Please enter and save a delivery address.");
       return;
@@ -63,23 +64,35 @@ const Checkout = () => {
       return;
     }
 
-    const order = placeOrder({
-      cartItems,
-      address: deliveryAddress,
-      paymentMethod: "cod",
-      summary,
-      paymentStatus: "Pending",
-      customerName: user?.displayName || "Customer",
-    });
-
-    if (!order) {
-      setError("Order creation failed. Please try again.");
-      return;
-    }
-
-    clearCart();
-    setSuccessOrder(order);
+    setIsPlacingOrder(true);
     setError("");
+
+    try {
+      const order = await placeOrder({
+        cartItems,
+        address: deliveryAddress,
+        paymentMethod: "cod",
+        summary,
+        paymentStatus: "Pending",
+        customerName: customer?.name || customer?.fullName || user?.displayName || "Customer",
+      });
+
+      if (!order) {
+        setError("Order creation failed. Please try again.");
+        return;
+      }
+
+      const cartCleared = await clearCart();
+      if (!cartCleared) {
+        setError("Your order was placed, but your cart could not be cleared. Please clear it before placing another order.");
+      }
+      setSuccessOrder(order);
+    } catch (orderError) {
+      console.error("[CHECKOUT] Order placement failed:", orderError);
+      setError(orderError?.message || "Order creation failed. Please try again.");
+    } finally {
+      setIsPlacingOrder(false);
+    }
   };
 
   if (isAuthLoading || !isAuthenticated) {
@@ -96,6 +109,7 @@ const Checkout = () => {
               <FiCheck />
             </div>
             <h1>Order Placed Successfully!</h1>
+            {error && <p className="checkout-error" role="alert">{error}</p>}
             <div className="checkout-success-details">
               <div><span>Order ID:</span> <strong>{successOrder.id}</strong></div>
               <div><span>Payment Method:</span> <strong>{getPaymentMethodLabel(successOrder.paymentMethod)}</strong></div>
@@ -224,8 +238,8 @@ const Checkout = () => {
             </div>
             <div className="summary-row"><span>Subtotal</span><strong>₹{summary.subtotal.toFixed(2)}</strong></div>
             <div className="summary-total"><span>Total</span><strong>₹{summary.total.toFixed(2)}</strong></div>
-            <button className="place-order-btn" type="button" onClick={handlePlaceOrder}>
-              Continue / Place Order
+            <button className="place-order-btn" type="button" onClick={handlePlaceOrder} disabled={isPlacingOrder}>
+              {isPlacingOrder ? "Placing Order..." : "Continue / Place Order"}
             </button>
           </aside>
         </div>

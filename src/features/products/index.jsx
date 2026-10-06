@@ -97,7 +97,9 @@ const Products = () => {
       customerRef,
       (snapshot) => {
         const customerData = snapshot.data() || {};
-        const coordinates = getAddressCoordinates(customerData);
+        const coordinates = getAddressCoordinates(customerData.address)
+          || getAddressCoordinates(customerData.currentLocation)
+          || getAddressCoordinates(customerData);
         setCustomerLocation(coordinates);
       },
       (listenerError) => {

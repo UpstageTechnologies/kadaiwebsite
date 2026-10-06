@@ -95,7 +95,9 @@ const TrackOrder = () => {
 
     const handleSnapshot = (snapshot, requireCustomerMatch = false) => {
       const data = snapshot.data() || {};
-      const belongsToCustomer = !requireCustomerMatch || !data.customerId || data.customerId === customerId;
+      const belongsToCustomer = !requireCustomerMatch
+        || data.customerId === customerId
+        || data.customerUid === customerId;
 
       setOrderData(snapshot.exists() && belongsToCustomer ? { ...data, id: snapshot.id } : null);
       setError("");

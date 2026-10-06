@@ -11,23 +11,16 @@ import "./orders.css";
 const formatLocaleIndianNumber = (value) =>
   Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
-const getOrderItemsPreview = (order) => {
-  const items = Array.isArray(order?.items) ? order.items : [];
-
-  if (!items.length) {
-    return "Order items unavailable";
-  }
-
-  return items
-    .map((item) => `${item?.name || item?.itemName || "Product"} x ${item?.quantity ?? item?.qty ?? 0}`)
-    .join(", ");
-};
-
 const Orders = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
-  const [ordersState, setOrdersState] = useState({ customerId: "", orders: [] });
+  const [ordersState, setOrdersState] = useState({
+    customerId: "",
+    orders: [],
+    error: "",
+  });
   const orders = ordersState.customerId === user?.uid ? ordersState.orders : [];
+  const ordersError = ordersState.customerId === user?.uid ? ordersState.error : "";
 
   useEffect(() => {
     if (loading) {
@@ -36,14 +29,19 @@ const Orders = () => {
 
     const customerId = user?.uid || "";
     if (!customerId) {
-      setOrdersState({ customerId: "", orders: [] });
       return undefined;
     }
 
     const unsubscribe = subscribeCustomerOrders({
       customerId,
       onOrders: (firestoreOrders) =>
-        setOrdersState({ customerId, orders: firestoreOrders }),
+        setOrdersState({ customerId, orders: firestoreOrders, error: "" }),
+      onError: (error) =>
+        setOrdersState({
+          customerId,
+          orders: [],
+          error: error?.message || "Unable to load your orders. Please try again.",
+        }),
     });
 
     return () => unsubscribe();
@@ -59,7 +57,13 @@ const Orders = () => {
           <p>Track your recent Kadai orders in one place.</p>
         </header>
 
-        {orders.length === 0 ? (
+        {ordersError ? (
+          <section className="orders-empty" role="alert">
+            <FiPackage />
+            <h2>Unable to load orders</h2>
+            <p>{ordersError}</p>
+          </section>
+        ) : orders.length === 0 ? (
           <section className="orders-empty">
             <FiPackage />
             <h2>No orders yet</h2>
@@ -75,9 +79,16 @@ const Orders = () => {
               const address =
                 typeof order?.address === "string"
                   ? order.address
-                  : order?.address?.address || "Address unavailable";
+                  : order?.address?.fullAddress || order?.address?.address || "Address unavailable";
               const orderId = order?.orderId || order?.id || "Kadai order";
               const createdAt = order?.createdAt ? new Date(order.createdAt) : null;
+              const shops = Array.isArray(order?.orderedShops) && order.orderedShops.length
+                ? order.orderedShops
+                : [{
+                    shopName: "Store",
+                    items: Array.isArray(order?.items) ? order.items : [],
+                    subTotal: order?.subtotal,
+                  }];
 
               return (
                 <article className="order-card" key={order?.id || `order-${index}`}>
@@ -93,7 +104,27 @@ const Orders = () => {
                     <b>{order?.status || "Placed"}</b>
                   </div>
 
-                  <p>{getOrderItemsPreview(order)}</p>
+                  <div className="order-shop-list">
+                    {shops.map((shop, shopIndex) => (
+                      <section className="order-shop" key={`${shop.shopId || shop.shopName}-${shopIndex}`}>
+                        <div className="order-shop-heading">
+                          <strong>{shop.shopName || "Store"}</strong>
+                          <span>Shop subtotal: ₹{formatLocaleIndianNumber(shop.subTotal ?? shop.subtotal)}</span>
+                        </div>
+                        {(Array.isArray(shop.items) ? shop.items : []).map((item, itemIndex) => (
+                          <div className="order-item-line" key={`${item.itemNo || item.id || item.itemName}-${itemIndex}`}>
+                            <span>
+                              {item.name || item.itemName || "Product"} × {item.quantity ?? item.qty ?? 0}
+                              {" · "}₹{formatLocaleIndianNumber(item.price)} each
+                            </span>
+                            <strong>
+                              ₹{formatLocaleIndianNumber(item.itemTotal ?? Number(item.price || 0) * Number(item.quantity ?? item.qty ?? 0))}
+                            </strong>
+                          </div>
+                        ))}
+                      </section>
+                    ))}
+                  </div>
 
                   <div className="order-card-footer">
                     <span>Cash on Delivery</span>

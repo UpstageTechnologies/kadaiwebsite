@@ -2,10 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useRef,
   useState,
 } from "react";
 import { FiX } from "react-icons/fi";
+import { doc, updateDoc } from "firebase/firestore";
+import { useAuth } from "./AuthContext";
+import { auth, db } from "../services/firebase";
 
 const openLocationSettings = () => {
   const platform = navigator.userAgent || "";
@@ -37,26 +39,12 @@ const openLocationSettings = () => {
   }
 };
 
-const LOCATION_KEY = "currentLocation";
 const LOCATION_ERROR_CODES = {
   PERMISSION_DENIED: 1,
   POSITION_UNAVAILABLE: 2,
   TIMEOUT: 3,
 };
 const LocationContext = createContext(null);
-
-const readStoredLocation = () => {
-  try {
-    const savedLocation = localStorage.getItem(LOCATION_KEY);
-    return savedLocation ? JSON.parse(savedLocation) : null;
-  } catch {
-    return null;
-  }
-};
-
-const saveLocation = (location) => {
-  localStorage.setItem(LOCATION_KEY, JSON.stringify(location));
-};
 
 const getLocationErrorMessage = (geolocationError) => {
   if (!geolocationError) {
@@ -79,31 +67,41 @@ const getLocationErrorMessage = (geolocationError) => {
 };
 
 export const LocationProvider = ({ children }) => {
-  const [location, setLocation] = useState(() => readStoredLocation());
-  const [status, setStatus] = useState(
-    readStoredLocation() ? "success" : "idle"
-  );
-  const [error, setError] = useState("");
-  const hasRequestedLocation = useRef(false);
+  const [transientLocation, setTransientLocation] = useState(null);
+  const [requestState, setRequestState] = useState({
+    userId: "",
+    status: "idle",
+    error: "",
+  });
+  const { user, customer } = useAuth();
+  const userId = user?.uid || "";
+  const savedLocation = customer?.currentLocation;
+  const location = savedLocation && typeof savedLocation === "object"
+    ? savedLocation
+    : transientLocation?.userId === userId
+      ? transientLocation.location
+      : null;
+  const requestStatus = requestState.userId === userId ? requestState.status : "idle";
+  const status = location && requestStatus === "idle" ? "success" : requestStatus;
+  const error = requestState.userId === userId ? requestState.error : "";
 
   const dismissPrompt = useCallback(() => {
-    setStatus("dismissed");
-    setError("");
-  }, []);
+    setRequestState({ userId, status: "dismissed", error: "" });
+  }, [userId]);
 
   const requestLocation = useCallback(() => {
-    hasRequestedLocation.current = true;
+    const requestUid = auth?.currentUser?.uid || "";
 
     if (!navigator.geolocation) {
-      setStatus("error");
-      setError(
-        "Location is not supported by this browser. Turn on GPS support or use a browser that allows GPS detection."
-      );
+      setRequestState({
+        userId: requestUid,
+        status: "error",
+        error: "Location is not supported by this browser. Turn on GPS support or use a browser that allows GPS detection.",
+      });
       return;
     }
 
-    setStatus("loading");
-    setError("");
+    setRequestState({ userId: requestUid, status: "loading", error: "" });
 
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
@@ -125,26 +123,40 @@ export const LocationProvider = ({ children }) => {
           const data = await response.json();
           const detectedLocation = {
             ...coordinates,
+            lat: coordinates.latitude,
+            lon: coordinates.longitude,
             address:
               data.display_name ||
               `${coordinates.latitude}, ${coordinates.longitude}`,
             detectedAt: new Date().toISOString(),
           };
 
-          saveLocation(detectedLocation);
-          setLocation(detectedLocation);
-          setStatus("success");
+          if (requestUid && auth?.currentUser?.uid !== requestUid) {
+            throw new Error("Your Firebase session changed. Please request your location again.");
+          }
+          if (requestUid && db) {
+            await updateDoc(doc(db, "customers", requestUid), {
+              currentLocation: detectedLocation,
+            });
+          }
+
+          setTransientLocation({ userId: requestUid, location: detectedLocation });
+          setRequestState({ userId: requestUid, status: "success", error: "" });
         } catch (reverseGeocodeError) {
-          setStatus("error");
-          setError(
-            reverseGeocodeError.message ||
-              "We could not convert your current location into an address."
-          );
+          setRequestState({
+            userId: requestUid,
+            status: "error",
+            error: reverseGeocodeError.message
+              || "We could not convert your current location into an address.",
+          });
         }
       },
       (geolocationError) => {
-        setStatus("error");
-        setError(getLocationErrorMessage(geolocationError));
+        setRequestState({
+          userId: requestUid,
+          status: "error",
+          error: getLocationErrorMessage(geolocationError),
+        });
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
     );

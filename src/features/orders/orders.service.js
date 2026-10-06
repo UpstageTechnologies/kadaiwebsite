@@ -1,4 +1,10 @@
-﻿import { collection, doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  runTransaction,
+  writeBatch,
+} from "firebase/firestore";
 import { auth, db } from "../../services/firebase";
 
 export const getCurrentCustomerId = () => auth?.currentUser?.uid || "";
@@ -7,6 +13,15 @@ const normalizeNumber = (value, fallback = 0) => {
   const numeric = Number(value ?? fallback);
   return Number.isFinite(numeric) ? numeric : fallback;
 };
+
+const ORDER_STATUS_FLOW = [
+  "Order Placed",
+  "Accepted",
+  "Packed",
+  "Out For Delivery",
+  "Delivered",
+];
+const ORDER_STATUSES = [...ORDER_STATUS_FLOW, "Pending", "Rejected"];
 
 const normalizeOrderItem = (item = {}) => {
   const quantity = Number(item.qty ?? item.quantity ?? 0);
@@ -101,8 +116,16 @@ const buildSellerOrderPayload = (orderData, shop) => {
 export const persistOrder = async (order) => {
   const customerId = getCurrentCustomerId();
 
-  if (!db || !customerId || !order?.id) {
-    return false;
+  if (!db) {
+    throw new Error("Firebase Firestore is temporarily unavailable. Please try again.");
+  }
+
+  if (!customerId || customerId !== order?.customerId) {
+    throw new Error("Your Firebase session is missing or changed. Please log in again.");
+  }
+
+  if (!order?.id) {
+    throw new Error("The order is missing an ID and cannot be saved.");
   }
 
   const normalizedOrderItems = Array.isArray(order.items)
@@ -140,29 +163,20 @@ export const persistOrder = async (order) => {
     updatedAt: new Date().toISOString(),
   };
 
-  const sellerOrderWrites = orderedShops
-    .filter((shop) => shop.shopId)
-    .map((shop) => {
-      const shopPayload = buildSellerOrderPayload(orderData, shop);
-      if (!shopPayload) {
-        return null;
-      }
+  const batch = writeBatch(db);
+  batch.set(doc(db, "orders", order.id), orderData);
+  batch.set(doc(db, "customers", customerId, "orders", order.id), orderData);
 
-      return setDoc(
-        doc(db, "users", shop.shopId, "orders", order.id),
-        shopPayload,
-        { merge: true }
-      );
-    })
-    .filter(Boolean);
+  orderedShops.forEach((shop) => {
+    if (!shop.shopId) {
+      throw new Error("A product is missing its seller ID. The order was not saved.");
+    }
 
-  await Promise.all([
-    setDoc(doc(db, "orders", order.id), orderData, { merge: true }),
-    setDoc(doc(db, "customers", customerId, "orders", order.id), orderData, { merge: true }),
-    ...sellerOrderWrites,
-  ]);
+    const shopPayload = buildSellerOrderPayload(orderData, shop);
+    batch.set(doc(db, "users", shop.shopId, "orders", order.id), shopPayload);
+  });
 
-  return true;
+  await batch.commit();
 };
 
 export const subscribeCustomerOrders = ({ customerId, onOrders, onError }) => {
@@ -224,14 +238,26 @@ export const buildOrderFromCheckout = ({
     return null;
   }
 
+  if (!db) {
+    throw new Error("Firebase Firestore is temporarily unavailable. Please try again.");
+  }
+
   const customerId = getCurrentCustomerId();
-  const orderId = `KADAI-${Date.now()}`;
+  if (!customerId) {
+    throw new Error("Your Firebase session is missing. Please log in again.");
+  }
+
+  const orderId = doc(collection(db, "orders")).id;
   const orderCustomerName = customerName || auth?.currentUser?.displayName || "Customer";
 
   const shopMap = new Map();
   cartItems.forEach((item) => {
     const itemData = normalizeOrderItem(item);
     const shopId = item.shopId || item.sellerId || "";
+    if (!shopId) {
+      throw new Error(`Product "${itemData.itemName}" is missing its seller ID.`);
+    }
+
     const shopKey = shopId || item.shopName || item.storeName || "store";
     const shop = shopMap.get(shopKey) || {
       shopId,
@@ -267,6 +293,10 @@ export const buildOrderFromCheckout = ({
   ));
   const delivery = Number(summary?.delivery ?? 0);
   const total = Number(summary?.total ?? subtotal + delivery);
+  const marketModes = [...new Set(
+    cartItems.map((item) => String(item.marketType || "").toLowerCase())
+      .filter((mode) => mode === "local" || mode === "global")
+  )];
 
   const order = {
     id: orderId,
@@ -289,6 +319,7 @@ export const buildOrderFromCheckout = ({
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     appMode: "web",
+    marketModes,
   };
 
   return order;
@@ -299,73 +330,103 @@ export const updateOrderStatus = async ({
   customerId,
   shopId,
   status,
+  pendingMessage = "",
+  pendingUntil = null,
 }) => {
-  if (!db || !orderId || !status) {
-    return false;
+  if (!db) {
+    throw new Error("Firebase Firestore is temporarily unavailable.");
   }
-
   const normalizedStatus = String(status).trim();
-  if (!normalizedStatus) {
-    return false;
+  if (!orderId || !shopId || !ORDER_STATUSES.includes(normalizedStatus)) {
+    throw new Error("A valid order ID, shop ID, and order status are required.");
   }
 
   const orderRef = doc(db, "orders", orderId);
-  const existingOrderDoc = await getDoc(orderRef);
-  const existingOrder = existingOrderDoc.exists() ? existingOrderDoc.data() || {} : {};
-  const effectiveCustomerId = customerId || existingOrder.customerId || existingOrder.customerUid || "";
-  const orderedShops = Array.isArray(existingOrder.orderedShops)
-    ? existingOrder.orderedShops.map((shop) => {
-        if (!shopId || String(shop.shopId || "") === String(shopId)) {
-          return { ...shop, status: normalizedStatus };
-        }
-        return shop;
-      })
-    : [];
+  await runTransaction(db, async (transaction) => {
+    const orderSnapshot = await transaction.get(orderRef);
+    if (!orderSnapshot.exists()) {
+      throw new Error("Order not found.");
+    }
 
-  const timestamp = new Date().toISOString();
-  const baseUpdate = {
-    status: normalizedStatus,
-    updatedAt: timestamp,
-    orderedShops,
-  };
+    const existingOrder = orderSnapshot.data() || {};
+    const effectiveCustomerId = existingOrder.customerId || existingOrder.customerUid || "";
+    if (!effectiveCustomerId || (customerId && customerId !== effectiveCustomerId)) {
+      throw new Error("The order does not belong to the specified customer.");
+    }
 
-  const tasks = [
-    setDoc(orderRef, baseUpdate, { merge: true }),
-  ];
-
-  if (effectiveCustomerId) {
-    tasks.push(
-      setDoc(doc(db, "customers", effectiveCustomerId, "orders", orderId), baseUpdate, { merge: true })
+    const currentShops = Array.isArray(existingOrder.orderedShops)
+      ? existingOrder.orderedShops
+      : [];
+    const shopIndex = currentShops.findIndex(
+      (shop) => String(shop.shopId || "") === String(shopId)
     );
-  }
+    if (shopIndex < 0) {
+      throw new Error("This shop is not part of the order.");
+    }
 
-  if (shopId) {
-    tasks.push(
-      setDoc(doc(db, "users", shopId, "orders", orderId), {
-        ...baseUpdate,
-        orderId,
-        customerId: effectiveCustomerId,
-        shopId,
+    const previousShop = currentShops[shopIndex];
+    const updatedShop = {
+      ...previousShop,
+      status: normalizedStatus,
+      lastStatus: normalizedStatus === "Pending"
+        ? previousShop.lastStatus || previousShop.status || "Order Placed"
+        : normalizedStatus,
+      pendingMessage: normalizedStatus === "Pending" ? String(pendingMessage || "").trim() : "",
+      pendingUntil: normalizedStatus === "Pending" ? pendingUntil : null,
+    };
+    const orderedShops = currentShops.map((shop, index) =>
+      index === shopIndex ? updatedShop : shop
+    );
+    const statuses = orderedShops.map((shop) => shop.status || "Order Placed");
+    const aggregateStatus = statuses.every((shopStatus) => shopStatus === statuses[0])
+      ? statuses[0]
+      : statuses.includes("Pending")
+        ? "Pending"
+        : statuses.includes("Rejected")
+          ? "Rejected"
+          : statuses
+            .filter((shopStatus) => ORDER_STATUS_FLOW.includes(shopStatus))
+            .sort((first, second) =>
+              ORDER_STATUS_FLOW.indexOf(first) - ORDER_STATUS_FLOW.indexOf(second)
+            )[0] || existingOrder.status || "Order Placed";
+    const timestamp = new Date().toISOString();
+    const sharedUpdate = {
+      status: aggregateStatus,
+      updatedAt: timestamp,
+      orderedShops,
+    };
+
+    transaction.set(orderRef, sharedUpdate, { merge: true });
+    transaction.set(
+      doc(db, "customers", effectiveCustomerId, "orders", orderId),
+      sharedUpdate,
+      { merge: true }
+    );
+    transaction.set(
+      doc(db, "users", shopId, "orders", orderId),
+      {
+        status: updatedShop.status,
+        lastStatus: updatedShop.lastStatus,
+        pendingMessage: updatedShop.pendingMessage,
+        pendingUntil: updatedShop.pendingUntil,
+        orderedShops: [updatedShop],
         updatedAt: timestamp,
-      }, { merge: true })
+      },
+      { merge: true }
     );
-  }
+  });
 
-  await Promise.all(tasks);
   return true;
 };
 
-export const placeOrder = (payload) => {
+export const placeOrder = async (payload) => {
   const order = buildOrderFromCheckout(payload);
 
   if (!order) {
     return null;
   }
 
-  persistOrder(order).catch((error) => {
-    console.error("[FIRESTORE] Order persistence failed:", error);
-  });
-
+  await persistOrder(order);
   return order;
 };
 
