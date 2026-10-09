@@ -50,11 +50,12 @@ const formatDateTime = (value) => {
 };
 
 const getShopTimelineSteps = (shop, mainOrder) => {
+  const hasShopStatus = Boolean(shop.status);
   const currentStatus = shop.status || mainOrder.status || "Order Placed";
-  const lastStatus = shop.lastStatus || mainOrder.lastStatus || "";
-  const pendingMessage = shop.pendingMessage || mainOrder.pendingMessage || "";
+  const lastStatus = shop.lastStatus || (!hasShopStatus ? mainOrder.lastStatus : "") || "";
+  const pendingMessage = shop.pendingMessage || (!hasShopStatus ? mainOrder.pendingMessage : "") || "";
   const hasPendingMessage =
-    (currentStatus === "Pending" || mainOrder.status === "Pending") &&
+    currentStatus === "Pending" &&
     Boolean(String(pendingMessage).trim());
 
   const effectiveStatus = currentStatus === "Pending" ? lastStatus : currentStatus;
@@ -81,75 +82,64 @@ const getItems = (shop, order) => {
 const TrackOrder = () => {
   const navigate = useNavigate();
   const { orderId = "" } = useParams();
-  const { user, customer } = useAuth();
+  const { user, customer, loading: isAuthLoading } = useAuth();
   const customerId = user?.uid || "";
-  const [orderData, setOrderData] = useState(null);
+  const [orderState, setOrderState] = useState({
+    customerId: "",
+    orderId: "",
+    data: null,
+    error: "",
+    loading: true,
+  });
   const customerName = customer?.name || customer?.fullName || customer?.displayName || "Customer";
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const missingOrder = !orderId || !customerId;
+  const isCurrentOrder = orderState.customerId === customerId && orderState.orderId === orderId;
+  const orderData = isCurrentOrder ? orderState.data : null;
+  const error = isCurrentOrder ? orderState.error : "";
+  const loading = isAuthLoading || (
+    !missingOrder
+    && Boolean(db)
+    && (!isCurrentOrder || orderState.loading)
+  );
+  const firebaseUnavailable = !db && !missingOrder;
 
   useEffect(() => {
-    if (!customerId || !orderId) return undefined;
+    if (isAuthLoading) return undefined;
 
-    if (!db) return undefined;
+    if (!customerId || !orderId) {
+      return undefined;
+    }
 
-    const handleSnapshot = (snapshot, requireCustomerMatch = false) => {
-      const data = snapshot.data() || {};
-      const belongsToCustomer = !requireCustomerMatch
-        || data.customerId === customerId
-        || data.customerUid === customerId;
+    if (!db) {
+      return undefined;
+    }
 
-      setOrderData(snapshot.exists() && belongsToCustomer ? { ...data, id: snapshot.id } : null);
-      setError("");
-      setLoading(false);
-    };
-
-    let topLevelUnsubscribe = () => {};
-    const subscribeToTopLevelOrder = () => {
-      topLevelUnsubscribe = onSnapshot(
-        doc(db, "orders", orderId),
-        (snapshot) => {
-          if (snapshot.exists()) {
-            handleSnapshot(snapshot, true);
-            return;
-          }
-
-          setOrderData(null);
-          setError("Unable to load this order right now.");
-          setLoading(false);
-        },
-        (listenerError) => {
-          console.error("[TRACKING] Order listener failed:", listenerError);
-          setOrderData(null);
-          setError("Unable to load this order right now.");
-          setLoading(false);
-        }
-      );
-    };
-
-    const customerUnsubscribe = onSnapshot(
-      doc(db, "customers", customerId, "orders", orderId),
+    const customerOrder = doc(db, "customers", customerId, "orders", orderId);
+    const unsubscribe = onSnapshot(
+      customerOrder,
       (snapshot) => {
-        if (snapshot.exists()) {
-          topLevelUnsubscribe();
-          topLevelUnsubscribe = () => {};
-          handleSnapshot(snapshot);
-          return;
-        }
-
-        subscribeToTopLevelOrder();
+        setOrderState({
+          customerId,
+          orderId,
+          data: snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null,
+          error: "",
+          loading: false,
+        });
       },
       (listenerError) => {
         console.error("[TRACKING] Customer order listener failed:", listenerError);
-        subscribeToTopLevelOrder();
+        setOrderState({
+          customerId,
+          orderId,
+          data: null,
+          error: "Unable to load this order right now.",
+          loading: false,
+        });
       }
     );
 
-    return () => {
-      customerUnsubscribe();
-      topLevelUnsubscribe();
-    };
-  }, [customerId, orderId]);
+    return () => unsubscribe();
+  }, [customerId, isAuthLoading, orderId]);
 
   const shops = useMemo(() => {
     if (!orderData) return [];
@@ -158,10 +148,7 @@ const TrackOrder = () => {
       : [orderData];
   }, [orderData]);
 
-  const missingOrder = !orderId || !customerId;
-  const firebaseUnavailable = !db && !missingOrder;
-
-  if (missingOrder) {
+  if (missingOrder && !isAuthLoading) {
     return (
       <>
         <Navbar />
@@ -209,6 +196,8 @@ const TrackOrder = () => {
 
   const total = Number(orderData.total ?? orderData.totalAmount ?? 0);
   const overallStatus = orderData.status || "Order Placed";
+  const displayedCustomerName =
+    orderData.customerName || customerName;
 
   return (
     <>
@@ -227,7 +216,7 @@ const TrackOrder = () => {
           </div>
           <div>
             <small>Customer</small>
-            <strong>{customerName}</strong>
+            <strong>{displayedCustomerName}</strong>
           </div>
           <div>
             <small>Total amount</small>
@@ -246,8 +235,8 @@ const TrackOrder = () => {
             const shopStatus = shop.status || overallStatus;
             const items = getItems(shop, orderData);
             const steps = getShopTimelineSteps(shop, orderData);
-            const pendingMessage = shop.pendingMessage || orderData.pendingMessage;
-            const pendingUntil = shop.pendingUntil || orderData.pendingUntil;
+            const pendingMessage = shop.pendingMessage || (!shop.status ? orderData.pendingMessage : "");
+            const pendingUntil = shop.pendingUntil || (!shop.status ? orderData.pendingUntil : "");
 
             return (
               <section className="track-shop-card" key={`${shop.shopName || "shop"}-${shopIndex}`}>

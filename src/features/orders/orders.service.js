@@ -181,8 +181,13 @@ export const persistOrder = async (order) => {
 };
 
 export const subscribeCustomerOrders = ({ customerId, onOrders, onError }) => {
-  if (!db || !customerId) {
+  if (!customerId) {
     onOrders?.([]);
+    return () => {};
+  }
+
+  if (!db) {
+    onError?.(new Error("Firebase Firestore is temporarily unavailable."));
     return () => {};
   }
 

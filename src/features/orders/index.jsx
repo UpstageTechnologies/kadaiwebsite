@@ -18,9 +18,13 @@ const Orders = () => {
     customerId: "",
     orders: [],
     error: "",
+    loading: true,
   });
   const orders = ordersState.customerId === user?.uid ? ordersState.orders : [];
   const ordersError = ordersState.customerId === user?.uid ? ordersState.error : "";
+  const isOrdersLoading = loading || Boolean(user?.uid && (
+    ordersState.customerId !== user.uid || ordersState.loading
+  ));
 
   useEffect(() => {
     if (loading) {
@@ -35,12 +39,13 @@ const Orders = () => {
     const unsubscribe = subscribeCustomerOrders({
       customerId,
       onOrders: (firestoreOrders) =>
-        setOrdersState({ customerId, orders: firestoreOrders, error: "" }),
+        setOrdersState({ customerId, orders: firestoreOrders, error: "", loading: false }),
       onError: (error) =>
         setOrdersState({
           customerId,
           orders: [],
           error: error?.message || "Unable to load your orders. Please try again.",
+          loading: false,
         }),
     });
 
@@ -57,7 +62,25 @@ const Orders = () => {
           <p>Track your recent Kadai orders in one place.</p>
         </header>
 
-        {ordersError ? (
+        {isOrdersLoading ? (
+          <section className="orders-empty" role="status">
+            <FiPackage />
+            <h2>Loading orders</h2>
+            <p>Your order history is being loaded.</p>
+          </section>
+        ) : !user ? (
+          <section className="orders-empty">
+            <FiPackage />
+            <h2>Sign in to view your orders</h2>
+            <p>Your placed orders will appear here.</p>
+            <button
+              type="button"
+              onClick={() => navigate(`/login?redirect=${encodeURIComponent("/orders")}`)}
+            >
+              Sign In
+            </button>
+          </section>
+        ) : ordersError ? (
           <section className="orders-empty" role="alert">
             <FiPackage />
             <h2>Unable to load orders</h2>
@@ -113,9 +136,20 @@ const Orders = () => {
                         </div>
                         {(Array.isArray(shop.items) ? shop.items : []).map((item, itemIndex) => (
                           <div className="order-item-line" key={`${item.itemNo || item.id || item.itemName}-${itemIndex}`}>
-                            <span>
-                              {item.name || item.itemName || "Product"} × {item.quantity ?? item.qty ?? 0}
-                              {" · "}₹{formatLocaleIndianNumber(item.price)} each
+                            {(item.img || item.image) && (
+                              <img
+                                className="order-item-image"
+                                src={item.img || item.image}
+                                alt={item.name || item.itemName || "Product"}
+                                loading="lazy"
+                              />
+                            )}
+                            <span className="order-item-details">
+                              <span>
+                                {item.name || item.itemName || "Product"} × {item.quantity ?? item.qty ?? 0}
+                              </span>
+                              {item.itemNo && <small>Code: {item.itemNo}</small>}
+                              <small>₹{formatLocaleIndianNumber(item.price)} each</small>
                             </span>
                             <strong>
                               ₹{formatLocaleIndianNumber(item.itemTotal ?? Number(item.price || 0) * Number(item.quantity ?? item.qty ?? 0))}
