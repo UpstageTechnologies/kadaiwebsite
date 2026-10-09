@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiArrowRight,
-  FiPlay,
 } from "react-icons/fi";
 import item from "../assets/item.webp";
 import items from "../assets/items.png";

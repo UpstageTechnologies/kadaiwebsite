@@ -4,7 +4,8 @@ import {
   onSnapshot,
   runTransaction,
 } from "firebase/firestore";
-import { auth, db } from "../../services/firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { auth, db, firebaseApp } from "../../services/firebase";
 
 export const getCurrentCustomerId = () => auth?.currentUser?.uid || "";
 
@@ -115,44 +116,11 @@ export const compareOrderDates = (a, b) => {
   return right - left;
 };
 
-const buildSellerOrderPayload = (orderData, shop) => {
-  if (!shop) {
-    return null;
-  }
-
-  const shopItems = Array.isArray(shop.items) ? shop.items.map(normalizeOrderItem) : [];
-  const subtotal = shopItems.reduce(
-    (total, item) => total + normalizeNumber(item.price) * normalizeNumber(item.qty),
-    0
-  );
-
-  return {
-    ...orderData,
-    orderId: orderData.orderId || orderData.id,
-    id: orderData.id,
-    customerId: orderData.customerId || orderData.customerUid || "",
-    customerUid: orderData.customerUid || orderData.customerId || "",
-    shopId: shop.shopId || shop.sellerId || "",
-    shopName: shop.shopName || "Store",
-    status: shop.status || orderData.status || "Order Placed",
-    paymentMethod: "cod",
-    deliveryAddress: orderData.deliveryAddress || orderData.address || null,
-    items: shopItems,
-    orderedShops: [shop],
-    subtotal,
-    total: subtotal,
-    totalAmount: subtotal,
-    subTotal: subtotal,
-    createdAt: orderData.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-};
-
 export const persistOrder = async (order) => {
   const customerId = getCurrentCustomerId();
 
-  if (!db) {
-    throw new Error("Firebase Firestore is temporarily unavailable. Please try again.");
+  if (!db || !firebaseApp) {
+    throw new Error("Firebase is temporarily unavailable. Please try again.");
   }
 
   if (!customerId || customerId !== order?.customerId) {
@@ -163,65 +131,37 @@ export const persistOrder = async (order) => {
     throw new Error("The order is missing an ID and cannot be saved.");
   }
 
-  const normalizedOrderItems = Array.isArray(order.items)
-    ? order.items.map(normalizeOrderItem)
-    : [];
+  const createOrder = httpsCallable(getFunctions(firebaseApp), "createCustomerOrder");
 
-  const orderedShops = Array.isArray(order.orderedShops)
-    ? order.orderedShops.map((shop) => ({
-        ...shop,
-        shopId: shop.shopId || shop.sellerId || "",
-        shopName: shop.shopName || "Store",
-        status: shop.status || "Order Placed",
-        items: Array.isArray(shop.items) ? shop.items.map(normalizeOrderItem) : [],
-        subTotal: Number(
-          (Array.isArray(shop.items) ? shop.items : []).reduce(
-            (total, item) => total + normalizeNumber(item.price) * normalizeNumber(item.qty ?? item.quantity),
-            0
-          )
-        ),
-      }))
-    : [];
-
-  const safeAddress = order.deliveryAddress || order.address || null;
-  const orderData = {
-    ...order,
-    customerId,
-    customerUid: customerId,
-    deliveryAddress: safeAddress,
-    address: safeAddress,
-    items: normalizedOrderItems,
-    orderedShops,
-    paymentMethod: "cod",
-    subtotal: Number(order.subtotal ?? order.total ?? 0),
-    delivery: Number(order.delivery ?? 0),
-    total: Number(order.total ?? order.totalAmount ?? 0),
-    totalAmount: Number(order.totalAmount ?? order.total ?? 0),
-    createdAt: order.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  const orderRef = doc(db, "orders", order.id);
-  const customerOrderRef = doc(db, "customers", customerId, "orders", order.id);
-
-  await runTransaction(db, async (transaction) => {
-    const existingOrder = await transaction.get(orderRef);
-    if (existingOrder.exists()) {
-      return;
-    }
-
-    transaction.set(orderRef, orderData);
-    transaction.set(customerOrderRef, orderData);
-
-    orderedShops.forEach((shop) => {
-      if (!shop.shopId) {
-        throw new Error("A product is missing its seller ID. The order was not saved.");
-      }
-
-      const shopPayload = buildSellerOrderPayload(orderData, shop);
-      transaction.set(doc(db, "users", shop.shopId, "orders", order.id), shopPayload);
+  try {
+    const response = await createOrder({
+      orderId: order.id,
+      address: order.deliveryAddress || order.address,
+      customerName: order.customerName,
+      appMode: order.appMode,
+      marketModes: order.marketModes,
     });
-  });
+
+    return response.data;
+  } catch (error) {
+    console.error("[ORDERS] Trusted order creation failed:", error);
+    if (error?.code === "functions/not-found") {
+      throw new Error("Order placement is not available yet. Please contact support.", {
+        cause: error,
+      });
+    }
+    if (error?.code === "functions/unauthenticated") {
+      throw new Error("Your Firebase session is missing. Please log in again.", {
+        cause: error,
+      });
+    }
+    if (error?.code === "functions/permission-denied") {
+      throw new Error("You do not have permission to place this order. Please sign in again or contact support.", {
+        cause: error,
+      });
+    }
+    throw error;
+  }
 };
 
 export const subscribeCustomerOrders = ({ customerId, onOrders, onError }) => {
@@ -483,8 +423,7 @@ export const placeOrder = async (payload) => {
     return null;
   }
 
-  await persistOrder(order);
-  return order;
+  return persistOrder(order);
 };
 
 export const placeOrderFromCheckout = placeOrder;

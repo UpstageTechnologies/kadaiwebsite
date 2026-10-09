@@ -1,5 +1,5 @@
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
-const { onRequest } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore } = require("firebase-admin/firestore");
@@ -9,6 +9,230 @@ initializeApp();
 
 const db = getFirestore();
 const messaging = getMessaging();
+
+exports.createCustomerOrder = onCall(async (request) => {
+  const customerUid = request.auth?.uid;
+  if (!customerUid) {
+    throw new HttpsError("unauthenticated", "Please sign in before placing an order.");
+  }
+
+  const {
+    orderId,
+    address,
+    customerName,
+    appMode = "web",
+    marketModes: requestedMarketModes = [],
+  } = request.data || {};
+  const marketModes = Array.isArray(requestedMarketModes) ? requestedMarketModes : [];
+  if (
+    typeof orderId !== "string"
+    || !/^order-[a-z0-9]+$/i.test(orderId)
+    || !address
+    || typeof address !== "object"
+    || Array.isArray(address)
+  ) {
+    throw new HttpsError("invalid-argument", "A valid order ID and delivery address are required.");
+  }
+
+  const requiredAddressFields = [
+    "fullName",
+    "phoneNumber",
+    "country",
+    "state",
+    "district",
+    "city",
+    "area",
+    "streetAddress",
+    "doorNumber",
+    "pincode",
+  ];
+  const missingAddressField = requiredAddressFields.find(
+    (field) => !String(address[field] || "").trim()
+  );
+  const phoneDigits = String(address.phoneNumber || "").replace(/\D/g, "");
+  if (missingAddressField || phoneDigits.length < 10 || phoneDigits.length > 15 || !/^\d{6}$/.test(String(address.pincode || ""))) {
+    throw new HttpsError("invalid-argument", "Please provide complete and valid delivery details.");
+  }
+
+  const customerRef = db.collection("customers").doc(customerUid);
+  const orderRef = db.collection("orders").doc(orderId);
+  const customerOrderRef = customerRef.collection("orders").doc(orderId);
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const [customerSnapshot, existingCustomerOrder, existingOrder] = await Promise.all([
+        transaction.get(customerRef),
+        transaction.get(customerOrderRef),
+        transaction.get(orderRef),
+      ]);
+
+      const customerData = customerSnapshot.exists ? customerSnapshot.data() || {} : {};
+      const cartItems = Array.isArray(customerData.cartItems) ? customerData.cartItems : [];
+      if (!cartItems.length) {
+        throw new HttpsError("failed-precondition", "Your cart is empty.");
+      }
+
+      const productReferences = cartItems.map((item) => {
+        const shopId = String(item.shopId || item.sellerId || "");
+        const itemId = String(item.id || item.itemId || "");
+        const collectionName = String(item.marketType || "").toLowerCase() === "global"
+          ? "global_inventory"
+          : "inventory";
+        if (!shopId || !itemId || shopId.includes("/") || itemId.includes("/")) {
+          throw new HttpsError("failed-precondition", "A cart product has invalid store information.");
+        }
+        return db.collection("users").doc(shopId).collection(collectionName).doc(itemId);
+      });
+      const productSnapshots = await Promise.all(
+        productReferences.map((reference) => transaction.get(reference))
+      );
+
+      const shopMap = new Map();
+      const orderItems = cartItems.map((cartItem, index) => {
+        const productSnapshot = productSnapshots[index];
+        if (!productSnapshot.exists) {
+          throw new HttpsError("failed-precondition", "A cart product is no longer available.");
+        }
+
+        const product = productSnapshot.data() || {};
+        const quantity = Number(cartItem.qty ?? cartItem.quantity);
+        const price = Number(product.salesPrice ?? product.price);
+        if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(price) || price < 0) {
+          throw new HttpsError("failed-precondition", "A cart product has invalid quantity or pricing.");
+        }
+
+        const shopId = productSnapshot.ref.parent.parent.id;
+        const itemName = String(product.itemName || product.name || product.title || "Product");
+        const item = {
+          id: productSnapshot.id,
+          shopId,
+          sellerId: shopId,
+          itemName,
+          name: itemName,
+          itemNo: String(product.itemNo || product.itemNumber || product.code || product.sku || ""),
+          qty: quantity,
+          quantity,
+          price,
+          oldPrice: Number(product.oldPrice ?? product.mrp ?? price),
+          img: String(product.img || product.image || product.productImage || ""),
+          image: String(product.image || product.img || product.productImage || ""),
+          description: String(product.description || product.itemDescription || ""),
+          category: String(product.category || "General"),
+          unit: String(product.unit || product.packaging || product.size || "1 item"),
+          itemTotal: Number((price * quantity).toFixed(2)),
+        };
+
+        const shopName = String(product.shopName || product.storeName || "Store");
+        const shop = shopMap.get(shopId) || {
+          shopId,
+          shopName,
+          status: "Order Placed",
+          items: [],
+        };
+        shop.items.push(item);
+        shopMap.set(shopId, shop);
+        return item;
+      });
+
+      const orderedShops = [...shopMap.values()].map((shop) => {
+        const subTotal = shop.items.reduce((sum, item) => sum + item.itemTotal, 0);
+        return { ...shop, subTotal };
+      });
+      const subtotal = orderItems.reduce((sum, item) => sum + item.itemTotal, 0);
+      const delivery = 0;
+      const total = subtotal + delivery;
+      const createdAt = new Date().toISOString();
+      const orderData = {
+        id: orderId,
+        orderId,
+        customerId: customerUid,
+        customerUid,
+        customerName: String(customerName || customerData.fullName || customerData.name || request.auth.token.name || "Customer"),
+        customerPhone: String(address.phoneNumber),
+        items: orderItems,
+        orderedShops,
+        address,
+        deliveryAddress: address,
+        paymentMethod: "cod",
+        paymentStatus: "Pending",
+        paymentGatewayReference: "",
+        subtotal,
+        delivery,
+        total,
+        totalAmount: total,
+        status: "Order Placed",
+        createdAt,
+        updatedAt: createdAt,
+        appMode: String(appMode || "web"),
+        marketModes: [...new Set([
+          ...marketModes.filter((mode) => mode === "local" || mode === "global"),
+          ...cartItems.map((item) => String(item.marketType || "").toLowerCase())
+            .filter((mode) => mode === "local" || mode === "global"),
+        ])],
+      };
+
+      if (existingCustomerOrder.exists) {
+        const existingData = existingCustomerOrder.data() || {};
+        if (existingData.customerUid !== customerUid) {
+          throw new HttpsError("already-exists", "This order ID belongs to another customer.");
+        }
+
+        const existingAddress = existingData.address || existingData.deliveryAddress || {};
+        const sameAddress = [...requiredAddressFields, "landmark"].every(
+          (field) => String(existingAddress[field] || "").trim() === String(address[field] || "").trim()
+        );
+        const getItemSignature = (items) => (Array.isArray(items) ? items : [])
+          .map((item) => ({
+            id: String(item.id || ""),
+            shopId: String(item.shopId || item.sellerId || ""),
+            quantity: Number(item.quantity ?? item.qty ?? 0),
+          }))
+          .sort((first, second) => `${first.shopId}/${first.id}`.localeCompare(`${second.shopId}/${second.id}`));
+        const sameItems = JSON.stringify(getItemSignature(existingData.items))
+          === JSON.stringify(getItemSignature(orderItems));
+
+        if (!sameAddress || !sameItems) {
+          throw new HttpsError("already-exists", "This order ID was already used for a different order.");
+        }
+
+        return existingData;
+      }
+      if (existingOrder.exists) {
+        throw new HttpsError("already-exists", "This order ID has already been used.");
+      }
+
+      transaction.set(orderRef, orderData);
+      transaction.set(customerOrderRef, orderData);
+      orderedShops.forEach((shop) => {
+        const shopTotal = shop.subTotal;
+        transaction.set(
+          db.collection("users").doc(shop.shopId).collection("orders").doc(orderId),
+          {
+            ...orderData,
+            shopId: shop.shopId,
+            shopName: shop.shopName,
+            items: shop.items,
+            orderedShops: [shop],
+            subtotal: shopTotal,
+            total: shopTotal,
+            totalAmount: shopTotal,
+            subTotal: shopTotal,
+          }
+        );
+      });
+
+      return orderData;
+    });
+  } catch (error) {
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    console.error("[ORDERS] Trusted order transaction failed:", error);
+    throw new HttpsError("internal", "Unable to place your order. Please try again.", {
+      cause: error?.code || "unknown",
+    });
+  }
+});
 
 exports.createCustomerCustomToken = onRequest(async (req, res) => {
   if (req.method !== "POST") {
