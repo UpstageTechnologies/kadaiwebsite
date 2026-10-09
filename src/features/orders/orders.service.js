@@ -116,6 +116,29 @@ export const compareOrderDates = (a, b) => {
   return right - left;
 };
 
+const getOrderErrorMessage = (error) => {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "");
+
+  if (code === "functions/not-found") {
+    return "Order placement is not available yet. Please contact support.";
+  }
+
+  if (code === "functions/unauthenticated") {
+    return "Your Firebase session is missing. Please log in again.";
+  }
+
+  if (code === "functions/permission-denied") {
+    return "You do not have permission to place this order. Please sign in again or contact support.";
+  }
+
+  if (code === "internal" || code === "functions/internal" || /internal\s*\[\d+\]/i.test(message)) {
+    return "Order placement is temporarily unavailable. Please try again in a moment.";
+  }
+
+  return message || "Order creation failed. Please try again.";
+};
+
 export const persistOrder = async (order) => {
   const customerId = getCurrentCustomerId();
 
@@ -145,22 +168,7 @@ export const persistOrder = async (order) => {
     return response.data;
   } catch (error) {
     console.error("[ORDERS] Trusted order creation failed:", error);
-    if (error?.code === "functions/not-found") {
-      throw new Error("Order placement is not available yet. Please contact support.", {
-        cause: error,
-      });
-    }
-    if (error?.code === "functions/unauthenticated") {
-      throw new Error("Your Firebase session is missing. Please log in again.", {
-        cause: error,
-      });
-    }
-    if (error?.code === "functions/permission-denied") {
-      throw new Error("You do not have permission to place this order. Please sign in again or contact support.", {
-        cause: error,
-      });
-    }
-    throw error;
+    throw new Error(getOrderErrorMessage(error), { cause: error });
   }
 };
 

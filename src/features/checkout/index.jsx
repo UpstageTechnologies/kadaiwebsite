@@ -115,7 +115,10 @@ const Checkout = () => {
       setSuccessOrder(order);
     } catch (orderError) {
       console.error("[CHECKOUT] Order placement failed:", orderError);
-      setError(orderError?.message || "Order creation failed. Please try again.");
+      const normalizedError = orderError?.message
+        || (typeof orderError === "string" ? orderError : "")
+        || "Order creation failed. Please try again.";
+      setError(normalizedError);
     } finally {
       setIsPlacingOrder(false);
     }
