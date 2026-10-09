@@ -3,7 +3,6 @@ import {
   doc,
   onSnapshot,
   runTransaction,
-  writeBatch,
 } from "firebase/firestore";
 import { auth, db } from "../../services/firebase";
 
@@ -75,6 +74,41 @@ const toEpochMillis = (value) => {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 };
 
+const createStableOrderFingerprint = ({ customerId, cartItems, address, total }) => {
+  const items = Array.isArray(cartItems)
+    ? cartItems
+        .map((item) => ({
+          id: item?.id ?? item?.itemId ?? "",
+          shopId: item?.shopId ?? item?.sellerId ?? "",
+          itemName: item?.name ?? item?.itemName ?? "",
+          quantity: Number(item?.qty ?? item?.quantity ?? 0),
+          price: Number(item?.price ?? 0),
+        }))
+        .sort((left, right) => String(left.id).localeCompare(String(right.id)))
+    : [];
+
+  const addressText = typeof address === "string"
+    ? address
+    : [address?.fullAddress, address?.address, address?.street, address?.locality, address?.city, address?.state, address?.pincode]
+        .filter(Boolean)
+        .join("|");
+
+  const payload = JSON.stringify({
+    customerId: String(customerId || ""),
+    items,
+    addressText: String(addressText || ""),
+    total: Number(total || 0),
+    paymentMethod: "cod",
+  });
+
+  let hash = 0;
+  for (let index = 0; index < payload.length; index += 1) {
+    hash = ((hash << 5) - hash + payload.charCodeAt(index)) | 0;
+  }
+
+  return `order-${Math.abs(hash).toString(36)}`;
+};
+
 export const compareOrderDates = (a, b) => {
   const left = toEpochMillis(a);
   const right = toEpochMillis(b);
@@ -102,6 +136,7 @@ const buildSellerOrderPayload = (orderData, shop) => {
     shopName: shop.shopName || "Store",
     status: shop.status || orderData.status || "Order Placed",
     paymentMethod: "cod",
+    deliveryAddress: orderData.deliveryAddress || orderData.address || null,
     items: shopItems,
     orderedShops: [shop],
     subtotal,
@@ -148,10 +183,13 @@ export const persistOrder = async (order) => {
       }))
     : [];
 
+  const safeAddress = order.deliveryAddress || order.address || null;
   const orderData = {
     ...order,
     customerId,
     customerUid: customerId,
+    deliveryAddress: safeAddress,
+    address: safeAddress,
     items: normalizedOrderItems,
     orderedShops,
     paymentMethod: "cod",
@@ -163,20 +201,27 @@ export const persistOrder = async (order) => {
     updatedAt: new Date().toISOString(),
   };
 
-  const batch = writeBatch(db);
-  batch.set(doc(db, "orders", order.id), orderData);
-  batch.set(doc(db, "customers", customerId, "orders", order.id), orderData);
+  const orderRef = doc(db, "orders", order.id);
+  const customerOrderRef = doc(db, "customers", customerId, "orders", order.id);
 
-  orderedShops.forEach((shop) => {
-    if (!shop.shopId) {
-      throw new Error("A product is missing its seller ID. The order was not saved.");
+  await runTransaction(db, async (transaction) => {
+    const existingOrder = await transaction.get(orderRef);
+    if (existingOrder.exists()) {
+      return;
     }
 
-    const shopPayload = buildSellerOrderPayload(orderData, shop);
-    batch.set(doc(db, "users", shop.shopId, "orders", order.id), shopPayload);
-  });
+    transaction.set(orderRef, orderData);
+    transaction.set(customerOrderRef, orderData);
 
-  await batch.commit();
+    orderedShops.forEach((shop) => {
+      if (!shop.shopId) {
+        throw new Error("A product is missing its seller ID. The order was not saved.");
+      }
+
+      const shopPayload = buildSellerOrderPayload(orderData, shop);
+      transaction.set(doc(db, "users", shop.shopId, "orders", order.id), shopPayload);
+    });
+  });
 };
 
 export const subscribeCustomerOrders = ({ customerId, onOrders, onError }) => {
@@ -247,7 +292,15 @@ export const buildOrderFromCheckout = ({
     throw new Error("Your Firebase session is missing. Please log in again.");
   }
 
-  const orderId = doc(collection(db, "orders")).id;
+  const orderId = createStableOrderFingerprint({
+    customerId,
+    cartItems,
+    address,
+    total: Number(summary?.total ?? cartItems.reduce(
+      (total, item) => total + normalizeNumber(item.price) * normalizeNumber(item.qty ?? item.quantity),
+      0
+    )),
+  });
   const orderCustomerName = customerName || auth?.currentUser?.displayName || "Customer";
 
   const shopMap = new Map();
@@ -298,6 +351,9 @@ export const buildOrderFromCheckout = ({
       .filter((mode) => mode === "local" || mode === "global")
   )];
 
+  const deliveryAddress = address && typeof address === "object" && !Array.isArray(address)
+    ? { ...address }
+    : { address: String(address || "") };
   const order = {
     id: orderId,
     orderId,
@@ -307,7 +363,8 @@ export const buildOrderFromCheckout = ({
     customerPhone: auth?.currentUser?.phoneNumber || "",
     items: cartItems.map((item) => normalizeOrderItem(item)),
     orderedShops,
-    address,
+    address: deliveryAddress,
+    deliveryAddress,
     paymentMethod: "cod",
     paymentStatus: "Pending",
     paymentGatewayReference: "",

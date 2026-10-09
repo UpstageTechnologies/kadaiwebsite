@@ -1,4 +1,4 @@
-                                                                                                                                                                                     import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiAlertCircle, FiArrowRight, FiCheck, FiClock, FiShoppingCart } from "react-icons/fi";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useNavigate, useParams } from "react-router-dom";

@@ -41,6 +41,13 @@ export const getCurrentCustomerUid = () => {
 };
 
 export const sanitizeLatLon = (value, fallback = null) => {
+  if (
+    (typeof value !== "number" && typeof value !== "string")
+    || (typeof value === "string" && !value.trim())
+  ) {
+    return fallback;
+  }
+
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
     return fallback;
@@ -168,21 +175,23 @@ export const mapFirestoreProduct = async (productSnapshot, marketType = MARKET_M
 };
 
 export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => {
-  if (!customerLocation || !customerLocation.lat || !customerLocation.lon) {
+  const customerCoordinates = getAddressCoordinates(customerLocation);
+  if (!customerCoordinates) {
     return [];
   }
 
   return Object.entries(sellerLocationMap)
-    .filter(([sellerId, sellerLocation]) => {
-      if (!sellerLocation || !sellerLocation.lat || !sellerLocation.lon) {
+    .filter(([, sellerLocation]) => {
+      const sellerCoordinates = getAddressCoordinates(sellerLocation);
+      if (!sellerCoordinates) {
         return false;
       }
 
       const distanceKm = haversineDistanceKm(
-        customerLocation.lat,
-        customerLocation.lon,
-        sellerLocation.lat,
-        sellerLocation.lon
+        customerCoordinates.lat,
+        customerCoordinates.lon,
+        sellerCoordinates.lat,
+        sellerCoordinates.lon
       );
 
       return Number.isFinite(distanceKm) && distanceKm <= NEARBY_DISTANCE_KM;

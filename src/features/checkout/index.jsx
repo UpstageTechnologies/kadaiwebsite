@@ -2,13 +2,75 @@ import { useEffect, useMemo, useState } from "react";
 import { FiArrowLeft, FiCheck, FiMapPin } from "react-icons/fi";
 import { useLocation as useRouteLocation, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
-import AddressChangeModal from "../../components/AddressChangeModal";
 import { useAuth } from "../../components/AuthContext";
 import { useCart } from "../../components/CardContext";
 import { calculateSubtotal } from "../cart/cart.service";
 import { getPaymentMethodLabel, placeOrder } from "../orders/orders.service";
 
 import "./checkout.css";
+
+const EMPTY_DELIVERY_ADDRESS = {
+  fullName: "",
+  phoneNumber: "",
+  country: "",
+  state: "",
+  district: "",
+  city: "",
+  area: "",
+  streetAddress: "",
+  doorNumber: "",
+  pincode: "",
+  landmark: "",
+};
+
+const ADDRESS_FIELDS = [
+  { key: "fullName", label: "Full Name", required: true },
+  { key: "phoneNumber", label: "Phone Number", required: true, type: "tel", inputMode: "tel" },
+  { key: "country", label: "Country", required: true },
+  { key: "state", label: "State", required: true },
+  { key: "district", label: "District", required: true },
+  { key: "city", label: "City / Town", required: true },
+  { key: "area", label: "Area / Locality", required: true },
+  { key: "streetAddress", label: "Street Address", required: true },
+  { key: "doorNumber", label: "Door Number", required: true },
+  { key: "pincode", label: "Pincode", required: true, inputMode: "numeric" },
+  { key: "landmark", label: "Landmark (optional)", required: false },
+];
+
+const getAddressValidationError = (address) => {
+  const missingField = ADDRESS_FIELDS.find(
+    (field) => field.required && !String(address[field.key] || "").trim()
+  );
+  if (missingField) {
+    return `Please enter ${missingField.label.toLowerCase()}.`;
+  }
+
+  const phoneDigits = String(address.phoneNumber || "").replace(/\D/g, "");
+  if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+    return "Enter a valid phone number with 10 to 15 digits.";
+  }
+
+  if (!/^\d{6}$/.test(String(address.pincode || "").trim())) {
+    return "Enter a valid 6-digit pincode.";
+  }
+
+  return "";
+};
+
+const formatDeliveryAddress = (address) => [
+  address.doorNumber,
+  address.streetAddress,
+  address.area,
+  address.landmark,
+  address.city,
+  address.district,
+  address.state,
+  address.country,
+  address.pincode,
+]
+  .map((part) => String(part || "").trim())
+  .filter(Boolean)
+  .join(", ");
 
 const PAYMENT_METHOD = {
   id: "cod",
@@ -22,8 +84,10 @@ const Checkout = () => {
   const { cartItems, clearCart } = useCart();
   const { user, customer, loading: isAuthLoading } = useAuth();
   const [error, setError] = useState("");
+  const [addressError, setAddressError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
   const [deliveryAddress, setDeliveryAddress] = useState(null);
+  const [addressDraft, setAddressDraft] = useState(EMPTY_DELIVERY_ADDRESS);
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(true);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
@@ -42,20 +106,43 @@ const Checkout = () => {
     }
   }, [isAuthLoading, isAuthenticated, navigate, routeLocation.pathname]);
 
-  const handleAddressSaved = (nextAddress) => {
+  const handleAddressChange = (event) => {
+    const { name, value } = event.target;
+    setAddressDraft((current) => ({ ...current, [name]: value }));
+    setAddressError("");
+  };
+
+  const handleAddressSaved = (event) => {
+    event.preventDefault();
+    const validationError = getAddressValidationError(addressDraft);
+    if (validationError) {
+      setAddressError(validationError);
+      return;
+    }
+
+    const fullAddress = formatDeliveryAddress(addressDraft);
     setDeliveryAddress({
-      ...nextAddress,
+      ...addressDraft,
       id: "checkout-delivery-address",
       label: "Delivery address",
-      address: nextAddress.fullAddress || nextAddress.address,
+      fullAddress,
+      address: fullAddress,
     });
     setIsAddressFormOpen(false);
+    setAddressError("");
     setError("");
   };
 
   const handlePlaceOrder = async () => {
-    if (!deliveryAddress) {
-      setError("Please enter and save a delivery address.");
+    if (isAddressFormOpen || !deliveryAddress) {
+      setAddressError("Please complete and save the delivery address before placing your order.");
+      return;
+    }
+
+    const addressValidationError = getAddressValidationError(deliveryAddress);
+    if (addressValidationError) {
+      setAddressError(addressValidationError);
+      setIsAddressFormOpen(true);
       return;
     }
 
@@ -178,7 +265,11 @@ const Checkout = () => {
                     <button
                       className="edit-address-btn"
                       type="button"
-                      onClick={() => setIsAddressFormOpen(true)}
+                      onClick={() => {
+                        setDeliveryAddress(null);
+                        setIsAddressFormOpen(true);
+                        setAddressError("");
+                      }}
                     >
                       Edit
                     </button>
@@ -186,13 +277,30 @@ const Checkout = () => {
                 </div>
               )}
 
-              <AddressChangeModal
-                open={isAddressFormOpen}
-                flow="checkout"
-                initialAddress={deliveryAddress}
-                onClose={() => setIsAddressFormOpen(false)}
-                onSaved={handleAddressSaved}
-              />
+              {isAddressFormOpen && (
+                <form className="address-form" onSubmit={handleAddressSaved} noValidate>
+                  <div className="address-form-grid">
+                    {ADDRESS_FIELDS.map((field) => (
+                      <label className="address-form-field" key={field.key}>
+                        <span className="address-form-label">
+                          {field.label}{field.required ? " *" : ""}
+                        </span>
+                        <input
+                          type={field.type || "text"}
+                          name={field.key}
+                          value={addressDraft[field.key]}
+                          onChange={handleAddressChange}
+                          required={field.required}
+                          inputMode={field.inputMode}
+                          autoComplete="off"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  {addressError && <p className="checkout-error" role="alert">{addressError}</p>}
+                  <button type="submit">Save Delivery Address</button>
+                </form>
+              )}
 
               {!deliveryAddress && !isAddressFormOpen && (
                 <button
@@ -202,6 +310,9 @@ const Checkout = () => {
                 >
                   + Enter Delivery Address
                 </button>
+              )}
+              {!isAddressFormOpen && addressError && (
+                <p className="checkout-error" role="alert">{addressError}</p>
               )}
             </div>
 

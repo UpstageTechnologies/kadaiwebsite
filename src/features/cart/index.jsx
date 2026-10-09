@@ -1,4 +1,4 @@
-                                                   import {
+import {
   FiMinus,
   FiPlus,
   FiTrash2,

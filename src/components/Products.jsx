@@ -6,8 +6,6 @@ import {
   FiChevronRight,
   FiArrowRight,
 } from "react-icons/fi";
-import { doc, onSnapshot } from "firebase/firestore";
-
 import "../index.css";
 import { useCart } from "./CardContext";
 import { useAuth } from "./AuthContext";
@@ -19,11 +17,10 @@ import {
   subscribeMarketplaceProducts,
   subscribeSellerLocations,
 } from "../services/marketplace.service";
-import { db } from "../services/firebase";
 
 const Products = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, customer } = useAuth();
 
   const {
     cartItems,
@@ -37,29 +34,27 @@ const Products = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [showAll, setShowAll] = useState(false);
-  const [localProducts, setLocalProducts] = useState([]);
+  const [productState, setProductState] = useState({
+    uid: "",
+    products: [],
+  });
   const [sellerLocations, setSellerLocations] = useState({});
-  const [customerLocation, setCustomerLocation] = useState(null);
-  const [isLoading, setIsLoading] = useState(Boolean(user));
+  const localProducts = useMemo(
+    () => productState.uid === (user?.uid || "") ? productState.products : [],
+    [productState.products, productState.uid, user?.uid]
+  );
+  const isLoading = Boolean(user?.uid) && productState.uid !== user.uid;
 
-  useEffect(() => {
-    if (!user?.uid || !db) {
-      setCustomerLocation(null);
-      return undefined;
-    }
+  const customerLocation = useMemo(() => {
+    const savedAddress = customer?.address;
+    const hasSavedAddress = (savedAddress && typeof savedAddress === "object"
+      && !Array.isArray(savedAddress) && Object.keys(savedAddress).length > 0)
+      || (typeof savedAddress === "string" && savedAddress.trim().length > 0);
 
-    const customerRef = doc(db, "customers", user.uid);
-    const unsubscribe = onSnapshot(
-      customerRef,
-      (snapshot) => {
-        const customerData = snapshot.data() || {};
-        setCustomerLocation(getAddressCoordinates(customerData?.address || customerData));
-      },
-      () => setCustomerLocation(null)
+    return getAddressCoordinates(
+      hasSavedAddress ? savedAddress : customer?.currentLocation
     );
-
-    return () => unsubscribe();
-  }, [user?.uid]);
+  }, [customer?.address, customer?.currentLocation]);
 
   useEffect(() => {
     const unsubscribe = subscribeSellerLocations({
@@ -71,22 +66,21 @@ const Products = () => {
   }, []);
 
   useEffect(() => {
-    setIsLoading(Boolean(user));
-
-    if (!user?.uid) {
-      setLocalProducts([]);
+    const uid = user?.uid || "";
+    if (!uid) {
       return undefined;
     }
 
     const unsubscribe = subscribeMarketplaceProducts({
       marketMode: MARKET_MODES.LOCAL,
       onProducts: (products) => {
-        setLocalProducts(Array.isArray(products) ? products : []);
-        setIsLoading(false);
+        setProductState({
+          uid,
+          products: Array.isArray(products) ? products : [],
+        });
       },
       onError: () => {
-        setLocalProducts([]);
-        setIsLoading(false);
+        setProductState({ uid, products: [] });
       },
     });
 
@@ -103,14 +97,25 @@ const Products = () => {
       return [];
     }
 
-    return localProducts.filter((product) =>
-      nearbySellerIds.includes(product.shopId || product.sellerId)
-    );
+    const uniqueProducts = new Map();
+
+    localProducts
+      .filter((product) =>
+        nearbySellerIds.includes(product.shopId || product.sellerId)
+      )
+      .forEach((product) => {
+        const productKey = `${product.shopId || product.sellerId}:${product.id}`;
+        if (!uniqueProducts.has(productKey)) {
+          uniqueProducts.set(productKey, product);
+        }
+      });
+
+    return [...uniqueProducts.values()];
   }, [localProducts, nearbySellerIds]);
 
   const totalPages = Math.ceil(filteredLocalProducts.length / productsPerPage);
-
-  const startIndex = (currentPage - 1) * productsPerPage;
+  const activePage = Math.min(currentPage, Math.max(totalPages, 1));
+  const startIndex = (activePage - 1) * productsPerPage;
   const endIndex = startIndex + productsPerPage;
   const visibleProducts = showAll
     ? filteredLocalProducts
@@ -335,10 +340,10 @@ const Products = () => {
             className="pagination-arrow"
             onClick={() =>
               handlePageChange(
-                currentPage - 1
+                activePage - 1
               )
             }
-            disabled={currentPage === 1}
+            disabled={activePage === 1}
             aria-label="Previous page"
           >
             <FiChevronLeft />
@@ -352,7 +357,7 @@ const Products = () => {
             <button
               key={page}
               className={`pagination-number ${
-                currentPage === page
+                activePage === page
                   ? "active"
                   : ""
               }`}
@@ -369,11 +374,11 @@ const Products = () => {
             className="pagination-arrow"
             onClick={() =>
               handlePageChange(
-                currentPage + 1
+                activePage + 1
               )
             }
             disabled={
-              currentPage === totalPages
+              activePage === totalPages
             }
             aria-label="Next page"
           >
