@@ -232,7 +232,11 @@ exports.createCustomerOrder = onCall(async (request) => {
     if (error instanceof HttpsError) {
       throw error;
     }
-    console.error("[ORDERS] Trusted order transaction failed:", error);
+    console.error("[ORDERS] Trusted order transaction failed:", {
+      code: error?.code || "unknown",
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
     throw new HttpsError("internal", "Unable to place your order. Please try again.", {
       cause: error?.code || "unknown",
     });

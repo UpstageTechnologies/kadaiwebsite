@@ -167,7 +167,15 @@ export const persistOrder = async (order) => {
 
     return response.data;
   } catch (error) {
-    console.error("[ORDERS] Trusted order creation failed:", error);
+    if (import.meta.env.DEV) {
+      console.error("[ORDERS] Trusted order creation failed:", {
+        code: error?.code || "",
+        message: error?.message || String(error),
+        stack: error?.stack || "",
+        details: error?.details,
+        cause: error?.cause,
+      });
+    }
     throw new Error(getOrderErrorMessage(error), { cause: error });
   }
 };
