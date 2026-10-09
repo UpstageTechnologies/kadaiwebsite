@@ -9,69 +9,6 @@ import { getPaymentMethodLabel, placeOrder } from "../orders/orders.service";
 
 import "./checkout.css";
 
-const EMPTY_DELIVERY_ADDRESS = {
-  fullName: "",
-  phoneNumber: "",
-  country: "",
-  state: "",
-  district: "",
-  city: "",
-  area: "",
-  streetAddress: "",
-  doorNumber: "",
-  pincode: "",
-  landmark: "",
-};
-
-const ADDRESS_FIELDS = [
-  { key: "fullName", label: "Full Name", required: true },
-  { key: "phoneNumber", label: "Phone Number", required: true, type: "tel", inputMode: "tel" },
-  { key: "country", label: "Country", required: true },
-  { key: "state", label: "State", required: true },
-  { key: "district", label: "District", required: true },
-  { key: "city", label: "City / Town", required: true },
-  { key: "area", label: "Area / Locality", required: true },
-  { key: "streetAddress", label: "Street Address", required: true },
-  { key: "doorNumber", label: "Door Number", required: true },
-  { key: "pincode", label: "Pincode", required: true, inputMode: "numeric" },
-  { key: "landmark", label: "Landmark (optional)", required: false },
-];
-
-const getAddressValidationError = (address) => {
-  const missingField = ADDRESS_FIELDS.find(
-    (field) => field.required && !String(address[field.key] || "").trim()
-  );
-  if (missingField) {
-    return `Please enter ${missingField.label.toLowerCase()}.`;
-  }
-
-  const phoneDigits = String(address.phoneNumber || "").replace(/\D/g, "");
-  if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-    return "Enter a valid phone number with 10 to 15 digits.";
-  }
-
-  if (!/^\d{6}$/.test(String(address.pincode || "").trim())) {
-    return "Enter a valid 6-digit pincode.";
-  }
-
-  return "";
-};
-
-const formatDeliveryAddress = (address) => [
-  address.doorNumber,
-  address.streetAddress,
-  address.area,
-  address.landmark,
-  address.city,
-  address.district,
-  address.state,
-  address.country,
-  address.pincode,
-]
-  .map((part) => String(part || "").trim())
-  .filter(Boolean)
-  .join(", ");
-
 const PAYMENT_METHOD = {
   id: "cod",
   label: "Cash on Delivery",
@@ -83,11 +20,14 @@ const Checkout = () => {
   const routeLocation = useRouteLocation();
   const { cartItems, clearCart } = useCart();
   const { user, customer, loading: isAuthLoading } = useAuth();
+  const registeredPhone = user?.phoneNumber
+    || (customer?.uid === user?.uid ? customer?.mobile : "")
+    || "";
   const [error, setError] = useState("");
   const [addressError, setAddressError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
   const [deliveryAddress, setDeliveryAddress] = useState(null);
-  const [addressDraft, setAddressDraft] = useState(EMPTY_DELIVERY_ADDRESS);
+  const [addressDraft, setAddressDraft] = useState("");
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(true);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
@@ -107,26 +47,24 @@ const Checkout = () => {
   }, [isAuthLoading, isAuthenticated, navigate, routeLocation.pathname]);
 
   const handleAddressChange = (event) => {
-    const { name, value } = event.target;
-    setAddressDraft((current) => ({ ...current, [name]: value }));
+    setAddressDraft(event.target.value);
     setAddressError("");
   };
 
   const handleAddressSaved = (event) => {
     event.preventDefault();
-    const validationError = getAddressValidationError(addressDraft);
-    if (validationError) {
-      setAddressError(validationError);
+    const normalizedAddress = addressDraft.trim();
+    if (!normalizedAddress) {
+      setAddressError("Please enter your full delivery address.");
       return;
     }
 
-    const fullAddress = formatDeliveryAddress(addressDraft);
     setDeliveryAddress({
-      ...addressDraft,
       id: "checkout-delivery-address",
       label: "Delivery address",
-      fullAddress,
-      address: fullAddress,
+      fullAddress: normalizedAddress,
+      address: normalizedAddress,
+      phoneNumber: registeredPhone,
     });
     setIsAddressFormOpen(false);
     setAddressError("");
@@ -139,10 +77,8 @@ const Checkout = () => {
       return;
     }
 
-    const addressValidationError = getAddressValidationError(deliveryAddress);
-    if (addressValidationError) {
-      setAddressError(addressValidationError);
-      setIsAddressFormOpen(true);
+    if (!registeredPhone) {
+      setError("We could not retrieve the phone number for your signed-in account. Please sign in again.");
       return;
     }
 
@@ -157,7 +93,10 @@ const Checkout = () => {
     try {
       const order = await placeOrder({
         cartItems,
-        address: deliveryAddress,
+        address: {
+          ...deliveryAddress,
+          phoneNumber: registeredPhone,
+        },
         paymentMethod: "cod",
         summary,
         paymentStatus: "Pending",
@@ -267,6 +206,7 @@ const Checkout = () => {
                       type="button"
                       onClick={() => {
                         setDeliveryAddress(null);
+                        setAddressDraft("");
                         setIsAddressFormOpen(true);
                         setAddressError("");
                       }}
@@ -279,25 +219,33 @@ const Checkout = () => {
 
               {isAddressFormOpen && (
                 <form className="address-form" onSubmit={handleAddressSaved} noValidate>
-                  <div className="address-form-grid">
-                    {ADDRESS_FIELDS.map((field) => (
-                      <label className="address-form-field" key={field.key}>
-                        <span className="address-form-label">
-                          {field.label}{field.required ? " *" : ""}
-                        </span>
-                        <input
-                          type={field.type || "text"}
-                          name={field.key}
-                          value={addressDraft[field.key]}
-                          onChange={handleAddressChange}
-                          required={field.required}
-                          inputMode={field.inputMode}
-                          autoComplete="off"
-                        />
-                      </label>
-                    ))}
-                  </div>
+                  <label className="address-form-field">
+                    <span className="address-form-label">Full Delivery Address *</span>
+                    <textarea
+                      className="address-form-address-field"
+                      name="deliveryAddress"
+                      value={addressDraft}
+                      onChange={handleAddressChange}
+                      required
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="address-form-field">
+                    <span className="address-form-label">Phone Number</span>
+                    <input
+                      type="tel"
+                      value={registeredPhone}
+                      readOnly
+                      aria-readonly="true"
+                      placeholder="Phone number unavailable"
+                    />
+                  </label>
                   {addressError && <p className="checkout-error" role="alert">{addressError}</p>}
+                  {!registeredPhone && (
+                    <p className="checkout-error" role="alert">
+                      Phone number unavailable for this signed-in account.
+                    </p>
+                  )}
                   <button type="submit">Save Delivery Address</button>
                 </form>
               )}

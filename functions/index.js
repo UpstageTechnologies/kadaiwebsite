@@ -28,31 +28,35 @@ exports.createCustomerOrder = onCall(async (request) => {
     typeof orderId !== "string"
     || !/^order-[a-z0-9]+$/i.test(orderId)
     || !address
-    || typeof address !== "object"
-    || Array.isArray(address)
+    || !(typeof address === "string" || (typeof address === "object" && !Array.isArray(address)))
   ) {
     throw new HttpsError("invalid-argument", "A valid order ID and delivery address are required.");
   }
 
-  const requiredAddressFields = [
-    "fullName",
-    "phoneNumber",
-    "country",
-    "state",
-    "district",
-    "city",
-    "area",
-    "streetAddress",
-    "doorNumber",
-    "pincode",
-  ];
-  const missingAddressField = requiredAddressFields.find(
-    (field) => !String(address[field] || "").trim()
-  );
-  const phoneDigits = String(address.phoneNumber || "").replace(/\D/g, "");
-  if (missingAddressField || phoneDigits.length < 10 || phoneDigits.length > 15 || !/^\d{6}$/.test(String(address.pincode || ""))) {
-    throw new HttpsError("invalid-argument", "Please provide complete and valid delivery details.");
+  const addressText = typeof address === "string"
+    ? address.trim()
+    : String(address.fullAddress || address.address || "").trim();
+  if (!addressText) {
+    throw new HttpsError("invalid-argument", "Please provide a full delivery address.");
   }
+
+  let customerPhone = String(request.auth.token.phone_number || "");
+  if (!customerPhone) {
+    try {
+      const authenticatedUser = await getAuth().getUser(customerUid);
+      customerPhone = String(authenticatedUser.phoneNumber || "");
+    } catch (error) {
+      console.error("[ORDERS] Could not retrieve authenticated customer's phone:", error);
+    }
+  }
+  if (!customerPhone) {
+    throw new HttpsError("failed-precondition", "The phone number for your signed-in account is unavailable.");
+  }
+
+  const orderAddress = typeof address === "string"
+    ? { address: addressText, fullAddress: addressText }
+    : { ...address, address: addressText, fullAddress: addressText };
+  orderAddress.phoneNumber = customerPhone;
 
   const customerRef = db.collection("customers").doc(customerUid);
   const orderRef = db.collection("orders").doc(orderId);
@@ -148,11 +152,11 @@ exports.createCustomerOrder = onCall(async (request) => {
         customerId: customerUid,
         customerUid,
         customerName: String(customerName || customerData.fullName || customerData.name || request.auth.token.name || "Customer"),
-        customerPhone: String(address.phoneNumber),
+        customerPhone,
         items: orderItems,
         orderedShops,
-        address,
-        deliveryAddress: address,
+        address: orderAddress,
+        deliveryAddress: orderAddress,
         paymentMethod: "cod",
         paymentStatus: "Pending",
         paymentGatewayReference: "",
@@ -178,9 +182,10 @@ exports.createCustomerOrder = onCall(async (request) => {
         }
 
         const existingAddress = existingData.address || existingData.deliveryAddress || {};
-        const sameAddress = [...requiredAddressFields, "landmark"].every(
-          (field) => String(existingAddress[field] || "").trim() === String(address[field] || "").trim()
-        );
+        const existingAddressText = typeof existingAddress === "string"
+          ? existingAddress.trim()
+          : String(existingAddress.fullAddress || existingAddress.address || "").trim();
+        const sameAddress = existingAddressText === addressText;
         const getItemSignature = (items) => (Array.isArray(items) ? items : [])
           .map((item) => ({
             id: String(item.id || ""),
