@@ -5,6 +5,7 @@ import {
 } from "react-router-dom";
 
 import {
+  FiShoppingBag,
   FiStar,
   FiShoppingCart,
 } from "react-icons/fi";
@@ -17,10 +18,11 @@ import {
 import {
   DEFAULT_MARKET_MODE,
   MARKET_MODES,
-  getAddressCoordinates,
+  getMarketplaceCoordinates,
   getNearbySellerIds,
+  haversineDistanceKm,
   subscribeMarketplaceProducts,
-  subscribeSellerLocations,
+  subscribeMarketplaceSellerProfiles,
 } from "../../services/marketplace.service";
 import { doc, onSnapshot } from "firebase/firestore";
 
@@ -45,31 +47,51 @@ const Products = () => {
   const categoryFromURL = searchParams.get("category") || "";
   const requestedMarketMode = searchParams.get("market");
 
-  const [marketMode, setMarketMode] = useState(
-    categoryFromURL || requestedMarketMode === MARKET_MODES.GLOBAL
-      ? MARKET_MODES.GLOBAL
-      : DEFAULT_MARKET_MODE
-  );
-
-  useEffect(() => {
-    if (categoryFromURL) {
-      setMarketMode(MARKET_MODES.GLOBAL);
-      return;
-    }
-
-    const nextMode = requestedMarketMode === MARKET_MODES.GLOBAL
+  const marketMode = categoryFromURL
+    ? MARKET_MODES.GLOBAL
+    : requestedMarketMode === MARKET_MODES.GLOBAL
       ? MARKET_MODES.GLOBAL
       : DEFAULT_MARKET_MODE;
-
-    setMarketMode(nextMode);
-  }, [categoryFromURL, requestedMarketMode]);
-  const [inventoryProducts, setInventoryProducts] = useState([]); 
-  const [globalProducts, setGlobalProducts] = useState([]);
-  const [customerLocation, setCustomerLocation] = useState(null);
-  const [sellerLocations, setSellerLocations] = useState({});
-  const [nearbySellerIds, setNearbySellerIds] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const userId = user?.uid || "";
+  const [customerLocationState, setCustomerLocationState] = useState({
+    userId: "",
+    coordinates: null,
+    error: "",
+  });
+  const customerLocation = customerLocationState.userId === userId
+    ? customerLocationState.coordinates
+    : null;
+  const isCustomerLocationLoading = Boolean(
+    userId && db && customerLocationState.userId !== userId
+  );
+  const locationError = customerLocationState.userId === userId
+    ? customerLocationState.error
+    : "";
+  const [sellerState, setSellerState] = useState({
+    sellers: [],
+    loaded: false,
+    error: "",
+  });
+  const sellerProfiles = sellerState.sellers;
+  const isSellerProfilesLoading = Boolean(db) && !sellerState.loaded;
+  const sellerProfilesError = !db
+    ? "Firebase is not configured. We couldn't load shops."
+    : sellerState.error;
+  const [selectedShopSelection, setSelectedShopSelection] = useState(null);
+  const selectedShopId = selectedShopSelection?.marketMode === marketMode
+    ? selectedShopSelection.id
+    : "";
+  const [productState, setProductState] = useState({
+    marketMode: "",
+    products: [],
+    error: "",
+  });
+  const isLoading = Boolean(db) && productState.marketMode !== marketMode;
+  const error = !db
+    ? "Firebase is not configured. We couldn't load products."
+    : productState.marketMode === marketMode
+      ? productState.error
+      : "";
 
   useEffect(() => {
     if (isAuthLoading) return;
@@ -85,95 +107,129 @@ const Products = () => {
   }, [isAuthLoading, marketMode, navigate, user]);
 
   useEffect(() => {
-    const uid = user?.uid || "";
+    if (!userId || !db) return undefined;
 
-    if (!uid || !db) {
-      setCustomerLocation(null);
-      return undefined;
-    }
-
-    const customerRef = doc(db, "customers", uid);
+    const customerRef = doc(db, "customers", userId);
+    let isActive = true;
     const unsubscribe = onSnapshot(
       customerRef,
       (snapshot) => {
+        if (!isActive) return;
         const customerData = snapshot.data() || {};
-        const coordinates = getAddressCoordinates(customerData.address)
-          || getAddressCoordinates(customerData.currentLocation)
-          || getAddressCoordinates(customerData);
-        setCustomerLocation(coordinates);
+        const coordinates = getMarketplaceCoordinates(customerData.address)
+          || getMarketplaceCoordinates(customerData.currentLocation)
+          || getMarketplaceCoordinates(customerData);
+        setCustomerLocationState({ userId, coordinates, error: "" });
       },
       (listenerError) => {
+        if (!isActive) return;
         console.error("[MARKET] Customer location listener failed:", listenerError);
-        setCustomerLocation(null);
+        setCustomerLocationState({
+          userId,
+          coordinates: null,
+          error: "We couldn't load your saved location. Please try again.",
+        });
       }
     );
 
-    return () => unsubscribe();
-  }, [user?.uid]);
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
+  }, [userId]);
 
   useEffect(() => {
-    const unsubscribe = subscribeSellerLocations({
-      onLocations: setSellerLocations,
+    if (!db) return undefined;
+
+    let isActive = true;
+    const unsubscribe = subscribeMarketplaceSellerProfiles({
+      onSellers: (sellers) => {
+        if (!isActive) return;
+        setSellerState({ sellers, loaded: true, error: "" });
+      },
       onError: (listenerError) => {
-        console.error("[MARKET] Seller locations failed:", listenerError);
+        if (!isActive) return;
+        setSellerState({
+          sellers: [],
+          loaded: true,
+          error: "We couldn't load shops right now. Please try again later.",
+        });
+        console.error("[MARKET] Seller profiles failed:", listenerError);
       },
     });
 
-    return () => unsubscribe();
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, []);
 
+  const sellerLocationMap = useMemo(
+    () => Object.fromEntries(
+      sellerProfiles
+        .filter((seller) => seller.coordinates)
+        .map((seller) => [seller.id, seller.coordinates])
+    ),
+    [sellerProfiles]
+  );
+  const nearbySellerIds = useMemo(
+    () => getNearbySellerIds(customerLocation, sellerLocationMap),
+    [customerLocation, sellerLocationMap]
+  );
   useEffect(() => {
-    if (marketMode !== MARKET_MODES.LOCAL) {
-      setNearbySellerIds([]);
-      return;
-    }
+    if (!db) return undefined;
 
-    if (!customerLocation) {
-      setNearbySellerIds([]);
-      return;
-    }
-
-    const ids = getNearbySellerIds(customerLocation, sellerLocations);
-    setNearbySellerIds(ids);
-  }, [marketMode, customerLocation, sellerLocations]);
-
-  useEffect(() => {
-    setIsLoading(true);
-    setError("");
-
+    let isActive = true;
     const mode = marketMode === MARKET_MODES.GLOBAL ? MARKET_MODES.GLOBAL : MARKET_MODES.LOCAL;
-    const onProducts = mode === MARKET_MODES.GLOBAL ? setGlobalProducts : setInventoryProducts;
+    let listenerErrorMessage = "";
 
     const unsubscribe = subscribeMarketplaceProducts({
       marketMode: mode,
       onProducts: (products) => {
-        onProducts(products);
-        setIsLoading(false);
+        if (!isActive) return;
+        setProductState({
+          marketMode: mode,
+          products,
+          error: listenerErrorMessage,
+        });
       },
       onError: (listenerError) => {
-        setError("We couldn't load products right now. Please try again later.");
-        onProducts([]);
-        setIsLoading(false);
+        if (!isActive) return;
+        listenerErrorMessage = "We couldn't load products right now. Please try again later.";
+        setProductState({
+          marketMode: mode,
+          products: [],
+          error: listenerErrorMessage,
+        });
         console.error("[MARKET] Product listener failed:", listenerError);
       },
     });
 
-    return () => unsubscribe();
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, [marketMode]);
 
   const activeProducts = useMemo(() => {
-    const source = marketMode === MARKET_MODES.GLOBAL ? globalProducts : inventoryProducts;
+    const source = productState.marketMode === marketMode ? productState.products : [];
+    const uniqueProducts = new Map();
 
-    if (marketMode === MARKET_MODES.LOCAL) {
-      if (!customerLocation || nearbySellerIds.length === 0) {
-        return [];
+    source.forEach((product) => {
+      const shopId = String(product.shopId || product.sellerId || "");
+      if (!shopId || (marketMode === MARKET_MODES.LOCAL
+        && (!customerLocation || !nearbySellerIds.includes(shopId)))) {
+        return;
       }
 
-      return source.filter((product) => nearbySellerIds.includes(product.shopId || product.sellerId));
-    }
+      const productKey = `${shopId}:${product.id}`;
+      if (!uniqueProducts.has(productKey)) {
+        uniqueProducts.set(productKey, product);
+      }
+    });
 
-    return source;
-  }, [customerLocation, globalProducts, inventoryProducts, marketMode, nearbySellerIds]);
+    return [...uniqueProducts.values()];
+  }, [customerLocation, marketMode, nearbySellerIds, productState]);
 
   const filteredProducts = useMemo(() => {
     let result = activeProducts;
@@ -209,6 +265,48 @@ const Products = () => {
     return result;
   }, [activeProducts, categoryFromURL, marketMode, searchFromURL]);
 
+  const eligibleShops = useMemo(() => {
+    const productCounts = new Map();
+    filteredProducts.forEach((product) => {
+      const shopId = String(product.shopId || product.sellerId || "");
+      if (shopId) {
+        productCounts.set(shopId, (productCounts.get(shopId) || 0) + 1);
+      }
+    });
+
+    return sellerProfiles
+      .filter((seller) => productCounts.has(seller.id))
+      .filter((seller) => marketMode !== MARKET_MODES.LOCAL
+        || nearbySellerIds.includes(seller.id))
+      .map((seller) => ({
+        ...seller,
+        productCount: productCounts.get(seller.id),
+        distanceKm: marketMode === MARKET_MODES.LOCAL && customerLocation && seller.coordinates
+          ? haversineDistanceKm(
+            customerLocation.lat,
+            customerLocation.lon,
+            seller.coordinates.lat,
+            seller.coordinates.lon
+          )
+          : null,
+      }));
+  }, [customerLocation, filteredProducts, marketMode, nearbySellerIds, sellerProfiles]);
+
+  const selectedShopProfile = sellerProfiles.find((seller) =>
+    seller.id === selectedShopId
+    && (marketMode !== MARKET_MODES.LOCAL || nearbySellerIds.includes(seller.id))
+  ) || null;
+  const selectedShop = selectedShopProfile;
+  const selectedShopProducts = selectedShop
+    ? filteredProducts.filter((product) =>
+      String(product.shopId || product.sellerId || "") === selectedShop.id
+    )
+    : [];
+  const displayedProducts = selectedShop ? selectedShopProducts : filteredProducts;
+  const isPageLoading = isLoading
+    || isSellerProfilesLoading
+    || (marketMode === MARKET_MODES.LOCAL && (isCustomerLocationLoading || isAuthLoading));
+
   const handleMarketChange = (nextMode) => {
     if (
       nextMode === MARKET_MODES.LOCAL &&
@@ -220,7 +318,7 @@ const Products = () => {
       return;
     }
 
-    setMarketMode(nextMode);
+    setSelectedShopSelection(null);
 
     const nextSearchParams = new URLSearchParams(searchParams);
 
@@ -265,22 +363,90 @@ const Products = () => {
           <section className="products-content">
             <div className="products-topbar">
               <div>
-                <h2>{searchFromURL ? `Search results for "${searchFromURL}"` : marketMode === MARKET_MODES.LOCAL ? "Local" : "Global"}</h2>
-                <p>{filteredProducts.length} items available</p>
+                <h2>
+                  {searchFromURL
+                    ? `Search results for "${searchFromURL}"`
+                    : marketMode === MARKET_MODES.LOCAL
+                      ? "Local"
+                      : "Global"}
+                </h2>
+                <p>{displayedProducts.length} items available</p>
               </div>
             </div>
 
-            {error && <div className="no-products"><p>{error}</p></div>}
+            {(error || sellerProfilesError || locationError) && (
+              <div className="no-products">
+                <p>{error || sellerProfilesError || locationError}</p>
+              </div>
+            )}
 
-            {!error && isLoading && (
+            {!error && !sellerProfilesError && !locationError && isPageLoading && (
               <div className="no-products">
                 <h3>Loading products...</h3>
               </div>
             )}
 
-            {!error && !isLoading && filteredProducts.length > 0 ? (
+            {!error && !sellerProfilesError && !locationError
+              && !isPageLoading
+              && marketMode === MARKET_MODES.LOCAL
+              && !customerLocation ? (
+                <div className="no-products">
+                  <h3>Location coordinates needed</h3>
+                  <p>
+                    Local shops can only be shown when your saved address has latitude and longitude.
+                    Update your address from the profile menu; GPS will not be requested automatically.
+                  </p>
+                </div>
+              ) : null}
+
+            {!error && !sellerProfilesError && !locationError
+              && !isPageLoading
+              && (marketMode !== MARKET_MODES.LOCAL || customerLocation)
+              ? (
+                <section className="shop-selector" aria-label="Select a shop">
+                  <div className="shop-selector-header">
+                    <h3>Shop by store</h3>
+                    {selectedShop && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShopSelection(null)}
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                  </div>
+                  {eligibleShops.length > 0 ? (
+                    <div className="shop-selector-list">
+                      {eligibleShops.map((shop) => (
+                        <button
+                          type="button"
+                          className={`shop-selector-item${selectedShopId === shop.id ? " selected" : ""}`}
+                          key={shop.id}
+                          aria-pressed={selectedShopId === shop.id}
+                          onClick={() => setSelectedShopSelection({
+                            id: shop.id,
+                            marketMode,
+                          })}
+                        >
+                          <span className="shop-selector-icon">
+                            <FiShoppingBag aria-hidden="true" />
+                          </span>
+                          <span className="shop-selector-name">{shop.shopName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="shop-selector-empty">No eligible shops found.</p>
+                  )}
+                </section>
+              ) : null}
+
+            {!error && !sellerProfilesError && !locationError
+              && !isPageLoading
+              && (marketMode !== MARKET_MODES.LOCAL || customerLocation)
+              && displayedProducts.length > 0 ? (
               <div className="products-grid">
-                {filteredProducts.map((product) => {
+                {displayedProducts.map((product) => {
                   const cartItem = cartItems.find((item) => item.id === product.id);
 
                   return (
@@ -345,7 +511,21 @@ const Products = () => {
               </div>
             ) : null}
 
-            {!error && !isLoading && filteredProducts.length === 0 && (
+            {!error && !sellerProfilesError && !locationError
+              && !isPageLoading && selectedShop && selectedShopProducts.length === 0 && (
+              <div className="no-products">
+                <h3>{searchFromURL ? "Product Not Found" : "No Products Available"}</h3>
+                <p>
+                  {searchFromURL
+                    ? `Sorry, we couldn't find "${searchFromURL}" at ${selectedShop.shopName}.`
+                    : `${selectedShop.shopName} has no products available right now.`}
+                </p>
+                <button onClick={() => setSelectedShopSelection(null)}>Clear shop selection</button>
+              </div>
+            )}
+
+            {!error && !sellerProfilesError && !locationError
+              && !isPageLoading && !selectedShop && displayedProducts.length === 0 && (
               <div className="no-products">
                 <h3>{searchFromURL ? "Product Not Found" : "No Products Found"}</h3>
                 <p>

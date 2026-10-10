@@ -234,6 +234,98 @@
   gap: 20px;
 }
 
+.shop-selector {
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border: 1px solid #edf0ee;
+  border-radius: 15px;
+  background: #ffffff;
+}
+
+.shop-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.shop-selector-header h3 {
+  margin: 0;
+  color: #202a25;
+  font-size: 15px;
+}
+
+.shop-selector-header button {
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: green;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shop-selector-list {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+}
+
+.shop-selector-item {
+  width: 82px;
+  flex: 0 0 82px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+}
+
+.shop-selector-icon {
+  width: 62px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #edf0ee;
+  border-radius: 50%;
+  background: #f0f8f4;
+  color: green;
+  font-size: 25px;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.shop-selector-item:hover .shop-selector-icon,
+.shop-selector-item.selected .shop-selector-icon {
+  border-color: green;
+  background: green;
+  color: #ffffff;
+}
+
+.shop-selector-name {
+  width: 100%;
+  overflow: hidden;
+  color: #202a25;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shop-selector-empty {
+  margin: 0;
+  color: #888;
+  font-size: 12px;
+}
+
 .product-card {
   overflow: hidden;
 

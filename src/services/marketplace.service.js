@@ -71,6 +71,40 @@ export const getAddressCoordinates = (source = {}) => {
   return { lat, lon };
 };
 
+export const getMarketplaceCoordinates = (source = {}) => {
+  const nestedAddress = source?.address
+    && typeof source.address === "object"
+    && !Array.isArray(source.address)
+    ? source.address
+    : {};
+  const lat = sanitizeLatLon(
+    source?.lat ?? source?.latitude ?? nestedAddress.lat ?? nestedAddress.latitude,
+    null
+  );
+  const lon = sanitizeLatLon(
+    source?.lon
+      ?? source?.lng
+      ?? source?.longitude
+      ?? nestedAddress.lon
+      ?? nestedAddress.lng
+      ?? nestedAddress.longitude,
+    null
+  );
+
+  if (
+    lat === null
+    || lon === null
+    || lat < -90
+    || lat > 90
+    || lon < -180
+    || lon > 180
+  ) {
+    return null;
+  }
+
+  return { lat, lon };
+};
+
 export const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
   if (
     !Number.isFinite(lat1) ||
@@ -244,6 +278,73 @@ export const subscribeMarketplaceProducts = ({
       }
       if (typeof onProducts === "function") {
         onProducts([]);
+      }
+    }
+  );
+
+  return unsubscribe;
+};
+
+const getSellerAddressText = (sellerData) => {
+  const address = sellerData?.address;
+  if (typeof address === "string") {
+    return safeText(address);
+  }
+
+  if (!address || typeof address !== "object" || Array.isArray(address)) {
+    return "";
+  }
+
+  return safeText(
+    address.fullAddress
+      || address.formattedAddress
+      || address.address
+      || [
+        address.area,
+        address.city,
+        address.district,
+        address.state,
+        address.country,
+        address.pincode,
+      ].filter(Boolean).join(", ")
+  );
+};
+
+export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
+  if (!db) {
+    const error = new Error("Firebase Firestore is not configured.");
+    console.error("[MARKET] Seller profiles unavailable:", error);
+    if (typeof onError === "function") {
+      onError(error);
+    }
+    return () => {};
+  }
+
+  const sellersQuery = query(collection(db, "users"), where("role", "==", "seller"));
+  const unsubscribe = onSnapshot(
+    sellersQuery,
+    (snapshot) => {
+      const sellers = snapshot.docs.map((sellerSnapshot) => {
+        const sellerData = sellerSnapshot.data() || {};
+        return {
+          id: sellerSnapshot.id,
+          shopName: safeText(
+            sellerData.shopName || sellerData.storeName || sellerData.name,
+            "Store"
+          ),
+          address: getSellerAddressText(sellerData),
+          coordinates: getMarketplaceCoordinates(sellerData),
+        };
+      });
+
+      if (typeof onSellers === "function") {
+        onSellers(sellers);
+      }
+    },
+    (error) => {
+      console.error("[MARKET] Seller profiles listener failed:", error);
+      if (typeof onError === "function") {
+        onError(error);
       }
     }
   );
