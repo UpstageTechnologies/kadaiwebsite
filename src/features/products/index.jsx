@@ -358,6 +358,48 @@ const Products = () => {
                 </button>
               ))}
             </div>
+
+            {!error && !sellerProfilesError && !locationError
+              && !isPageLoading
+              && (marketMode !== MARKET_MODES.LOCAL || customerLocation)
+              ? (
+                <section className="shop-selector" aria-label="Select a shop">
+                  <div className="shop-selector-header">
+                    <h3>Available Shops</h3>
+                    {selectedShop && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShopSelection(null)}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {eligibleShops.length > 0 ? (
+                    <div className="shop-selector-list">
+                      {eligibleShops.map((shop) => (
+                        <button
+                          type="button"
+                          className={`shop-selector-item${selectedShopId === shop.id ? " selected" : ""}`}
+                          key={shop.id}
+                          aria-pressed={selectedShopId === shop.id}
+                          onClick={() => setSelectedShopSelection({
+                            id: shop.id,
+                            marketMode,
+                          })}
+                        >
+                          <span className="shop-selector-icon">
+                            <FiShoppingBag aria-hidden="true" />
+                          </span>
+                          <span className="shop-selector-name">{shop.shopName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="shop-selector-empty">No eligible shops found.</p>
+                  )}
+                </section>
+              ) : null}
           </aside>
 
           <section className="products-content">
@@ -397,48 +439,6 @@ const Products = () => {
                     Update your address from the profile menu; GPS will not be requested automatically.
                   </p>
                 </div>
-              ) : null}
-
-            {!error && !sellerProfilesError && !locationError
-              && !isPageLoading
-              && (marketMode !== MARKET_MODES.LOCAL || customerLocation)
-              ? (
-                <section className="shop-selector" aria-label="Select a shop">
-                  <div className="shop-selector-header">
-                    <h3>Shop by store</h3>
-                    {selectedShop && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedShopSelection(null)}
-                      >
-                        Clear selection
-                      </button>
-                    )}
-                  </div>
-                  {eligibleShops.length > 0 ? (
-                    <div className="shop-selector-list">
-                      {eligibleShops.map((shop) => (
-                        <button
-                          type="button"
-                          className={`shop-selector-item${selectedShopId === shop.id ? " selected" : ""}`}
-                          key={shop.id}
-                          aria-pressed={selectedShopId === shop.id}
-                          onClick={() => setSelectedShopSelection({
-                            id: shop.id,
-                            marketMode,
-                          })}
-                        >
-                          <span className="shop-selector-icon">
-                            <FiShoppingBag aria-hidden="true" />
-                          </span>
-                          <span className="shop-selector-name">{shop.shopName}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="shop-selector-empty">No eligible shops found.</p>
-                  )}
-                </section>
               ) : null}
 
             {!error && !sellerProfilesError && !locationError

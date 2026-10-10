@@ -326,6 +326,44 @@
   font-size: 12px;
 }
 
+.products-sidebar .shop-selector {
+  margin: 20px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.products-sidebar .shop-selector-header {
+  margin-bottom: 12px;
+}
+
+.products-sidebar .shop-selector-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.products-sidebar .shop-selector-list {
+  gap: 12px;
+  margin: 0 -8px;
+}
+
+.products-sidebar .shop-selector-item {
+  width: 66px;
+  flex-basis: 66px;
+  gap: 6px;
+}
+
+.products-sidebar .shop-selector-icon {
+  width: 52px;
+  height: 52px;
+  font-size: 21px;
+}
+
+.products-sidebar .shop-selector-name {
+  font-size: 10px;
+}
+
 .product-card {
   overflow: hidden;
 
