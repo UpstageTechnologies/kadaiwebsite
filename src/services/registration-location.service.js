@@ -1,4 +1,4 @@
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 
 import { db } from "./firebase";
 
@@ -74,4 +74,67 @@ export const getRegistrationCountries = async () => {
 
   const snapshot = await getDocs(collection(db, "location_master"));
   return mapCountryOptions(snapshot);
+};
+
+export const getRegistrationLocationCoordinates = async ({
+  countryId,
+  stateId,
+  districtId,
+  cityId,
+  areaId,
+}) => {
+  if (!db) {
+    throw new Error("Firebase Firestore is unavailable. Please try again.");
+  }
+
+  if (!countryId || !stateId || !districtId || !cityId || !areaId) {
+    throw new Error("Please select Country, State, District, City, and Area.");
+  }
+
+  const areaRef = doc(
+    db,
+    "location_master",
+    countryId,
+    "states",
+    stateId,
+    "districts",
+    districtId,
+    "cities",
+    cityId,
+    "areas",
+    areaId
+  );
+  const areaSnapshot = await getDoc(areaRef);
+
+  if (!areaSnapshot.exists()) {
+    throw new Error("The selected area could not be found. Please select it again.");
+  }
+
+  const areaData = areaSnapshot.data() || {};
+  const parseCoordinate = (value) => {
+    if (
+      (typeof value !== "number" && typeof value !== "string")
+      || (typeof value === "string" && !value.trim())
+    ) {
+      return null;
+    }
+
+    const coordinate = Number(value);
+    return Number.isFinite(coordinate) ? coordinate : null;
+  };
+  const latitude = parseCoordinate(areaData.latitude ?? areaData.lat);
+  const longitude = parseCoordinate(areaData.longitude ?? areaData.lon ?? areaData.lng);
+
+  if (
+    latitude === null
+    || longitude === null
+    || latitude < -90
+    || latitude > 90
+    || longitude < -180
+    || longitude > 180
+  ) {
+    throw new Error("Coordinates are not available for the selected area. Please select another area.");
+  }
+
+  return { latitude, longitude };
 };

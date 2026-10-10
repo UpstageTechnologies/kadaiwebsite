@@ -6,6 +6,7 @@ import {
 } from "../services/firebase";
 import {
   getRegistrationCountries,
+  getRegistrationLocationCoordinates,
   getRegistrationLocationOptions,
 } from "../services/registration-location.service";
 import { getCurrentLocationAddress } from "../services/current-location-address.service";
@@ -430,6 +431,19 @@ export default function AddressChangeModal({
         return;
       }
 
+      setIsSavingAddress(true);
+      setAddressError("");
+
+      const manualLocationCoordinates = !isDirectAddressFlow && addressMode === "manual"
+        ? await getRegistrationLocationCoordinates({
+          countryId: selectedCountryId,
+          stateId: selectedStateId,
+          districtId: selectedDistrictId,
+          cityId: selectedCityId,
+          areaId: selectedAreaId,
+        })
+        : null;
+
       const optionLabel = (options, value) =>
         options.find((option) => option.id === value || option.value === value)?.label || value;
       const addressParts = isDirectAddressFlow
@@ -492,14 +506,15 @@ export default function AddressChangeModal({
         fullAddress,
         formattedAddress: addressMode === "gps" || isDirectAddressFlow ? addressFormatted.trim() : "",
         pincode: addressMode === "gps" || isDirectAddressFlow ? addressPincode.trim() : "",
-        lat: addressMode === "gps" ? addressLatitude : null,
-        lon: addressMode === "gps" ? addressLongitude : null,
+        lat: addressMode === "gps"
+          ? addressLatitude
+          : manualLocationCoordinates?.latitude ?? null,
+        lon: addressMode === "gps"
+          ? addressLongitude
+          : manualLocationCoordinates?.longitude ?? null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
         address: fullAddress,
       };
-
-      setIsSavingAddress(true);
-      setAddressError("");
 
       if (!isCheckoutFlow) {
         console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
