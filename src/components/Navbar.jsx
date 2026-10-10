@@ -477,7 +477,13 @@ const Navbar = () => {
                   </div>
 
 
-                  <button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfile(false);
+                      navigate("/profile");
+                    }}
+                  >
                     My Profile
                   </button>
 

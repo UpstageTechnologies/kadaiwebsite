@@ -9,6 +9,7 @@ import Checkout from "../features/checkout";
 import Orders from "../features/orders";
 import LocationPicker from "../features/location-picker";
 import TrackOrder from "../features/track-order";
+import Profile from "../features/profile";
 
 /**
  * Main Navigator
@@ -30,6 +31,7 @@ const MainNavigator = () => {
       <Route path="/product/:id" element={<ProductDetail />} />
       <Route path="/checkout" element={<Checkout />} />
       <Route path="/orders" element={<Orders />} />
+      <Route path="/profile" element={<Profile />} />
       <Route path="/track-order/:orderId" element={<TrackOrder />} />
       <Route path="/location-picker" element={<LocationPicker />} />
 
