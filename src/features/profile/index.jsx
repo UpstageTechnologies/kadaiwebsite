@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { FiArrowRight, FiEdit2, FiLogOut, FiMapPin, FiPhone, FiUser } from "react-icons/fi";
+import {
+  FiArrowRight,
+  FiEdit2,
+  FiLogOut,
+  FiMapPin,
+  FiPhone,
+  FiShoppingBag,
+  FiUser,
+} from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { signOut, updateProfile } from "firebase/auth";
 
@@ -47,6 +55,7 @@ const Profile = () => {
   const customerName = getCustomerName(customer, user);
   const phoneNumber = customer?.mobile || user?.phoneNumber || "Not available";
   const deliveryAddress = formatAddress(customer?.address) || "No delivery address saved.";
+  const profileInitial = (customerName || phoneNumber || "K").trim().charAt(0).toUpperCase();
 
   const handleSaveName = async (event) => {
     event.preventDefault();
@@ -96,9 +105,20 @@ const Profile = () => {
       <Navbar />
       <main className="profile-page">
         <header className="profile-page-header">
-          <span>YOUR ACCOUNT</span>
-          <h1>My Profile</h1>
-          <p>View and manage your Kadai customer details.</p>
+          <div>
+            <span>YOUR ACCOUNT</span>
+            <h1>My Profile</h1>
+            <p>Manage your personal details and delivery preferences.</p>
+          </div>
+          {user && !loading && (
+            <div className="profile-header-summary">
+              <span className="profile-header-avatar">{profileInitial}</span>
+              <span>
+                <strong>{customerName || "Kadai Customer"}</strong>
+                <small>Customer account</small>
+              </span>
+            </div>
+          )}
         </header>
 
         {error && <div className="profile-message" role="alert">{error}</div>}
@@ -119,6 +139,15 @@ const Profile = () => {
           </section>
         ) : (
           <div className="profile-sections">
+            <section className="profile-overview">
+              <span className="profile-overview-icon"><FiShoppingBag aria-hidden="true" /></span>
+              <div>
+                <span className="profile-overview-kicker">Welcome to your account</span>
+                <h2>{customerName ? `Hello, ${customerName}` : "Your Kadai account"}</h2>
+                <p>Keep your details up to date for a smoother shopping experience.</p>
+              </div>
+            </section>
+
             <section className="profile-card">
               <div className="profile-section-heading">
                 <div className="profile-section-icon"><FiUser aria-hidden="true" /></div>
