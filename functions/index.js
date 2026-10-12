@@ -10,7 +10,7 @@ initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
 
-exports.createCustomerOrder = onCall(async (request) => {
+exports.createCustomerOrder = onCall({ region: "us-central1" }, async (request) => {
   const customerUid = request.auth?.uid;
   if (!customerUid) {
     throw new HttpsError("unauthenticated", "Please sign in before placing an order.");
@@ -18,15 +18,16 @@ exports.createCustomerOrder = onCall(async (request) => {
 
   const {
     orderId,
+    idempotencyKey,
     address,
     customerName,
     appMode = "web",
-    marketModes: requestedMarketModes = [],
   } = request.data || {};
-  const marketModes = Array.isArray(requestedMarketModes) ? requestedMarketModes : [];
   if (
     typeof orderId !== "string"
-    || !/^order-[a-z0-9]+$/i.test(orderId)
+    || !/^KADAI-[A-Z0-9]{6}$/.test(orderId)
+    || typeof idempotencyKey !== "string"
+    || !/^[a-zA-Z0-9_-]{16,128}$/.test(idempotencyKey)
     || !address
     || !(typeof address === "string" || (typeof address === "object" && !Array.isArray(address)))
   ) {
@@ -61,14 +62,26 @@ exports.createCustomerOrder = onCall(async (request) => {
   const customerRef = db.collection("customers").doc(customerUid);
   const orderRef = db.collection("orders").doc(orderId);
   const customerOrderRef = customerRef.collection("orders").doc(orderId);
+  const idempotencyRef = customerRef.collection("orderRequests").doc(idempotencyKey);
 
   try {
     return await db.runTransaction(async (transaction) => {
-      const [customerSnapshot, existingCustomerOrder, existingOrder] = await Promise.all([
+      const [customerSnapshot, idempotencySnapshot, existingCustomerOrder, existingOrder] = await Promise.all([
         transaction.get(customerRef),
+        transaction.get(idempotencyRef),
         transaction.get(customerOrderRef),
         transaction.get(orderRef),
       ]);
+
+      if (idempotencySnapshot.exists) {
+        const previousOrderId = idempotencySnapshot.data()?.orderId;
+        const previousOrderRef = customerRef.collection("orders").doc(previousOrderId);
+        const previousOrder = await transaction.get(previousOrderRef);
+        if (!previousOrder.exists) {
+          throw new HttpsError("data-loss", "The previous order request is incomplete. Contact support.");
+        }
+        return previousOrder.data();
+      }
 
       const customerData = customerSnapshot.exists ? customerSnapshot.data() || {} : {};
       const cartItems = Array.isArray(customerData.cartItems) ? customerData.cartItems : [];
@@ -79,7 +92,11 @@ exports.createCustomerOrder = onCall(async (request) => {
       const productReferences = cartItems.map((item) => {
         const shopId = String(item.shopId || item.sellerId || "");
         const itemId = String(item.id || item.itemId || "");
-        const collectionName = String(item.marketType || "").toLowerCase() === "global"
+        const marketType = String(item.marketType || "").toLowerCase();
+        if (marketType !== "local" && marketType !== "global") {
+          throw new HttpsError("failed-precondition", "A cart product has an invalid market mode.");
+        }
+        const collectionName = marketType === "global"
           ? "global_inventory"
           : "inventory";
         if (!shopId || !itemId || shopId.includes("/") || itemId.includes("/")) {
@@ -104,13 +121,23 @@ exports.createCustomerOrder = onCall(async (request) => {
         if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(price) || price < 0) {
           throw new HttpsError("failed-precondition", "A cart product has invalid quantity or pricing.");
         }
+        if (Number.isFinite(Number(product.quantity)) && Number(product.quantity) < quantity) {
+          throw new HttpsError("failed-precondition", "A cart product does not have enough stock available.");
+        }
 
         const shopId = productSnapshot.ref.parent.parent.id;
+        if (String(cartItem.shopId || cartItem.sellerId || "") !== shopId) {
+          throw new HttpsError("failed-precondition", "A cart product no longer belongs to its selected seller.");
+        }
+        const marketType = String(cartItem.marketType).toLowerCase();
         const itemName = String(product.itemName || product.name || product.title || "Product");
         const item = {
           id: productSnapshot.id,
           shopId,
           sellerId: shopId,
+          marketType,
+          isGlobalMode: marketType === "global",
+          deliveryScope: marketType,
           itemName,
           name: itemName,
           itemNo: String(product.itemNo || product.itemNumber || product.code || product.sku || ""),
@@ -127,14 +154,19 @@ exports.createCustomerOrder = onCall(async (request) => {
         };
 
         const shopName = String(product.shopName || product.storeName || "Store");
-        const shop = shopMap.get(shopId) || {
+        const shopKey = `${shopId}:${marketType}`;
+        const shop = shopMap.get(shopKey) || {
           shopId,
+          sellerId: shopId,
+          marketType,
+          isGlobalMode: marketType === "global",
+          deliveryScope: marketType,
           shopName,
           status: "Order Placed",
           items: [],
         };
         shop.items.push(item);
-        shopMap.set(shopId, shop);
+        shopMap.set(shopKey, shop);
         return item;
       });
 
@@ -151,6 +183,7 @@ exports.createCustomerOrder = onCall(async (request) => {
         orderId,
         customerId: customerUid,
         customerUid,
+        customerEmail: String(request.auth.token.email || customerData.email || ""),
         customerName: String(customerName || customerData.fullName || customerData.name || request.auth.token.name || "Customer"),
         customerPhone,
         items: orderItems,
@@ -168,11 +201,7 @@ exports.createCustomerOrder = onCall(async (request) => {
         createdAt,
         updatedAt: createdAt,
         appMode: String(appMode || "web"),
-        marketModes: [...new Set([
-          ...marketModes.filter((mode) => mode === "local" || mode === "global"),
-          ...cartItems.map((item) => String(item.marketType || "").toLowerCase())
-            .filter((mode) => mode === "local" || mode === "global"),
-        ])],
+        marketModes: [...new Set(cartItems.map((item) => String(item.marketType || "").toLowerCase()))],
       };
 
       if (existingCustomerOrder.exists) {
@@ -200,6 +229,8 @@ exports.createCustomerOrder = onCall(async (request) => {
           throw new HttpsError("already-exists", "This order ID was already used for a different order.");
         }
 
+        transaction.set(idempotencyRef, { orderId, createdAt: existingData.createdAt });
+
         return existingData;
       }
       if (existingOrder.exists) {
@@ -208,14 +239,20 @@ exports.createCustomerOrder = onCall(async (request) => {
 
       transaction.set(orderRef, orderData);
       transaction.set(customerOrderRef, orderData);
+      transaction.set(idempotencyRef, { orderId, createdAt });
+      transaction.update(customerRef, { cartItems: [] });
       orderedShops.forEach((shop) => {
         const shopTotal = shop.subTotal;
+        const marketCollection = shop.marketType === "global" ? "global_orders" : "local_orders";
         transaction.set(
-          db.collection("users").doc(shop.shopId).collection("orders").doc(orderId),
+          db.collection("users").doc(shop.shopId).collection(marketCollection).doc(orderId),
           {
             ...orderData,
             shopId: shop.shopId,
             shopName: shop.shopName,
+            marketType: shop.marketType,
+            isGlobalMode: shop.marketType === "global",
+            deliveryScope: shop.marketType,
             items: shop.items,
             orderedShops: [shop],
             subtotal: shopTotal,
@@ -289,8 +326,72 @@ exports.createCustomerCustomToken = onRequest(async (req, res) => {
   }
 });
 
+exports.syncSellerOrderStatus = onDocumentWritten(
+  "users/{sellerUid}/{orderCollection}/{orderId}",
+  async (event) => {
+    const { sellerUid, orderCollection, orderId } = event.params;
+    if (orderCollection !== "local_orders" && orderCollection !== "global_orders") return;
+
+    const beforeSnapshot = event.data?.before;
+    const afterSnapshot = event.data?.after;
+    if (!beforeSnapshot?.exists || !afterSnapshot?.exists) return;
+    const before = beforeSnapshot.data() || {};
+    const sellerOrder = afterSnapshot.data() || {};
+    if (!sellerOrder.status || before.status === sellerOrder.status) return;
+
+    const customerUid = String(sellerOrder.customerUid || sellerOrder.customerId || "");
+    if (!customerUid) return;
+
+    const customerOrderRef = db.collection("customers").doc(customerUid)
+      .collection("orders").doc(orderId);
+    const orderRef = db.collection("orders").doc(orderId);
+    await db.runTransaction(async (transaction) => {
+      const customerOrderSnapshot = await transaction.get(customerOrderRef);
+      if (!customerOrderSnapshot.exists) return;
+
+      const orderData = customerOrderSnapshot.data() || {};
+      const shops = Array.isArray(orderData.orderedShops) ? orderData.orderedShops : [];
+      const shopIndex = shops.findIndex((shop) =>
+        String(shop.shopId || shop.sellerId || "") === sellerUid
+        && String(shop.marketType || (shop.isGlobalMode ? "global" : "local"))
+          === (orderCollection === "global_orders" ? "global" : "local")
+      );
+      if (shopIndex < 0 || shops[shopIndex].status === sellerOrder.status) return;
+
+      const updatedShop = {
+        ...shops[shopIndex],
+        status: String(sellerOrder.status),
+        lastStatus: sellerOrder.lastStatus || String(sellerOrder.status),
+        pendingMessage: sellerOrder.pendingMessage || "",
+        pendingUntil: sellerOrder.pendingUntil || null,
+      };
+      const orderedShops = shops.map((shop, index) => index === shopIndex ? updatedShop : shop);
+      const statuses = orderedShops.map((shop) => shop.status || "Order Placed");
+      const statusOrder = ["Order Placed", "Accepted", "Packed", "Out For Delivery", "Delivered"];
+      const aggregateStatus = statuses.every((status) => status === statuses[0])
+        ? statuses[0]
+        : statuses.includes("Pending")
+          ? "Pending"
+          : statuses.includes("Rejected")
+            ? "Rejected"
+            : statuses.filter((status) => statusOrder.includes(status))
+              .sort((left, right) => statusOrder.indexOf(left) - statusOrder.indexOf(right))[0]
+            || orderData.status
+            || "Order Placed";
+      const update = {
+        status: aggregateStatus,
+        orderedShops,
+        updatedAt: new Date().toISOString(),
+      };
+      transaction.set(customerOrderRef, update, { merge: true });
+      transaction.set(orderRef, update, { merge: true });
+    });
+  }
+);
+
 const STATUS_TITLES = {
   "Order Placed": "Order Placed",
+  "Pending Verification": "Pending Verification",
   Accepted: "Order Accepted",
   Packed: "Order Packed",
   Pending: "Order Delayed",
@@ -301,6 +402,7 @@ const STATUS_TITLES = {
 
 const STATUS_MESSAGES = {
   "Order Placed": "has been placed successfully",
+  "Pending Verification": "is pending verification",
   Accepted: "has been accepted",
   Packed: "has been packed",
   Pending: "is currently pending/delayed",

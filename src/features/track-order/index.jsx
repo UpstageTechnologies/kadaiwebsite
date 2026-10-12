@@ -58,7 +58,11 @@ const getShopTimelineSteps = (shop, mainOrder) => {
     currentStatus === "Pending" &&
     Boolean(String(pendingMessage).trim());
 
-  const effectiveStatus = currentStatus === "Pending" ? lastStatus : currentStatus;
+  const effectiveStatus = currentStatus === "Pending"
+    ? lastStatus
+    : currentStatus === "Pending Verification"
+      ? "Order Placed"
+      : currentStatus;
   const activeIndex = Math.max(0, STATUS_ORDER.indexOf(effectiveStatus));
   const lastActiveIndex = STATUS_ORDER.indexOf(lastStatus);
   const completedIndex = lastActiveIndex >= 0 ? lastActiveIndex : activeIndex;

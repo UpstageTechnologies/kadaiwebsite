@@ -21,7 +21,7 @@ const ORDER_STATUS_FLOW = [
   "Out For Delivery",
   "Delivered",
 ];
-const ORDER_STATUSES = [...ORDER_STATUS_FLOW, "Pending", "Rejected"];
+const ORDER_STATUSES = [...ORDER_STATUS_FLOW, "Pending", "Pending Verification", "Rejected"];
 
 const normalizeOrderItem = (item = {}) => {
   const quantity = Number(item.qty ?? item.quantity ?? 0);
@@ -75,39 +75,43 @@ const toEpochMillis = (value) => {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 };
 
-const createStableOrderFingerprint = ({ customerId, cartItems, address, total }) => {
-  const items = Array.isArray(cartItems)
-    ? cartItems
-        .map((item) => ({
-          id: item?.id ?? item?.itemId ?? "",
-          shopId: item?.shopId ?? item?.sellerId ?? "",
-          itemName: item?.name ?? item?.itemName ?? "",
-          quantity: Number(item?.qty ?? item?.quantity ?? 0),
-          price: Number(item?.price ?? 0),
-        }))
-        .sort((left, right) => String(left.id).localeCompare(String(right.id)))
-    : [];
+const ORDER_ATTEMPT_STORAGE_KEY = "kadai-checkout-attempt";
+const ORDER_ID_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-  const addressText = typeof address === "string"
-    ? address
-    : [address?.fullAddress, address?.address, address?.street, address?.locality, address?.city, address?.state, address?.pincode]
-        .filter(Boolean)
-        .join("|");
+const randomOrderId = () => {
+  const values = new Uint8Array(6);
+  globalThis.crypto.getRandomValues(values);
+  return `KADAI-${Array.from(values, (value) => ORDER_ID_CHARACTERS[value % ORDER_ID_CHARACTERS.length]).join("")}`;
+};
 
-  const payload = JSON.stringify({
-    customerId: String(customerId || ""),
-    items,
-    addressText: String(addressText || ""),
-    total: Number(total || 0),
-    paymentMethod: "cod",
-  });
-
-  let hash = 0;
-  for (let index = 0; index < payload.length; index += 1) {
-    hash = ((hash << 5) - hash + payload.charCodeAt(index)) | 0;
+export const getCheckoutAttempt = () => {
+  if (typeof window === "undefined") {
+    return { orderId: randomOrderId(), idempotencyKey: randomOrderId() };
   }
 
-  return `order-${Math.abs(hash).toString(36)}`;
+  try {
+    const savedAttempt = JSON.parse(window.sessionStorage.getItem(ORDER_ATTEMPT_STORAGE_KEY) || "null");
+    if (savedAttempt?.orderId && savedAttempt?.idempotencyKey) return savedAttempt;
+    const attempt = {
+      orderId: randomOrderId(),
+      idempotencyKey: globalThis.crypto.randomUUID().replaceAll("-", ""),
+    };
+    window.sessionStorage.setItem(ORDER_ATTEMPT_STORAGE_KEY, JSON.stringify(attempt));
+    return attempt;
+  } catch {
+    return {
+      orderId: randomOrderId(),
+      idempotencyKey: globalThis.crypto.randomUUID().replaceAll("-", ""),
+    };
+  }
+};
+
+export const clearCheckoutAttempt = () => {
+  try {
+    window.sessionStorage.removeItem(ORDER_ATTEMPT_STORAGE_KEY);
+  } catch {
+    // Session storage may be unavailable in restricted browser contexts.
+  }
 };
 
 export const compareOrderDates = (a, b) => {
@@ -154,11 +158,13 @@ export const persistOrder = async (order) => {
     throw new Error("The order is missing an ID and cannot be saved.");
   }
 
-  const createOrder = httpsCallable(getFunctions(firebaseApp), "createCustomerOrder");
+  const functions = getFunctions(firebaseApp, "us-central1");
+  const createOrder = httpsCallable(functions, "createCustomerOrder");
 
   try {
     const response = await createOrder({
       orderId: order.id,
+      idempotencyKey: order.idempotencyKey,
       address: order.deliveryAddress || order.address,
       customerName: order.customerName,
       appMode: order.appMode,
@@ -235,6 +241,9 @@ export const buildOrderFromCheckout = ({
   address,
   summary,
   customerName,
+  customerEmail,
+  customerPhone,
+  attempt,
 }) => {
   if (!Array.isArray(cartItems) || cartItems.length === 0) {
     return null;
@@ -253,15 +262,10 @@ export const buildOrderFromCheckout = ({
     throw new Error("Your Firebase session is missing. Please log in again.");
   }
 
-  const orderId = createStableOrderFingerprint({
-    customerId,
-    cartItems,
-    address,
-    total: Number(summary?.total ?? cartItems.reduce(
-      (total, item) => total + normalizeNumber(item.price) * normalizeNumber(item.qty ?? item.quantity),
-      0
-    )),
-  });
+  if (!attempt?.orderId || !attempt?.idempotencyKey) {
+    throw new Error("Checkout session expired. Refresh the page and try again.");
+  }
+  const orderId = attempt.orderId;
   const orderCustomerName = customerName || auth?.currentUser?.displayName || "Customer";
 
   const shopMap = new Map();
@@ -320,8 +324,10 @@ export const buildOrderFromCheckout = ({
     orderId,
     customerId,
     customerUid: customerId,
+    customerEmail: customerEmail || auth?.currentUser?.email || "",
     customerName: orderCustomerName,
-    customerPhone: auth?.currentUser?.phoneNumber || "",
+    customerPhone: customerPhone || auth?.currentUser?.phoneNumber || "",
+    idempotencyKey: attempt.idempotencyKey,
     items: cartItems.map((item) => normalizeOrderItem(item)),
     orderedShops,
     address: deliveryAddress,
@@ -421,7 +427,13 @@ export const updateOrderStatus = async ({
       { merge: true }
     );
     transaction.set(
-      doc(db, "users", shopId, "orders", orderId),
+      doc(
+        db,
+        "users",
+        shopId,
+        updatedShop.marketType === "global" ? "global_orders" : "local_orders",
+        orderId
+      ),
       {
         status: updatedShop.status,
         lastStatus: updatedShop.lastStatus,
