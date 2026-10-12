@@ -15,6 +15,7 @@ import {
   getNearbySellerIds,
   MARKET_MODES,
   subscribeMarketplaceProducts,
+  subscribeMarketplaceSellerProfiles,
   subscribeSellerLocations,
 } from "../services/marketplace.service";
 
@@ -39,6 +40,9 @@ const Products = () => {
     products: [],
   });
   const [sellerLocations, setSellerLocations] = useState({});
+  const [sellerProfiles, setSellerProfiles] = useState([]);
+  const [sellerProfilesLoaded, setSellerProfilesLoaded] = useState(false);
+  const [selectedShopId, setSelectedShopId] = useState("");
   const localProducts = useMemo(
     () => productState.uid === (user?.uid || "") ? productState.products : [],
     [productState.products, productState.uid, user?.uid]
@@ -60,6 +64,21 @@ const Products = () => {
     const unsubscribe = subscribeSellerLocations({
       onLocations: setSellerLocations,
       onError: () => setSellerLocations({}),
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeMarketplaceSellerProfiles({
+      onSellers: (sellers) => {
+        setSellerProfiles(sellers);
+        setSellerProfilesLoaded(true);
+      },
+      onError: () => {
+        setSellerProfiles([]);
+        setSellerProfilesLoaded(true);
+      },
     });
 
     return () => unsubscribe();
@@ -113,13 +132,32 @@ const Products = () => {
     return [...uniqueProducts.values()];
   }, [localProducts, nearbySellerIds]);
 
-  const totalPages = Math.ceil(filteredLocalProducts.length / productsPerPage);
+  const eligibleShops = useMemo(() => {
+    const shopIdsWithProducts = new Set(
+      filteredLocalProducts.map((product) => product.shopId || product.sellerId)
+    );
+
+    return sellerProfiles.filter((seller) =>
+      shopIdsWithProducts.has(seller.id) && nearbySellerIds.includes(seller.id)
+    );
+  }, [filteredLocalProducts, nearbySellerIds, sellerProfiles]);
+
+  const displayedLocalProducts = useMemo(
+    () => selectedShopId
+      ? filteredLocalProducts.filter((product) =>
+        String(product.shopId || product.sellerId || "") === selectedShopId
+      )
+      : filteredLocalProducts,
+    [filteredLocalProducts, selectedShopId]
+  );
+
+  const totalPages = Math.ceil(displayedLocalProducts.length / productsPerPage);
   const activePage = Math.min(currentPage, Math.max(totalPages, 1));
   const startIndex = (activePage - 1) * productsPerPage;
   const endIndex = startIndex + productsPerPage;
   const visibleProducts = showAll
-    ? filteredLocalProducts
-    : filteredLocalProducts.slice(startIndex, endIndex);
+    ? displayedLocalProducts
+    : displayedLocalProducts.slice(startIndex, endIndex);
 
   const getProductQuantity = (productId) => {
     const cartItem = cartItems.find(
@@ -180,6 +218,76 @@ const Products = () => {
         )}
 
       </div>
+
+      <section aria-label="Local Shops" style={{ margin: "0 0 32px" }}>
+        <div style={{
+          alignItems: "center",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "12px",
+          justifyContent: "space-between",
+          marginBottom: "16px",
+        }}>
+          <h2 style={{ color: "#20252a", fontSize: "24px", fontWeight: 800, margin: 0 }}>
+            Local Shops
+          </h2>
+          {selectedShopId && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedShopId("");
+                setCurrentPage(1);
+              }}
+              style={{
+                background: "transparent",
+                border: "1px solid #079866",
+                borderRadius: "6px",
+                color: "#079866",
+                cursor: "pointer",
+                fontWeight: 700,
+                padding: "9px 14px",
+              }}
+            >
+              All Shops
+            </button>
+          )}
+        </div>
+        {sellerProfilesLoaded && eligibleShops.length > 0 ? (
+          <div style={{
+            display: "grid",
+            gap: "12px",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))",
+          }}>
+            {eligibleShops.map((shop) => (
+              <button
+                type="button"
+                key={shop.id}
+                aria-pressed={selectedShopId === shop.id}
+                onClick={() => {
+                  setSelectedShopId(shop.id);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  background: selectedShopId === shop.id ? "#079866" : "#ffffff",
+                  border: "1px solid #dce5dc",
+                  borderRadius: "6px",
+                  color: selectedShopId === shop.id ? "#ffffff" : "#20252a",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  minHeight: "48px",
+                  padding: "12px",
+                }}
+              >
+                {shop.shopName}
+              </button>
+            ))}
+          </div>
+        ) : sellerProfilesLoaded ? (
+          <p>No eligible local shops found.</p>
+        ) : (
+          <p>Loading local shops...</p>
+        )}
+      </section>
 
       {isLoading ? (
         <div className="no-products">
