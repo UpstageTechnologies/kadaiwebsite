@@ -120,7 +120,7 @@ const Orders = () => {
                       <strong>{orderId}</strong>
                       <span>
                         {createdAt && !Number.isNaN(createdAt.getTime())
-                          ? createdAt.toLocaleDateString("en-IN")
+                          ? createdAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
                           : "Date unavailable"}
                       </span>
                     </div>
@@ -165,7 +165,7 @@ const Orders = () => {
                     <strong>₹{formatLocaleIndianNumber(total)}</strong>
                   </div>
 
-                  <small>{address}</small>
+                  <small>{address}{order?.customerPhone ? ` · ${order.customerPhone}` : ""}</small>
 
                   <button
                     className="track-order-button"

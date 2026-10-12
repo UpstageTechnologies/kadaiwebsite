@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FiArrowLeft, FiCheck, FiMapPin } from "react-icons/fi";
 import { useLocation as useRouteLocation, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import { useAuth } from "../../components/AuthContext";
 import { useCart } from "../../components/CardContext";
 import { calculateSubtotal } from "../cart/cart.service";
-import { getPaymentMethodLabel, placeOrder } from "../orders/orders.service";
+import { clearCheckoutAttempt, getCheckoutAttempt, getPaymentMethodLabel, placeOrder } from "../orders/orders.service";
 
 import "./checkout.css";
 
@@ -18,7 +18,7 @@ const PAYMENT_METHOD = {
 const Checkout = () => {
   const navigate = useNavigate();
   const routeLocation = useRouteLocation();
-  const { cartItems, clearCart } = useCart();
+  const { cartItems, isCartLoading } = useCart();
   const { user, customer, loading: isAuthLoading } = useAuth();
   const registeredPhone = user?.phoneNumber
     || (customer?.uid === user?.uid ? customer?.mobile : "")
@@ -30,12 +30,44 @@ const Checkout = () => {
   const [addressDraft, setAddressDraft] = useState("");
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(true);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [checkoutAttempt] = useState(getCheckoutAttempt);
+  const placementInProgress = useRef(false);
+  const [addressWasEdited, setAddressWasEdited] = useState(false);
 
   const isAuthenticated = Boolean(user);
+  const savedProfileAddress = typeof customer?.address === "string"
+    ? customer.address
+    : customer?.address?.fullAddress || customer?.address?.address || [
+        customer?.address?.area,
+        customer?.address?.city,
+        customer?.address?.district,
+        customer?.address?.state,
+        customer?.address?.pincode,
+      ].filter(Boolean).join(", ");
 
   const summary = useMemo(() => {
     const subtotal = calculateSubtotal(cartItems);
     return { subtotal, delivery: 0, total: subtotal };
+  }, [cartItems]);
+
+  const shops = useMemo(() => {
+    const grouped = new Map();
+    cartItems.forEach((item) => {
+      const sellerId = String(item.shopId || item.sellerId || "");
+      const marketType = String(item.marketType || "").toLowerCase();
+      const key = `${sellerId}:${marketType}`;
+      const shop = grouped.get(key) || {
+        id: key,
+        name: item.shopName || item.storeName || "Store",
+        marketType,
+        items: [],
+        subtotal: 0,
+      };
+      shop.items.push(item);
+      shop.subtotal += Number(item.price || 0) * Number(item.quantity ?? item.qty ?? 0);
+      grouped.set(key, shop);
+    });
+    return [...grouped.values()];
   }, [cartItems]);
 
   useEffect(() => {
@@ -47,13 +79,15 @@ const Checkout = () => {
   }, [isAuthLoading, isAuthenticated, navigate, routeLocation.pathname]);
 
   const handleAddressChange = (event) => {
+    setAddressWasEdited(true);
     setAddressDraft(event.target.value);
     setAddressError("");
   };
 
   const handleAddressSaved = (event) => {
     event.preventDefault();
-    const normalizedAddress = addressDraft.trim();
+    const normalizedAddress = addressDraft.trim()
+      || (!addressWasEdited ? savedProfileAddress.trim() : "");
     if (!normalizedAddress) {
       setAddressError("Please enter your full delivery address.");
       return;
@@ -72,6 +106,7 @@ const Checkout = () => {
   };
 
   const handlePlaceOrder = async () => {
+    if (placementInProgress.current) return;
     if (isAddressFormOpen || !deliveryAddress) {
       setAddressError("Please complete and save the delivery address before placing your order.");
       return;
@@ -87,6 +122,20 @@ const Checkout = () => {
       return;
     }
 
+    const invalidItem = cartItems.find((item) => {
+      const quantity = Number(item.quantity ?? item.qty);
+      const price = Number(item.price);
+      return !item.id || !(item.shopId || item.sellerId)
+        || !["local", "global"].includes(String(item.marketType || "").toLowerCase())
+        || !Number.isFinite(quantity) || quantity <= 0
+        || !Number.isFinite(price) || price < 0;
+    });
+    if (invalidItem) {
+      setError("One or more cart items are invalid or unavailable. Please return to your cart and review them.");
+      return;
+    }
+
+    placementInProgress.current = true;
     setIsPlacingOrder(true);
     setError("");
 
@@ -101,6 +150,9 @@ const Checkout = () => {
         summary,
         paymentStatus: "Pending",
         customerName: customer?.name || customer?.fullName || user?.displayName || "Customer",
+        customerEmail: user?.email || customer?.email || "",
+        customerPhone: registeredPhone,
+        attempt: checkoutAttempt,
       });
 
       if (!order) {
@@ -108,10 +160,7 @@ const Checkout = () => {
         return;
       }
 
-      const cartCleared = await clearCart();
-      if (!cartCleared) {
-        setError("Your order was placed, but your cart could not be cleared. Please clear it before placing another order.");
-      }
+      clearCheckoutAttempt();
       setSuccessOrder(order);
     } catch (orderError) {
       if (import.meta.env.DEV) {
@@ -122,12 +171,17 @@ const Checkout = () => {
         || "Order creation failed. Please try again.";
       setError(normalizedError);
     } finally {
+      placementInProgress.current = false;
       setIsPlacingOrder(false);
     }
   };
 
   if (isAuthLoading || !isAuthenticated) {
     return null;
+  }
+
+  if (isCartLoading) {
+    return <><Navbar /><main className="checkout-page checkout-empty" role="status"><h1>Loading your cart…</h1></main></>;
   }
 
   if (successOrder) {
@@ -152,6 +206,13 @@ const Checkout = () => {
               onClick={() => navigate("/products")}
             >
               Continue Shopping
+            </button>
+            <button
+              className="checkout-success-button"
+              type="button"
+              onClick={() => navigate(`/track-order/${encodeURIComponent(successOrder.id)}`)}
+            >
+              View / Track Order
             </button>
           </section>
         </main>
@@ -212,6 +273,7 @@ const Checkout = () => {
                       onClick={() => {
                         setDeliveryAddress(null);
                         setAddressDraft("");
+                        setAddressWasEdited(false);
                         setIsAddressFormOpen(true);
                         setAddressError("");
                       }}
@@ -229,8 +291,13 @@ const Checkout = () => {
                     <textarea
                       className="address-form-address-field"
                       name="deliveryAddress"
-                      value={addressDraft}
+                      value={addressDraft || (!addressWasEdited ? savedProfileAddress : "")}
                       onChange={handleAddressChange}
+                      onFocus={() => {
+                        if (!addressWasEdited && !addressDraft && savedProfileAddress) {
+                          setAddressDraft(savedProfileAddress);
+                        }
+                      }}
                       required
                       autoComplete="off"
                     />
@@ -293,11 +360,24 @@ const Checkout = () => {
           <aside className="checkout-summary">
             <h2>Order summary</h2>
             <div className="checkout-items">
-              {cartItems.map((item) => (
-                <div className="checkout-item" key={item.id}>
-                  <span>{item.name} x {item.quantity}</span>
-                  <strong>₹{(item.price * item.quantity).toFixed(2)}</strong>
-                </div>
+              {shops.map((shop) => (
+                <section className="checkout-shop" key={shop.id}>
+                  <div className="checkout-shop-heading">
+                    <strong>{shop.name}</strong><small>{shop.marketType === "global" ? "Global" : "Local"}</small>
+                  </div>
+                  {shop.items.map((item, index) => (
+                    <div className="checkout-item" key={`${item.id}-${index}`}>
+                      {(item.image || item.img) && <img src={item.image || item.img} alt={item.name || item.itemName || "Product"} />}
+                      <span className="checkout-item-copy">
+                        <strong>{item.name || item.itemName || "Product"}</strong>
+                        {item.itemNo && <small>Code: {item.itemNo}</small>}
+                        <small>Qty {item.quantity ?? item.qty} · ₹{Number(item.price || 0).toFixed(2)} each</small>
+                      </span>
+                      <b>₹{(Number(item.price || 0) * Number(item.quantity ?? item.qty ?? 0)).toFixed(2)}</b>
+                    </div>
+                  ))}
+                  <div className="checkout-shop-subtotal"><span>Shop subtotal</span><strong>₹{shop.subtotal.toFixed(2)}</strong></div>
+                </section>
               ))}
             </div>
             <div className="summary-row"><span>Subtotal</span><strong>₹{summary.subtotal.toFixed(2)}</strong></div>
