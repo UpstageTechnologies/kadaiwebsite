@@ -50,8 +50,14 @@ const Products = () => {
   const isLoading = Boolean(user?.uid) && productState.uid !== user.uid;
 
   const customerLocation = useMemo(() => {
-    return getAddressCoordinates(customer?.address)
-      || getAddressCoordinates(customer?.currentLocation);
+    const savedAddress = customer?.address;
+    const hasSavedAddress = (savedAddress && typeof savedAddress === "object"
+      && !Array.isArray(savedAddress) && Object.keys(savedAddress).length > 0)
+      || (typeof savedAddress === "string" && savedAddress.trim().length > 0);
+
+    return getAddressCoordinates(
+      hasSavedAddress ? savedAddress : customer?.currentLocation
+    );
   }, [customer?.address, customer?.currentLocation]);
 
   useEffect(() => {
@@ -136,17 +142,13 @@ const Products = () => {
     );
   }, [filteredLocalProducts, nearbySellerIds, sellerProfiles]);
 
-  const activeSelectedShopId = eligibleShops.some((shop) => shop.id === selectedShopId)
-    ? selectedShopId
-    : "";
-
   const displayedLocalProducts = useMemo(
-    () => activeSelectedShopId
+    () => selectedShopId
       ? filteredLocalProducts.filter((product) =>
-        String(product.shopId || product.sellerId || "") === activeSelectedShopId
+        String(product.shopId || product.sellerId || "") === selectedShopId
       )
       : filteredLocalProducts,
-    [activeSelectedShopId, filteredLocalProducts]
+    [filteredLocalProducts, selectedShopId]
   );
 
   const totalPages = Math.ceil(displayedLocalProducts.length / productsPerPage);
@@ -229,7 +231,7 @@ const Products = () => {
           <h2 style={{ color: "#20252a", fontSize: "24px", fontWeight: 800, margin: 0 }}>
             Local Shops
           </h2>
-          {activeSelectedShopId && (
+          {selectedShopId && (
             <button
               type="button"
               onClick={() => {
@@ -260,16 +262,16 @@ const Products = () => {
               <button
                 type="button"
                 key={shop.id}
-                aria-pressed={activeSelectedShopId === shop.id}
+                aria-pressed={selectedShopId === shop.id}
                 onClick={() => {
                   setSelectedShopId(shop.id);
                   setCurrentPage(1);
                 }}
                 style={{
-                  background: activeSelectedShopId === shop.id ? "#079866" : "#ffffff",
+                  background: selectedShopId === shop.id ? "#079866" : "#ffffff",
                   border: "1px solid #dce5dc",
                   borderRadius: "6px",
-                  color: activeSelectedShopId === shop.id ? "#ffffff" : "#20252a",
+                  color: selectedShopId === shop.id ? "#ffffff" : "#20252a",
                   cursor: "pointer",
                   fontWeight: 700,
                   minHeight: "48px",

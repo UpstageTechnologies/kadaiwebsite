@@ -8,10 +8,7 @@ import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "../services/registration-location.service";
-import {
-  getCurrentLocationAddress,
-  resolveManualAddressCoordinates,
-} from "../services/current-location-address.service";
+import { getCurrentLocationAddress } from "../services/current-location-address.service";
 
 const normalizeAddress = (value = {}) => ({
   country: value.country || "",
@@ -435,20 +432,6 @@ export default function AddressChangeModal({
 
       const optionLabel = (options, value) =>
         options.find((option) => option.id === value || option.value === value)?.label || value;
-      setIsSavingAddress(true);
-      setAddressError("");
-      const countryOption = addressCountryOptions.find((option) =>
-        option.id === selectedCountryId || option.value === selectedCountryId
-      );
-      const manualCoordinates = addressMode === "manual" && !isCheckoutFlow
-        ? await resolveManualAddressCoordinates({
-          city: optionLabel(addressCityOptions, selectedCityId),
-          district: optionLabel(addressDistrictOptions, selectedDistrictId),
-          state: optionLabel(addressStateOptions, selectedStateId),
-          country: optionLabel(addressCountryOptions, selectedCountryId),
-          countryCode: countryOption?.code,
-        })
-        : null;
       const addressParts = isDirectAddressFlow
         ? [
           addressHouse,
@@ -509,11 +492,14 @@ export default function AddressChangeModal({
         fullAddress,
         formattedAddress: addressMode === "gps" || isDirectAddressFlow ? addressFormatted.trim() : "",
         pincode: addressMode === "gps" || isDirectAddressFlow ? addressPincode.trim() : "",
-        lat: addressMode === "gps" ? addressLatitude : manualCoordinates?.lat ?? null,
-        lon: addressMode === "gps" ? addressLongitude : manualCoordinates?.lon ?? null,
+        lat: addressMode === "gps" ? addressLatitude : null,
+        lon: addressMode === "gps" ? addressLongitude : null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
         address: fullAddress,
       };
+
+      setIsSavingAddress(true);
+      setAddressError("");
 
       if (!isCheckoutFlow) {
         console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);

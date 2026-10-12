@@ -1,4 +1,4 @@
-                                                                                                                                                                                         import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiPhone, FiArrowLeft, FiUser } from "react-icons/fi";
 import {
@@ -26,10 +26,7 @@ import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "../../../services/registration-location.service";
-import {
-  getCurrentLocationAddress,
-  resolveManualAddressCoordinates,
-} from "../../../services/current-location-address.service";
+import { getCurrentLocationAddress } from "../../../services/current-location-address.service";
 import "./register.css";
 
 const Register = () => {
@@ -559,22 +556,8 @@ const Register = () => {
     setError("");
 
     try {
-      const isGpsAddress = locationMode === "gps";
-      const countryOption = countryOptions.find((option) =>
-        option.id === countryId || option.value === countryId
-      );
-      const locationLabel = (options, value) =>
-        options.find((option) => option.id === value || option.value === value)?.label || value;
-      const manualCoordinates = isGpsAddress
-        ? null
-        : await resolveManualAddressCoordinates({
-          city: locationLabel(locationOptions.cities, city),
-          district: locationLabel(locationOptions.districts, district),
-          state: locationLabel(locationOptions.states, state),
-          country: countryOption?.label || countryId,
-          countryCode: countryOption?.code,
-        });
       await updateProfile(authenticatedUser, { displayName: username.trim() });
+      const isGpsAddress = locationMode === "gps";
       const countryLabel = countryOptions.find((option) => option.value === countryId)?.label || countryId;
       const addressFields = isGpsAddress
         ? [
@@ -615,8 +598,8 @@ const Register = () => {
             .join(", ") || (locationMode === "gps" ? detectedFullAddress : ""),
           formattedAddress: isGpsAddress ? formattedAddress : "",
           pincode: isGpsAddress ? pincode : "",
-          lat: isGpsAddress ? latitude : manualCoordinates.lat,
-          lon: isGpsAddress ? longitude : manualCoordinates.lon,
+          lat: isGpsAddress ? latitude : null,
+          lon: isGpsAddress ? longitude : null,
           locationSource: locationMode,
         },
       });
