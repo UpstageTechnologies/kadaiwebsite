@@ -50,14 +50,8 @@ const Products = () => {
   const isLoading = Boolean(user?.uid) && productState.uid !== user.uid;
 
   const customerLocation = useMemo(() => {
-    const savedAddress = customer?.address;
-    const hasSavedAddress = (savedAddress && typeof savedAddress === "object"
-      && !Array.isArray(savedAddress) && Object.keys(savedAddress).length > 0)
-      || (typeof savedAddress === "string" && savedAddress.trim().length > 0);
-
-    return getAddressCoordinates(
-      hasSavedAddress ? savedAddress : customer?.currentLocation
-    );
+    return getAddressCoordinates(customer?.address)
+      || getAddressCoordinates(customer?.currentLocation);
   }, [customer?.address, customer?.currentLocation]);
 
   useEffect(() => {
