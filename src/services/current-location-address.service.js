@@ -139,69 +139,85 @@ export const getManualAddressCoordinates = async ({
   const queryParts = [road, area, city, district, state, country, pincode]
     .map((part) => String(part || "").trim())
     .filter(Boolean);
+  const searchQueries = [queryParts];
+  if (district && area && city) {
+    searchQueries.push(
+      [road, area, city, state, country, pincode]
+        .map((part) => String(part || "").trim())
+        .filter(Boolean)
+    );
+  }
   const countryCodeValue = String(countryCode || "").trim().toLowerCase();
   const hasIsoCountryCode = /^[a-z]{2}$/.test(countryCodeValue);
-  const searchUrl = new URL("https://nominatim.openstreetmap.org/search");
-  searchUrl.searchParams.set("format", "jsonv2");
-  searchUrl.searchParams.set("addressdetails", "1");
-  searchUrl.searchParams.set("limit", "5");
-  searchUrl.searchParams.set("q", queryParts.join(", "));
-  if (hasIsoCountryCode) {
-    searchUrl.searchParams.set("countrycodes", countryCodeValue);
-  }
+  let matchingResult = null;
 
-  const response = await fetch(searchUrl, {
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) {
-    throw new Error("We couldn't look up this address. Please try again.");
-  }
+  for (const queryPartsForSearch of searchQueries) {
+    const searchUrl = new URL("https://nominatim.openstreetmap.org/search");
+    searchUrl.searchParams.set("format", "jsonv2");
+    searchUrl.searchParams.set("addressdetails", "1");
+    searchUrl.searchParams.set("limit", "5");
+    searchUrl.searchParams.set("q", queryPartsForSearch.join(", "));
+    if (hasIsoCountryCode) {
+      searchUrl.searchParams.set("countrycodes", countryCodeValue);
+    }
 
-  const results = await response.json();
-  const matchingResult = (Array.isArray(results) ? results : []).find((result) => {
-    const address = result?.address || {};
-    const countryMatches = hasIsoCountryCode
-      ? String(address.country_code || "").toLowerCase() === countryCodeValue
-      : matchesGeocodingLabel(country, [address.country]);
-    const stateMatches = matchesGeocodingLabel(state, [
-      address.state,
-      address.region,
-      address.province,
-    ]);
-    const districtMatches = matchesGeocodingLabel(district, [
-      address.state_district,
-      address.county,
-      address.district,
-    ]);
-    const cityMatches = matchesGeocodingLabel(city, [
-      address.city,
-      address.town,
-      address.village,
-      address.municipality,
-      address.hamlet,
-      address.suburb,
-      address.locality,
-      address.neighbourhood,
-      address.city_district,
-    ]);
-    const areaMatches = !area || matchesGeocodingLabel(area, [
-      address.suburb,
-      address.neighbourhood,
-      address.quarter,
-      address.village,
-      address.hamlet,
-      address.locality,
-      address.residential,
-      address.city,
-      address.town,
-      address.municipality,
-    ]);
-    return countryMatches && stateMatches && districtMatches && cityMatches && areaMatches;
-  });
+    const response = await fetch(searchUrl, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error("We couldn't look up this address. Please try again.");
+    }
+
+    const results = await response.json();
+    matchingResult = (Array.isArray(results) ? results : []).find((result) => {
+      const address = result?.address || {};
+      const countryMatches = hasIsoCountryCode
+        ? String(address.country_code || "").toLowerCase() === countryCodeValue
+        : matchesGeocodingLabel(country, [address.country]);
+      const stateMatches = matchesGeocodingLabel(state, [
+        address.state,
+        address.region,
+        address.province,
+      ]);
+      const districtMatches = matchesGeocodingLabel(district, [
+        address.state_district,
+        address.county,
+        address.district,
+      ]);
+      const cityMatches = matchesGeocodingLabel(city, [
+        address.city,
+        address.town,
+        address.village,
+        address.municipality,
+        address.hamlet,
+        address.suburb,
+        address.locality,
+        address.neighbourhood,
+        address.city_district,
+      ]);
+      const areaMatches = !area || matchesGeocodingLabel(area, [
+        address.suburb,
+        address.neighbourhood,
+        address.quarter,
+        address.village,
+        address.hamlet,
+        address.locality,
+        address.residential,
+        address.city,
+        address.town,
+        address.municipality,
+      ]);
+      return countryMatches && stateMatches && districtMatches && cityMatches && areaMatches;
+    }) || null;
+
+    if (matchingResult) {
+      break;
+    }
+  }
 
   if (!matchingResult) {
     throw new Error(
-      "We couldn't reliably locate this City and District. Please check your selections and try again."
+      "We couldn't reliably locate this address. Check the spelling of the selected City, District, and Area, then try again."
     );
   }
 
