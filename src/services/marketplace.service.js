@@ -332,6 +332,14 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
             sellerData.shopName || sellerData.storeName || sellerData.name,
             "Store"
           ),
+          image: safeText(
+            sellerData.shopImage
+              || sellerData.local_shopImage
+              || sellerData.shopLogo
+              || sellerData.local_shopLogo
+              || sellerData.profileImage
+              || sellerData.local_profileImage
+          ),
           address: getSellerAddressText(sellerData),
           coordinates: getMarketplaceCoordinates(sellerData),
         };

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  FiShoppingBag,
   FiShoppingCart,
   FiStar,
   FiChevronLeft,
@@ -268,16 +269,56 @@ const Products = () => {
                   setCurrentPage(1);
                 }}
                 style={{
+                  alignItems: "center",
                   background: selectedShopId === shop.id ? "#079866" : "#ffffff",
                   border: "1px solid #dce5dc",
                   borderRadius: "6px",
                   color: selectedShopId === shop.id ? "#ffffff" : "#20252a",
                   cursor: "pointer",
+                  display: "flex",
+                  gap: "8px",
+                  justifyContent: "center",
                   fontWeight: 700,
                   minHeight: "48px",
-                  padding: "12px",
+                  padding: "8px 12px",
                 }}
               >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    alignItems: "center",
+                    background: "#f0f8f4",
+                    border: "1px solid #edf0ee",
+                    borderRadius: "50%",
+                    color: "#079866",
+                    display: "inline-flex",
+                    flex: "0 0 28px",
+                    height: "28px",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    position: "relative",
+                    width: "28px",
+                  }}
+                >
+                  <FiShoppingBag />
+                  {shop.image && (
+                    <img
+                      src={shop.image}
+                      alt=""
+                      onError={(event) => {
+                        event.currentTarget.hidden = true;
+                      }}
+                      style={{
+                        borderRadius: "50%",
+                        height: "100%",
+                        inset: 0,
+                        objectFit: "cover",
+                        position: "absolute",
+                        width: "100%",
+                      }}
+                    />
+                  )}
+                </span>
                 {shop.shopName}
               </button>
             ))}

@@ -390,6 +390,16 @@ const Products = () => {
                         >
                           <span className="shop-selector-icon">
                             <FiShoppingBag aria-hidden="true" />
+                            {shop.image && (
+                              <img
+                                src={shop.image}
+                                alt=""
+                                aria-hidden="true"
+                                onError={(event) => {
+                                  event.currentTarget.hidden = true;
+                                }}
+                              />
+                            )}
                           </span>
                           <span className="shop-selector-name">{shop.shopName}</span>
                         </button>
