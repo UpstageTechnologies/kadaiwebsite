@@ -310,6 +310,47 @@ const getSellerAddressText = (sellerData) => {
   );
 };
 
+const getSellerImage = (sellerData) => {
+  const imageFields = [
+    "shopImage",
+    "local_shopImage",
+    "global_shopImage",
+    "shopLogo",
+    "local_shopLogo",
+    "global_shopLogo",
+    "profileImage",
+    "local_profileImage",
+    "global_profileImage",
+  ];
+
+  for (const field of imageFields) {
+    const value = sellerData?.[field];
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    const image = value.trim();
+    const isDataImage = /^data:image\/[a-z0-9.+-]+(?:;[^,]*)?,/i.test(image);
+    if (isDataImage) {
+      return image;
+    }
+
+    try {
+      const imageUrl = new URL(image);
+      if (
+        (imageUrl.protocol === "http:" || imageUrl.protocol === "https:")
+        && imageUrl.hostname
+      ) {
+        return image;
+      }
+    } catch {
+      // Continue to the next saved image field if this value is not a URL.
+    }
+  }
+
+  return "";
+};
+
 export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
   if (!db) {
     const error = new Error("Firebase Firestore is not configured.");
@@ -332,14 +373,7 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
             sellerData.shopName || sellerData.storeName || sellerData.name,
             "Store"
           ),
-          image: safeText(
-            sellerData.shopImage
-              || sellerData.local_shopImage
-              || sellerData.shopLogo
-              || sellerData.local_shopLogo
-              || sellerData.profileImage
-              || sellerData.local_profileImage
-          ),
+          image: getSellerImage(sellerData),
           address: getSellerAddressText(sellerData),
           coordinates: getMarketplaceCoordinates(sellerData),
         };
