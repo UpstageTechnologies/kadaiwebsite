@@ -24,14 +24,18 @@ import {
   subscribeMarketplaceProducts,
   subscribeMarketplaceSellerProfiles,
 } from "../../services/marketplace.service";
-import { doc, onSnapshot } from "firebase/firestore";
 
 import "./products.css";
 import Navbar from "../../components/Navbar";
 
 const Products = () => {
   const navigate = useNavigate();
-  const { user, loading: isAuthLoading } = useAuth();
+  const {
+    user,
+    customer,
+    customerError,
+    loading: isAuthLoading,
+  } = useAuth();
 
   const {
     cartItems,
@@ -53,20 +57,22 @@ const Products = () => {
       ? MARKET_MODES.GLOBAL
       : DEFAULT_MARKET_MODE;
   const userId = user?.uid || "";
-  const [customerLocationState, setCustomerLocationState] = useState({
-    userId: "",
-    coordinates: null,
-    error: "",
-  });
-  const customerLocation = customerLocationState.userId === userId
-    ? customerLocationState.coordinates
-    : null;
-  const isCustomerLocationLoading = Boolean(
-    userId && db && customerLocationState.userId !== userId
-  );
-  const locationError = customerLocationState.userId === userId
-    ? customerLocationState.error
-    : "";
+  const customerLocation = useMemo(() => {
+    const savedAddress = customer?.address;
+    const hasSavedAddress = (savedAddress
+    && typeof savedAddress === "object"
+    && !Array.isArray(savedAddress)
+    && Object.keys(savedAddress).length > 0)
+    || (typeof savedAddress === "string" && savedAddress.trim().length > 0);
+    const addressCoordinates = getMarketplaceCoordinates(savedAddress);
+
+    return addressCoordinates
+    || (hasSavedAddress && savedAddress.locationSource !== "gps"
+      ? null
+      : getMarketplaceCoordinates(customer?.currentLocation)
+        || getMarketplaceCoordinates(customer));
+  }, [customer]);
+  const locationError = userId ? customerError : "";
   const [sellerState, setSellerState] = useState({
     sellers: [],
     loaded: false,
@@ -105,46 +111,6 @@ const Products = () => {
       );
     }
   }, [isAuthLoading, marketMode, navigate, user]);
-
-  useEffect(() => {
-    if (!userId || !db) return undefined;
-
-    const customerRef = doc(db, "customers", userId);
-    let isActive = true;
-    const unsubscribe = onSnapshot(
-      customerRef,
-      (snapshot) => {
-        if (!isActive) return;
-        const customerData = snapshot.data() || {};
-        const savedAddress = customerData.address;
-        const hasSavedAddress = savedAddress
-          && typeof savedAddress === "object"
-          && !Array.isArray(savedAddress)
-          && Object.keys(savedAddress).length > 0;
-        const addressCoordinates = getMarketplaceCoordinates(savedAddress);
-        const coordinates = addressCoordinates
-          || (hasSavedAddress && savedAddress.locationSource !== "gps"
-            ? null
-            : getMarketplaceCoordinates(customerData.currentLocation)
-              || getMarketplaceCoordinates(customerData));
-        setCustomerLocationState({ userId, coordinates, error: "" });
-      },
-      (listenerError) => {
-        if (!isActive) return;
-        console.error("[MARKET] Customer location listener failed:", listenerError);
-        setCustomerLocationState({
-          userId,
-          coordinates: null,
-          error: "We couldn't load your saved location. Please try again.",
-        });
-      }
-    );
-
-    return () => {
-      isActive = false;
-      unsubscribe();
-    };
-  }, [userId]);
 
   useEffect(() => {
     if (!db) return undefined;
@@ -313,7 +279,7 @@ const Products = () => {
   const displayedProducts = selectedShop ? selectedShopProducts : filteredProducts;
   const isPageLoading = isLoading
     || isSellerProfilesLoading
-    || (marketMode === MARKET_MODES.LOCAL && (isCustomerLocationLoading || isAuthLoading));
+    || (marketMode === MARKET_MODES.LOCAL && isAuthLoading);
 
   const handleMarketChange = (nextMode) => {
     if (

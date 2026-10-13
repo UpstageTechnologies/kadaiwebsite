@@ -17,7 +17,6 @@ import {
   MARKET_MODES,
   subscribeMarketplaceProducts,
   subscribeMarketplaceSellerProfiles,
-  subscribeSellerLocations,
 } from "../services/marketplace.service";
 
 const Products = () => {
@@ -40,7 +39,6 @@ const Products = () => {
     uid: "",
     products: [],
   });
-  const [sellerLocations, setSellerLocations] = useState({});
   const [sellerProfiles, setSellerProfiles] = useState([]);
   const [sellerProfilesLoaded, setSellerProfilesLoaded] = useState(false);
   const [selectedShopId, setSelectedShopId] = useState("");
@@ -62,15 +60,6 @@ const Products = () => {
   }, [customer?.address, customer?.currentLocation]);
 
   useEffect(() => {
-    const unsubscribe = subscribeSellerLocations({
-      onLocations: setSellerLocations,
-      onError: () => setSellerLocations({}),
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
     const unsubscribe = subscribeMarketplaceSellerProfiles({
       onSellers: (sellers) => {
         setSellerProfiles(sellers);
@@ -84,6 +73,15 @@ const Products = () => {
 
     return () => unsubscribe();
   }, []);
+
+  const sellerLocations = useMemo(
+    () => Object.fromEntries(
+      sellerProfiles
+        .filter((seller) => seller.coordinates)
+        .map((seller) => [seller.id, seller.coordinates])
+    ),
+    [sellerProfiles]
+  );
 
   useEffect(() => {
     const uid = user?.uid || "";

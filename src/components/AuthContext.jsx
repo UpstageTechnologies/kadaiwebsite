@@ -10,12 +10,14 @@ import { auth, firebaseCustomerDoc, onSnapshot } from "../services/firebase";
 const AuthContext = createContext({
   user: null,
   customer: null,
+  customerError: "",
   loading: true,
 });
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [customer, setCustomer] = useState(null);
+  const [customerError, setCustomerError] = useState("");
   const [loading, setLoading] = useState(Boolean(auth));
 
   useEffect(() => {
@@ -27,6 +29,7 @@ export const AuthProvider = ({ children }) => {
       unsubscribeCustomer = () => {};
       setUser(firebaseUser);
       setCustomer(null);
+      setCustomerError("");
 
       if (!firebaseUser?.uid) {
         setLoading(false);
@@ -47,12 +50,14 @@ export const AuthProvider = ({ children }) => {
           setCustomer(snapshot.exists()
             ? { ...snapshot.data(), uid: firebaseUser.uid }
             : null);
+          setCustomerError("");
           setLoading(false);
         },
         (error) => {
           console.error("[AUTH] Customer profile listener failed:", error);
           if (auth.currentUser?.uid === firebaseUser.uid) {
             setCustomer(null);
+            setCustomerError("We couldn't load your saved location. Please try again.");
             setLoading(false);
           }
         }
@@ -66,7 +71,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, customer, loading }}>
+    <AuthContext.Provider value={{ user, customer, customerError, loading }}>
       {children}
     </AuthContext.Provider>
   );
