@@ -8,7 +8,10 @@ import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "../services/registration-location.service";
-import { getCurrentLocationAddress } from "../services/current-location-address.service";
+import {
+  getCurrentLocationAddress,
+  getManualAddressCoordinates,
+} from "../services/current-location-address.service";
 
 const normalizeAddress = (value = {}) => ({
   country: value.country || "",
@@ -473,6 +476,34 @@ export default function AddressChangeModal({
       const fullAddress = (isDirectAddressFlow ? addressFormatted.trim() : composedAddress)
         || composedAddress
         || (addressMode === "gps" ? addressFormatted || addressFullFallback : "");
+      setIsSavingAddress(true);
+      setAddressError("");
+
+      let manualCoordinates = null;
+      if (!isDirectAddressFlow && addressMode === "manual") {
+        const optionLabel = (options, value) =>
+          options.find((option) => option.id === value || option.value === value)?.label || value;
+        const countryOption = addressCountryOptions.find(
+          (option) => option.id === addressCountryId || option.value === addressCountryId
+        );
+        const locationMasterCoordinates = [
+          addressAreaOptions.find((option) => option.id === addressArea),
+          addressCityOptions.find((option) => option.id === addressCity),
+          addressDistrictOptions.find((option) => option.id === addressDistrict),
+        ].filter(Boolean);
+        manualCoordinates = await getManualAddressCoordinates({
+          country: optionLabel(addressCountryOptions, addressCountryId),
+          countryCode: countryOption?.code,
+          state: optionLabel(addressStateOptions, addressState),
+          district: optionLabel(addressDistrictOptions, addressDistrict),
+          city: optionLabel(addressCityOptions, addressCity),
+          area: optionLabel(addressAreaOptions, addressArea),
+          road: addressRoad,
+          pincode: addressPincode,
+          locationMasterCoordinates,
+        });
+      }
+
       const nextAddress = {
         country: isDirectAddressFlow ? selectedCountryId : addressCountryId,
         house: addressMode === "gps" || isDirectAddressFlow ? addressHouse.trim() : "",
@@ -492,14 +523,11 @@ export default function AddressChangeModal({
         fullAddress,
         formattedAddress: addressMode === "gps" || isDirectAddressFlow ? addressFormatted.trim() : "",
         pincode: addressMode === "gps" || isDirectAddressFlow ? addressPincode.trim() : "",
-        lat: addressMode === "gps" ? addressLatitude : null,
-        lon: addressMode === "gps" ? addressLongitude : null,
+        lat: addressMode === "gps" ? addressLatitude : manualCoordinates?.lat ?? null,
+        lon: addressMode === "gps" ? addressLongitude : manualCoordinates?.lon ?? null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
         address: fullAddress,
       };
-
-      setIsSavingAddress(true);
-      setAddressError("");
 
       if (!isCheckoutFlow) {
         console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
@@ -532,7 +560,7 @@ export default function AddressChangeModal({
         zIndex: 1200,
         padding: "20px",
       }}
-      onClick={onClose}
+      onClick={isSavingAddress ? undefined : onClose}
     >
       <div
         style={{
@@ -560,6 +588,7 @@ export default function AddressChangeModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={isSavingAddress}
             style={{
               border: "none",
               background: "transparent",
@@ -587,7 +616,10 @@ export default function AddressChangeModal({
           </div>
         )}
 
-        <div style={{ display: "grid", gap: 12 }}>
+        <fieldset
+          disabled={isSavingAddress}
+          style={{ border: 0, display: "grid", gap: 12, margin: 0, minWidth: 0, padding: 0 }}
+        >
           {!isDirectAddressFlow && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
@@ -909,12 +941,13 @@ export default function AddressChangeModal({
             </select>
             </div>
           )}
-        </div>
+        </fieldset>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
           <button
             type="button"
             onClick={onClose}
+            disabled={isSavingAddress}
             style={{
               border: "1px solid #cbd5e1",
               background: "#fff",

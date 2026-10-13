@@ -56,7 +56,12 @@ export const sanitizeLatLon = (value, fallback = null) => {
 };
 
 export const getAddressCoordinates = (source = {}) => {
-  const address = source?.address ?? source ?? {};
+  const nestedAddress = source?.address
+    && typeof source.address === "object"
+    && !Array.isArray(source.address)
+    ? source.address
+    : source;
+  const address = nestedAddress || {};
   const lat = sanitizeLatLon(address?.lat ?? address?.latitude, null);
   const lon = sanitizeLatLon(address?.lon ?? address?.lng ?? address?.longitude, null);
 

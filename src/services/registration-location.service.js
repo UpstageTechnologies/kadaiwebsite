@@ -2,15 +2,46 @@ import { collection, getDocs } from "firebase/firestore";
 
 import { db } from "./firebase";
 
+const getLocationCoordinates = (data) => {
+  const sources = [
+    data?.coordinates,
+    data?.location,
+    data,
+  ].filter((source) => source && typeof source === "object");
+
+  for (const source of sources) {
+    const lat = Number(source.lat ?? source.latitude);
+    const lon = Number(source.lon ?? source.lng ?? source.longitude);
+    if (
+      Number.isFinite(lat)
+      && Number.isFinite(lon)
+      && lat >= -90
+      && lat <= 90
+      && lon >= -180
+      && lon <= 180
+    ) {
+      return { lat, lon };
+    }
+  }
+
+  return null;
+};
+
 const mapLocationOptions = (snapshot, fallbackFields) => snapshot.docs
   .map((locationSnapshot) => {
     const data = locationSnapshot.data() || {};
     const value = String(
       data.name || fallbackFields.map((field) => data[field]).find(Boolean) || locationSnapshot.id
     ).trim();
+    const coordinates = getLocationCoordinates(data);
 
     return value
-      ? { id: locationSnapshot.id, value, label: value }
+      ? {
+        id: locationSnapshot.id,
+        value,
+        label: value,
+        ...(coordinates || {}),
+      }
       : null;
   })
   .filter(Boolean)

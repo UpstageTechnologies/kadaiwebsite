@@ -116,9 +116,17 @@ const Products = () => {
       (snapshot) => {
         if (!isActive) return;
         const customerData = snapshot.data() || {};
-        const coordinates = getMarketplaceCoordinates(customerData.address)
-          || getMarketplaceCoordinates(customerData.currentLocation)
-          || getMarketplaceCoordinates(customerData);
+        const savedAddress = customerData.address;
+        const hasSavedAddress = savedAddress
+          && typeof savedAddress === "object"
+          && !Array.isArray(savedAddress)
+          && Object.keys(savedAddress).length > 0;
+        const addressCoordinates = getMarketplaceCoordinates(savedAddress);
+        const coordinates = addressCoordinates
+          || (hasSavedAddress && savedAddress.locationSource !== "gps"
+            ? null
+            : getMarketplaceCoordinates(customerData.currentLocation)
+              || getMarketplaceCoordinates(customerData));
         setCustomerLocationState({ userId, coordinates, error: "" });
       },
       (listenerError) => {
