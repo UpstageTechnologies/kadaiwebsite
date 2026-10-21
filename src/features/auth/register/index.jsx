@@ -26,7 +26,11 @@ import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "../../../services/registration-location.service";
-import { getCurrentLocationAddress } from "../../../services/current-location-address.service";
+import {
+  getCurrentLocationAddress,
+  getManualAddressCoordinates,
+} from "../../../services/current-location-address.service";
+import { getAddressCoordinates } from "../../../services/marketplace.service";
 import "./register.css";
 
 const Register = () => {
@@ -531,8 +535,11 @@ const Register = () => {
   };
 
   const saveRegistration = async () => {
-    if (locationMode === "gps" && (latitude === null || longitude === null)) {
-      setError("Please wait for your current location to be detected.");
+    const gpsCoordinates = locationMode === "gps"
+      ? getAddressCoordinates({ lat: latitude, lon: longitude })
+      : null;
+    if (locationMode === "gps" && !gpsCoordinates) {
+      setError("Please detect a valid current location before saving.");
       return;
     }
 
@@ -556,7 +563,6 @@ const Register = () => {
     setError("");
 
     try {
-      await updateProfile(authenticatedUser, { displayName: username.trim() });
       const isGpsAddress = locationMode === "gps";
       const countryLabel = countryOptions.find((option) => option.value === countryId)?.label || countryId;
       const addressFields = isGpsAddress
@@ -575,6 +581,29 @@ const Register = () => {
           pincode,
         ]
         : [area, city, district, state, countryLabel];
+      const manualCoordinates = isGpsAddress
+        ? null
+        : await getManualAddressCoordinates({
+          country: countryLabel,
+          countryCode: countryOptions.find((option) => option.value === countryId)?.code,
+          state,
+          district,
+          city,
+          area,
+          locationMasterCoordinates: [
+            locationOptions.areas.find((option) => option.value === area),
+            locationOptions.cities.find((option) => option.value === city),
+            locationOptions.districts.find((option) => option.value === district),
+          ].filter(Boolean),
+        });
+      const savedCoordinates = gpsCoordinates || manualCoordinates;
+      if (!getAddressCoordinates(savedCoordinates)) {
+        throw new Error("We couldn't resolve valid coordinates for this address. Please review the address and try again.");
+      }
+      const fullAddress = addressFields
+        .filter(Boolean)
+        .join(", ") || (isGpsAddress ? detectedFullAddress : "");
+      await updateProfile(authenticatedUser, { displayName: username.trim() });
       await firebaseUpsertCustomerProfile(authenticatedUser.uid, {
         uid: authenticatedUser.uid,
         name: username.trim(),
@@ -593,13 +622,12 @@ const Register = () => {
           road: isGpsAddress ? road : "",
           landmark: isGpsAddress ? landmark : "",
           village: isGpsAddress ? village : "",
-          fullAddress: addressFields
-            .filter(Boolean)
-            .join(", ") || (locationMode === "gps" ? detectedFullAddress : ""),
+          fullAddress,
+          address: fullAddress,
           formattedAddress: isGpsAddress ? formattedAddress : "",
           pincode: isGpsAddress ? pincode : "",
-          lat: isGpsAddress ? latitude : null,
-          lon: isGpsAddress ? longitude : null,
+          lat: savedCoordinates.lat,
+          lon: savedCoordinates.lon,
           locationSource: locationMode,
         },
       });

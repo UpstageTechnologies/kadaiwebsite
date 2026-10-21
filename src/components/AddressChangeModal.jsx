@@ -12,6 +12,7 @@ import {
   getCurrentLocationAddress,
   getManualAddressCoordinates,
 } from "../services/current-location-address.service";
+import { getAddressCoordinates } from "../services/marketplace.service";
 
 const normalizeAddress = (value = {}) => ({
   country: value.country || "",
@@ -428,8 +429,11 @@ export default function AddressChangeModal({
         return;
       }
 
-      if (addressMode === "gps" && (addressLatitude === null || addressLongitude === null)) {
-        setAddressError("Please wait for your current location to be detected.");
+      const gpsCoordinates = addressMode === "gps"
+        ? getAddressCoordinates({ lat: addressLatitude, lon: addressLongitude })
+        : null;
+      if (addressMode === "gps" && !gpsCoordinates) {
+        setAddressError("Please detect a valid current location before saving.");
         return;
       }
 
@@ -486,10 +490,12 @@ export default function AddressChangeModal({
         const countryOption = addressCountryOptions.find(
           (option) => option.id === addressCountryId || option.value === addressCountryId
         );
+        const findSelectedOption = (options, value) =>
+          options.find((option) => option.id === value || option.value === value);
         const locationMasterCoordinates = [
-          addressAreaOptions.find((option) => option.id === addressArea),
-          addressCityOptions.find((option) => option.id === addressCity),
-          addressDistrictOptions.find((option) => option.id === addressDistrict),
+          findSelectedOption(addressAreaOptions, addressArea),
+          findSelectedOption(addressCityOptions, addressCity),
+          findSelectedOption(addressDistrictOptions, addressDistrict),
         ].filter(Boolean);
         manualCoordinates = await getManualAddressCoordinates({
           country: optionLabel(addressCountryOptions, addressCountryId),
@@ -523,8 +529,8 @@ export default function AddressChangeModal({
         fullAddress,
         formattedAddress: addressMode === "gps" || isDirectAddressFlow ? addressFormatted.trim() : "",
         pincode: addressMode === "gps" || isDirectAddressFlow ? addressPincode.trim() : "",
-        lat: addressMode === "gps" ? addressLatitude : manualCoordinates?.lat ?? null,
-        lon: addressMode === "gps" ? addressLongitude : manualCoordinates?.lon ?? null,
+        lat: addressMode === "gps" ? gpsCoordinates.lat : manualCoordinates?.lat ?? null,
+        lon: addressMode === "gps" ? gpsCoordinates.lon : manualCoordinates?.lon ?? null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
         address: fullAddress,
       };
