@@ -490,23 +490,12 @@ export default function AddressChangeModal({
         const countryOption = addressCountryOptions.find(
           (option) => option.id === addressCountryId || option.value === addressCountryId
         );
-        const findSelectedOption = (options, value) =>
-          options.find((option) => option.id === value || option.value === value);
-        const locationMasterCoordinates = [
-          findSelectedOption(addressAreaOptions, addressArea),
-          findSelectedOption(addressCityOptions, addressCity),
-          findSelectedOption(addressDistrictOptions, addressDistrict),
-        ].filter(Boolean);
         manualCoordinates = await getManualAddressCoordinates({
           country: optionLabel(addressCountryOptions, addressCountryId),
           countryCode: countryOption?.code,
           state: optionLabel(addressStateOptions, addressState),
           district: optionLabel(addressDistrictOptions, addressDistrict),
           city: optionLabel(addressCityOptions, addressCity),
-          area: optionLabel(addressAreaOptions, addressArea),
-          road: addressRoad,
-          pincode: addressPincode,
-          locationMasterCoordinates,
         });
       }
 

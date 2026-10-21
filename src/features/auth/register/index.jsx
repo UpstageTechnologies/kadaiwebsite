@@ -589,12 +589,6 @@ const Register = () => {
           state,
           district,
           city,
-          area,
-          locationMasterCoordinates: [
-            locationOptions.areas.find((option) => option.value === area),
-            locationOptions.cities.find((option) => option.value === city),
-            locationOptions.districts.find((option) => option.value === district),
-          ].filter(Boolean),
         });
       const savedCoordinates = gpsCoordinates || manualCoordinates;
       if (!getAddressCoordinates(savedCoordinates)) {
