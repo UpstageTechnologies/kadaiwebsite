@@ -2374,6 +2374,12 @@
     padding: 12px 15px;
   }
 
+  .view-all-btn.local-products-login-btn {
+    width: min(100%, 240px);
+    min-height: 48px;
+    padding: 12px 15px;
+  }
+
   .products-grid {
     grid-template-columns: 1fr;
 
