@@ -585,7 +585,6 @@ const Register = () => {
         ? null
         : await getManualAddressCoordinates({
           country: countryLabel,
-          countryCode: countryOptions.find((option) => option.value === countryId)?.code,
           state,
           district,
           city,

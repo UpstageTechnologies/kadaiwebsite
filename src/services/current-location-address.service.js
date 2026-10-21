@@ -109,7 +109,6 @@ const getCoordinates = () => new Promise((resolve, reject) => {
 
 export const getManualAddressCoordinates = async ({
   country,
-  countryCode,
   state,
   district,
   city,
@@ -121,16 +120,11 @@ export const getManualAddressCoordinates = async ({
   const queryParts = [city, district]
     .map((part) => String(part || "").trim())
     .filter(Boolean);
-  const countryCodeValue = String(countryCode || "").trim().toLowerCase();
-  const hasIsoCountryCode = /^[a-z]{2}$/.test(countryCodeValue);
   const searchUrl = new URL("https://nominatim.openstreetmap.org/search");
   searchUrl.searchParams.set("format", "jsonv2");
   searchUrl.searchParams.set("addressdetails", "1");
   searchUrl.searchParams.set("limit", "5");
   searchUrl.searchParams.set("q", queryParts.join(", "));
-  if (hasIsoCountryCode) {
-    searchUrl.searchParams.set("countrycodes", countryCodeValue);
-  }
 
   const response = await fetch(searchUrl, {
     headers: { Accept: "application/json" },
@@ -142,14 +136,6 @@ export const getManualAddressCoordinates = async ({
   const results = await response.json();
   const matchingResult = (Array.isArray(results) ? results : []).find((result) => {
     const address = result?.address || {};
-    const countryMatches = hasIsoCountryCode
-      ? String(address.country_code || "").toLowerCase() === countryCodeValue
-      : matchesGeocodingLabel(country, [address.country]);
-    const stateMatches = matchesGeocodingLabel(state, [
-      address.state,
-      address.region,
-      address.province,
-    ]);
     const districtMatches = matchesGeocodingLabel(district, [
       address.state_district,
       address.county,
@@ -164,12 +150,12 @@ export const getManualAddressCoordinates = async ({
       address.locality,
       address.city_district,
     ]);
-    return countryMatches && stateMatches && districtMatches && cityMatches;
+    return districtMatches && cityMatches;
   }) || null;
 
   if (!matchingResult) {
     throw new Error(
-      "We couldn't reliably locate this address. Check the selected City, District, State, and Country, then try again."
+      "We couldn't reliably locate this address. Check the selected City and District, then try again."
     );
   }
 

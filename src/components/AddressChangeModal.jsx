@@ -487,12 +487,8 @@ export default function AddressChangeModal({
       if (!isDirectAddressFlow && addressMode === "manual") {
         const optionLabel = (options, value) =>
           options.find((option) => option.id === value || option.value === value)?.label || value;
-        const countryOption = addressCountryOptions.find(
-          (option) => option.id === addressCountryId || option.value === addressCountryId
-        );
         manualCoordinates = await getManualAddressCoordinates({
           country: optionLabel(addressCountryOptions, addressCountryId),
-          countryCode: countryOption?.code,
           state: optionLabel(addressStateOptions, addressState),
           district: optionLabel(addressDistrictOptions, addressDistrict),
           city: optionLabel(addressCityOptions, addressCity),
