@@ -21,7 +21,7 @@ import {
 
 const Products = () => {
   const navigate = useNavigate();
-  const { user, customer } = useAuth();
+  const { user, customer, loading: isAuthLoading } = useAuth();
 
   const {
     cartItems,
@@ -48,16 +48,10 @@ const Products = () => {
   );
   const isLoading = Boolean(user?.uid) && productState.uid !== user.uid;
 
-  const customerLocation = useMemo(() => {
-    const savedAddress = customer?.address;
-    const hasSavedAddress = (savedAddress && typeof savedAddress === "object"
-      && !Array.isArray(savedAddress) && Object.keys(savedAddress).length > 0)
-      || (typeof savedAddress === "string" && savedAddress.trim().length > 0);
-
-    return getAddressCoordinates(
-      hasSavedAddress ? savedAddress : customer?.currentLocation
-    );
-  }, [customer?.address, customer?.currentLocation]);
+  const customerLocation = useMemo(
+    () => getAddressCoordinates(customer?.address),
+    [customer?.address]
+  );
 
   useEffect(() => {
     const unsubscribe = subscribeMarketplaceSellerProfiles({
@@ -221,6 +215,16 @@ const Products = () => {
 
       </div>
 
+      {isAuthLoading ? (
+        <div className="no-products" role="status">
+          <h3>Loading nearby products...</h3>
+        </div>
+      ) : !user ? (
+        <div className="no-products">
+          <h3>To view the local products, please log in.</h3>
+        </div>
+      ) : (
+        <>
       <section aria-label="Local Shops" style={{ margin: "0 0 32px" }}>
         <div style={{
           alignItems: "center",
@@ -560,6 +564,8 @@ const Products = () => {
           Show Less
         </button>
 
+      )}
+        </>
       )}
 
     </section>
