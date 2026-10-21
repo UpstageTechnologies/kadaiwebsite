@@ -118,7 +118,7 @@ export const getManualAddressCoordinates = async ({
     throw new Error("Please select a City, District, State, and Country before locating this address.");
   }
 
-  const queryParts = [city, district, state, country]
+  const queryParts = [city, district]
     .map((part) => String(part || "").trim())
     .filter(Boolean);
   const countryCodeValue = String(countryCode || "").trim().toLowerCase();
