@@ -222,6 +222,16 @@ const Products = () => {
       ) : !user ? (
         <div className="no-products">
           <h3>To view the local products, please log in.</h3>
+          <button
+            type="button"
+            className="view-all-btn"
+            onClick={() => navigate(`/login?redirect=${encodeURIComponent("/")}`)}
+          >
+            Log In
+            <span>
+              <FiArrowRight />
+            </span>
+          </button>
         </div>
       ) : (
         <>
