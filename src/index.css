@@ -1951,6 +1951,15 @@
   transition: 0.25s;
 }
 
+.view-all-btn.local-products-login-btn {
+  box-sizing: border-box;
+  width: min(100%, 220px);
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  justify-content: space-between;
+}
+
 .view-all-btn span {
   width: 23px;
   height: 23px;

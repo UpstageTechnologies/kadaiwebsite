@@ -224,7 +224,7 @@ const Products = () => {
           <h3>To view the local products, please log in.</h3>
           <button
             type="button"
-            className="view-all-btn"
+            className="view-all-btn local-products-login-btn"
             onClick={() => navigate(`/login?redirect=${encodeURIComponent("/")}`)}
           >
             Log In
