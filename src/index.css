@@ -1951,13 +1951,42 @@
   transition: 0.25s;
 }
 
-.view-all-btn.local-products-login-btn {
+.local-products-login-btn {
   box-sizing: border-box;
-  width: min(100%, 50px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(100%, 180px);
   min-height: 44px;
   margin-top: 12px;
-  padding: 10px 14px;
-  justify-content: space-between;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 25px;
+  background: green;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: 0.25s;
+}
+
+.local-products-login-btn span {
+  display: flex;
+  flex: 0 0 23px;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: #fff;
+  color: #079866;
+}
+
+.local-products-login-btn:hover {
+  transform: translateY(-2px);
 }
 
 .view-all-btn span {
@@ -2374,10 +2403,10 @@
     padding: 12px 15px;
   }
 
-  .view-all-btn.local-products-login-btn {
-    width: min(100%, 120px);
+  .local-products-login-btn {
+    width: min(100%, 140px);
     min-height: 48px;
-    padding: 12px 15px;
+    padding: 10px 12px;
   }
 
   .products-grid {
