@@ -409,23 +409,23 @@ export default function AddressChangeModal({
       }
 
       if (!isDirectAddressFlow && addressMode === "manual") {
-        if (!addressCountryId || !addressState || !addressDistrict || !addressCity) {
-          setAddressError("Please select Country, State, District, and City.");
+        if (!addressCountryId || !addressState || !addressDistrict || !addressCity || !addressArea) {
+          setAddressError("Please select Country, State, District, City, and Area.");
           return;
         }
       }
 
-      if (isAddFlow && (!selectedCountryId || !selectedStateId || !selectedDistrictId || !selectedCityId)) {
-        setAddressError("Please enter Country, State, District, and City.");
+      if (isAddFlow && (!selectedCountryId || !selectedStateId || !selectedDistrictId || !selectedCityId || !selectedAreaId)) {
+        setAddressError("Please enter Country, State, District, City, and Area.");
         return;
       }
 
       if (
         isCheckoutFlow
         && (!addressHouse.trim() || !addressRoad.trim() || !addressPincode.trim()
-          || !selectedCountryId || !selectedStateId || !selectedDistrictId || !selectedCityId)
+          || !selectedCountryId || !selectedStateId || !selectedDistrictId || !selectedCityId || !selectedAreaId)
       ) {
-        setAddressError("Please complete House No. / Building, Road, Pincode, Country, State, District, and City.");
+        setAddressError("Please complete House No. / Building, Road, Pincode, Country, State, District, City, and Area.");
         return;
       }
 
@@ -484,7 +484,7 @@ export default function AddressChangeModal({
       setAddressError("");
 
       let manualCoordinates = null;
-      if (addressMode === "manual") {
+      if (!isDirectAddressFlow && addressMode === "manual") {
         const optionLabel = (options, value) =>
           options.find((option) => option.id === value || option.value === value)?.label || value;
         manualCoordinates = await getManualAddressCoordinates({
@@ -492,10 +492,6 @@ export default function AddressChangeModal({
           state: optionLabel(addressStateOptions, addressState),
           district: optionLabel(addressDistrictOptions, addressDistrict),
           city: optionLabel(addressCityOptions, addressCity),
-          countryId: selectedCountryId,
-          stateId: selectedStateId,
-          districtId: selectedDistrictId,
-          cityId: selectedCityId,
         });
       }
 
@@ -757,6 +753,17 @@ export default function AddressChangeModal({
                   <option key={option.id} value={option.id}>{option.label}</option>
                 ))}
               </select>
+              <select
+                value={selectedAreaId}
+                onChange={(event) => setAddressArea(event.target.value)}
+                disabled={!selectedCityId || addressLoading.areas}
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              >
+                <option value="">Select Area</option>
+                {addressAreaOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
               <input
                 type="text"
                 value={addressLandmark}
@@ -786,6 +793,13 @@ export default function AddressChangeModal({
               value={addressRoad}
               onChange={(event) => setAddressRoad(event.target.value)}
               placeholder="Road Name / Area / Colony"
+              style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
+            <input
+              type="text"
+              value={addressArea}
+              onChange={(event) => setAddressArea(event.target.value)}
+              placeholder="Area / Locality / Colony"
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             />
             <input
@@ -905,6 +919,17 @@ export default function AddressChangeModal({
               ))}
             </select>
 
+            <select
+              value={addressArea}
+              onChange={(event) => setAddressArea(event.target.value)}
+              disabled={!addressCity || addressLoading.areas}
+              style={{ gridColumn: "1 / -1", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            >
+              <option value="">Select Area</option>
+              {addressAreaOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
             </div>
           )}
         </fieldset>
