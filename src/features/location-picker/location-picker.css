@@ -80,3 +80,217 @@
   border-radius: 12px;
   cursor: pointer;
 }
+
+.location-picker-button:disabled,
+.location-mode-actions button:disabled,
+.saved-location-row button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.location-picker-error {
+  margin: 0 auto 18px;
+  max-width: 620px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #b42318;
+  font-size: 14px;
+}
+
+.active-location-card {
+  max-width: 620px;
+  margin: 0 auto 18px;
+  padding: 16px;
+  border: 1px solid rgba(101, 169, 26, 0.3);
+  border-radius: 14px;
+  background: #f7fbf3;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.active-location-label {
+  color: #4f8611;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.active-location-card strong { color: #1f2937; }
+.active-location-card small { color: #667085; }
+
+.add-location-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.saved-location-list {
+  max-width: 620px;
+  margin: 18px auto 0;
+  text-align: left;
+}
+
+.saved-location-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #1f2937;
+}
+
+.saved-location-heading span {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef9ea;
+  color: #4f8611;
+}
+
+.saved-location-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  margin-top: 8px;
+  border: 1px solid #e7ece3;
+  border-radius: 12px;
+  color: #4f8611;
+}
+
+.saved-location-row.active { border-color: rgba(101, 169, 26, 0.45); background: #fbfdf9; }
+.saved-location-row > div { display: flex; flex-direction: column; min-width: 0; }
+.saved-location-row strong { color: #1f2937; overflow: hidden; text-overflow: ellipsis; }
+.saved-location-row small { color: #667085; }
+
+.location-use-button,
+.location-delete-button,
+.location-cancel-button {
+  border: 0;
+  cursor: pointer;
+}
+
+.location-use-button {
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: #eef9ea;
+  color: #4f8611;
+  font-weight: 800;
+}
+
+.location-delete-button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: transparent;
+  color: #dc2626;
+}
+
+.active-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #eef9ea;
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.location-add-form {
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.location-mode-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.location-mode-actions button {
+  min-height: 50px;
+  border: 1px solid #dfe6da;
+  border-radius: 12px;
+  background: #fff;
+  color: #4f8611;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.location-mode-actions button.selected {
+  border-color: #65a91a;
+  background: #eef9ea;
+}
+
+.location-select-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.location-select-grid select {
+  width: 100%;
+  height: 46px;
+  border: 1px solid #dfe6da;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 10px;
+  color: #1f2937;
+}
+
+.location-select-grid select:last-child { grid-column: 1 / -1; }
+.location-select-grid select:disabled { background: #f3f5f1; }
+
+.detected-location {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f7fbf3;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.detected-location strong { color: #1f2937; }
+.detected-location small { margin-top: 4px; color: #667085; }
+
+.location-form-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.location-cancel-button {
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: transparent;
+  color: #667085;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .location-picker-card { padding: 38px 18px; }
+  .location-mode-actions,
+  .location-select-grid { grid-template-columns: 1fr; }
+  .location-select-grid select:last-child { grid-column: auto; }
+  .saved-location-row { grid-template-columns: 24px minmax(0, 1fr) auto; }
+  .location-delete-button { grid-column: 3; }
+  .location-form-actions { flex-direction: column; }
+  .location-picker-button { width: 100%; min-width: 0; }
+}

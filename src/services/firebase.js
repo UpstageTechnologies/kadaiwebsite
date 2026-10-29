@@ -11,10 +11,14 @@ import {
   getFirestore,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   onSnapshot,
+  collection,
+  writeBatch,
 } from "firebase/firestore";
 
 export const firebaseConfig = {
@@ -384,15 +388,38 @@ export const firebaseUpsertCustomerProfile = async (uid, data) => {
     const existing = await getDoc(customerRef);
     const existingData = existing.exists() ? existing.data() || {} : {};
 
+    const savedAddress = data?.address && typeof data.address === "object"
+      ? data.address
+      : existingData.address || null;
+    const savedLat = Number(savedAddress?.lat ?? savedAddress?.latitude);
+    const savedLon = Number(savedAddress?.lon ?? savedAddress?.lng ?? savedAddress?.longitude);
+    const hasValidAddressCoordinates = savedAddress && Number.isFinite(savedLat)
+      && Number.isFinite(savedLon)
+      && savedLat >= -90 && savedLat <= 90
+      && savedLon >= -180 && savedLon <= 180;
+
     const payload = {
       ...data,
       uid: customerUid,
       mobile: authenticatedUser.phoneNumber,
+      ...(hasValidAddressCoordinates ? {
+        currentLocation: {
+          ...savedAddress,
+          latitude: savedLat,
+          longitude: savedLon,
+          lat: savedLat,
+          lon: savedLon,
+        },
+      } : {}),
       createdAt: existingData.createdAt || data.createdAt || serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
 
-    return await setDoc(customerRef, payload, { merge: true });
+    await setDoc(customerRef, payload, { merge: true });
+    if (hasValidAddressCoordinates && payload.address) {
+      await firebaseSaveActiveAddress(customerUid, payload.address);
+    }
+    return true;
   } catch (error) {
     console.error("[FIRESTORE] firebaseUpsertCustomerProfile failed:", error?.code || error?.message || error);
     throw error;
@@ -441,9 +468,24 @@ export const firebaseUpdateCustomer = async (uid, data) => {
     throw unavailable;
   }
 
+  const lat = Number(nextAddress.lat ?? nextAddress.latitude);
+  const lon = Number(nextAddress.lon ?? nextAddress.lng ?? nextAddress.longitude);
+  if (
+    !Number.isFinite(lat)
+    || !Number.isFinite(lon)
+    || lat < -90
+    || lat > 90
+    || lon < -180
+    || lon > 180
+  ) {
+    const invalidCoordinates = new Error("A valid latitude and longitude are required to save this address.");
+    invalidCoordinates.code = "firestore/invalid-address-coordinates";
+    throw invalidCoordinates;
+  }
+
   try {
     console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
-    await updateDoc(customerRef, { address: nextAddress });
+    await firebaseSaveActiveAddress(customerUid, nextAddress);
     console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
     return true;
   } catch (error) {
@@ -453,6 +495,123 @@ export const firebaseUpdateCustomer = async (uid, data) => {
     friendly.code = error?.code || "firestore/write-failed";
     throw friendly;
   }
+};
+
+const normalizeAddressKey = (address = {}) => [
+  address.country,
+  address.state,
+  address.district,
+  address.city,
+  address.house,
+  address.road,
+  address.pincode,
+  address.fullAddress || address.formattedAddress || address.address,
+].map((value) => String(value || "").trim().toLocaleLowerCase()).join("|");
+
+export const firebaseFetchSavedAddresses = async (uid) => {
+  if (!auth?.currentUser || auth.currentUser.uid !== uid) return [];
+  if (!db) throw new Error("Firebase Firestore is temporarily unavailable.");
+
+  const seen = new Set();
+  const addresses = [];
+  const profileSnapshot = await getDoc(firebaseCustomerDoc(uid));
+  if (profileSnapshot.exists()) {
+    const profile = profileSnapshot.data() || {};
+    if (profile.address && typeof profile.address === "object") {
+      const key = normalizeAddressKey(profile.address);
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        addresses.push({
+          id: "registered_primary_addr",
+          ...profile.address,
+          isActive: true,
+        });
+      }
+    }
+  }
+
+  const savedSnapshot = await getDocs(collection(db, "customers", uid, "saved_addresses"));
+  savedSnapshot.docs.forEach((savedSnapshotItem) => {
+    const data = savedSnapshotItem.data() || {};
+    const key = normalizeAddressKey(data);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    addresses.push({ id: savedSnapshotItem.id, ...data });
+  });
+
+  return addresses.sort((first, second) => {
+    if (first.isActive === second.isActive) return 0;
+    return first.isActive ? -1 : 1;
+  });
+};
+
+export const firebaseSaveActiveAddress = async (uid, addressData, addressId = "") => {
+  if (!auth?.currentUser || auth.currentUser.uid !== uid) {
+    throw new Error("You can only save an address to your own customer profile.");
+  }
+
+  const lat = Number(addressData?.lat ?? addressData?.latitude);
+  const lon = Number(addressData?.lon ?? addressData?.lng ?? addressData?.longitude);
+  if (
+    !addressData || typeof addressData !== "object"
+    || !Number.isFinite(lat) || !Number.isFinite(lon)
+    || lat < -90 || lat > 90 || lon < -180 || lon > 180
+  ) {
+    throw new Error("A valid latitude and longitude are required before saving this address.");
+  }
+
+  const normalizedAddress = {
+    ...addressData,
+    lat,
+    lon,
+    latitude: lat,
+    longitude: lon,
+    updatedAt: serverTimestamp(),
+  };
+  const key = normalizeAddressKey(normalizedAddress);
+  const savedAddressId = addressId
+    || key.split("").reduce((hash, character) => ((hash << 5) - hash + character.charCodeAt(0)) | 0, 0).toString(36).replace("-", "n")
+    || `addr_${Date.now()}`;
+
+  const customerRef = firebaseCustomerDoc(uid);
+  const savedRef = doc(db, "customers", uid, "saved_addresses", savedAddressId);
+  const batch = writeBatch(db);
+
+  batch.set(customerRef, {
+    address: normalizedAddress,
+    currentLocation: {
+      ...normalizedAddress,
+      isActive: true,
+    },
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+  batch.set(savedRef, {
+    ...normalizedAddress,
+    id: savedAddressId,
+    isActive: true,
+  }, { merge: true });
+
+  const existing = await getDocs(collection(db, "customers", uid, "saved_addresses"));
+  existing.docs.forEach((savedSnapshotItem) => {
+    if (savedSnapshotItem.id !== savedAddressId) {
+      batch.update(savedSnapshotItem.ref, { isActive: false });
+    }
+  });
+
+  await batch.commit();
+  return { ...normalizedAddress, id: savedAddressId };
+};
+
+export const firebaseDeleteSavedAddress = async (uid, addressId) => {
+  if (!auth?.currentUser || auth.currentUser.uid !== uid) {
+    throw new Error("You can only delete an address from your own customer profile.");
+  }
+  if (!addressId || addressId === "registered_primary_addr") {
+    throw new Error("The primary customer address cannot be deleted as an orphan record. Change it instead.");
+  }
+
+  await deleteDoc(doc(db, "customers", uid, "saved_addresses", addressId));
+  return true;
 };
 
 export const firebaseSaveFcmToken = async () => {

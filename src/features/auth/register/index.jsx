@@ -452,15 +452,8 @@ const Register = () => {
   };
 
   const handleCityChange = (value) => {
-    locationRequestIds.current.areas += 1;
     setCity(value);
     setArea("");
-    setLocationOptions((current) => ({ ...current, areas: [] }));
-    setLocationLoading((current) => ({ ...current, areas: false }));
-    const stateId = locationOptions.states.find((option) => option.value === state)?.id || state;
-    const districtId = locationOptions.districts.find((option) => option.value === district)?.id || district;
-    const cityId = locationOptions.cities.find((option) => option.value === value)?.id || value;
-    loadLocationLevel("areas", { countryId, stateId, districtId, cityId });
   };
 
   const useCurrentLocation = async () => {
@@ -543,8 +536,8 @@ const Register = () => {
       return;
     }
 
-    if (locationMode === "manual" && (!countryId || !state || !district || !city || !area)) {
-      setError("Please select Country, State, District, City, and Area.");
+    if (locationMode === "manual" && (!countryId || !state || !district || !city)) {
+      setError("Please select Country, State, District, and City.");
       return;
     }
 
@@ -588,6 +581,10 @@ const Register = () => {
           state,
           district,
           city,
+          countryId,
+          stateId: locationOptions.states.find((option) => option.value === state)?.id || state,
+          districtId: locationOptions.districts.find((option) => option.value === district)?.id || district,
+          cityId: locationOptions.cities.find((option) => option.value === city)?.id || city,
         });
       const savedCoordinates = gpsCoordinates || manualCoordinates;
       if (!getAddressCoordinates(savedCoordinates)) {
@@ -857,10 +854,6 @@ const Register = () => {
                       <input value={road} onChange={(event) => setRoad(event.target.value)} disabled={loading} />
                     </div>
                     <div className="register-field">
-                      <span>Area / Locality / Colony</span>
-                      <input value={area} onChange={(event) => setArea(event.target.value)} disabled={loading} />
-                    </div>
-                    <div className="register-field">
                       <span>Landmark</span>
                       <input value={landmark} onChange={(event) => setLandmark(event.target.value)} disabled={loading} />
                     </div>
@@ -929,13 +922,6 @@ const Register = () => {
                     <select value={city} onChange={(event) => handleCityChange(event.target.value)} disabled={loading || locationLoading.cities || !district}>
                       <option value="">{locationLoading.cities ? "Loading cities..." : "Select City"}</option>
                       {locationOptions.cities.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="register-field">
-                    <span>Area</span>
-                    <select value={area} onChange={(event) => setArea(event.target.value)} disabled={loading || locationLoading.areas || !city}>
-                      <option value="">{locationLoading.areas ? "Loading areas..." : "Select Area"}</option>
-                      {locationOptions.areas.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
                 </div>

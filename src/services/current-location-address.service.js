@@ -1,5 +1,6 @@
 import {
   getRegistrationCountries,
+  getRegistrationLocationCoordinates,
   getRegistrationLocationOptions,
 } from "./registration-location.service";
 
@@ -112,12 +113,32 @@ export const getManualAddressCoordinates = async ({
   state,
   district,
   city,
+  countryId,
+  stateId,
+  districtId,
+  cityId,
 }) => {
   if (![country, state, district, city].every((value) => String(value || "").trim())) {
     throw new Error("Please select a City, District, State, and Country before locating this address.");
   }
 
-  const queryParts = [city, district]
+  try {
+    const masterCoordinates = await getRegistrationLocationCoordinates({
+      country,
+      state,
+      district,
+      city,
+      countryId,
+      stateId,
+      districtId,
+      cityId,
+    });
+    if (masterCoordinates) return masterCoordinates;
+  } catch (masterError) {
+    console.warn("[LOCATION] Master-coordinate lookup failed; trying geocoding:", masterError);
+  }
+
+  const queryParts = [city, district, state, country]
     .map((part) => String(part || "").trim())
     .filter(Boolean);
   const searchUrl = new URL("https://nominatim.openstreetmap.org/search");
@@ -150,7 +171,9 @@ export const getManualAddressCoordinates = async ({
       address.locality,
       address.city_district,
     ]);
-    return districtMatches && cityMatches;
+    const stateMatches = matchesGeocodingLabel(state, [address.state]);
+    const countryMatches = matchesGeocodingLabel(country, [address.country]);
+    return districtMatches && cityMatches && stateMatches && countryMatches;
   }) || null;
 
   if (!matchingResult) {
@@ -253,6 +276,10 @@ export const getCurrentLocationAddress = async () => {
       pincode,
     ].filter((value, index, values) => value && values.indexOf(value) === index).join(", ")
   );
+  if (!country || !state || !district || !city) {
+    throw new Error("Your current location is missing country, state, district, or city details. Please try again or enter the address manually.");
+  }
+
   const normalizedAddress = {
     ...coordinates,
     house,
@@ -336,5 +363,14 @@ export const getCurrentLocationAddress = async () => {
     console.warn("[LOCATION] location_master match failed:", locationMasterError);
   }
 
-  return { ...normalizedAddress, options, matches };
+  return {
+    ...normalizedAddress,
+    country: matches.country?.id || matches.country?.value || country,
+    state: matches.state?.id || matches.state?.value || state,
+    district: matches.district?.id || matches.district?.value || district,
+    city: matches.city?.id || matches.city?.value || city,
+    area: matches.area?.id || matches.area?.value || area,
+    options,
+    matches,
+  };
 };

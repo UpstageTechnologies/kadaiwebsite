@@ -56,58 +56,44 @@ export const sanitizeLatLon = (value, fallback = null) => {
 };
 
 export const getAddressCoordinates = (source = {}) => {
-  const nestedAddress = source?.address
-    && typeof source.address === "object"
-    && !Array.isArray(source.address)
-    ? source.address
-    : source;
-  const address = nestedAddress || {};
-  const lat = sanitizeLatLon(address?.lat ?? address?.latitude, null);
-  const lon = sanitizeLatLon(address?.lon ?? address?.lng ?? address?.longitude, null);
+  if (!source || typeof source !== "object") return null;
 
-  if (lat === null || lon === null) {
-    return null;
+  const sources = [
+    source?.address,
+    source?.coordinates,
+    source?.location,
+    source?.currentLocation,
+    source,
+  ];
+
+  for (const candidate of sources) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const lat = sanitizeLatLon(
+      candidate.lat ?? candidate.latitude ?? candidate._lat,
+      null
+    );
+    const lon = sanitizeLatLon(
+      candidate.lon ?? candidate.lng ?? candidate.longitude ?? candidate._long,
+      null
+    );
+
+    if (
+      lat !== null
+      && lon !== null
+      && lat >= -90
+      && lat <= 90
+      && lon >= -180
+      && lon <= 180
+    ) {
+      return { lat, lon };
+    }
   }
 
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-    return null;
-  }
-
-  return { lat, lon };
+  return null;
 };
 
 export const getMarketplaceCoordinates = (source = {}) => {
-  const nestedAddress = source?.address
-    && typeof source.address === "object"
-    && !Array.isArray(source.address)
-    ? source.address
-    : {};
-  const lat = sanitizeLatLon(
-    source?.lat ?? source?.latitude ?? nestedAddress.lat ?? nestedAddress.latitude,
-    null
-  );
-  const lon = sanitizeLatLon(
-    source?.lon
-      ?? source?.lng
-      ?? source?.longitude
-      ?? nestedAddress.lon
-      ?? nestedAddress.lng
-      ?? nestedAddress.longitude,
-    null
-  );
-
-  if (
-    lat === null
-    || lon === null
-    || lat < -90
-    || lat > 90
-    || lon < -180
-    || lon > 180
-  ) {
-    return null;
-  }
-
-  return { lat, lon };
+  return getAddressCoordinates(source);
 };
 
 export const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
