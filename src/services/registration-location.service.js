@@ -2,6 +2,18 @@ import { collection, getDocs } from "firebase/firestore";
 
 import { db } from "./firebase";
 
+const parseCoordinate = (value) => {
+  if (
+    (typeof value !== "number" && typeof value !== "string")
+    || (typeof value === "string" && !value.trim())
+  ) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const getLocationCoordinates = (data) => {
   const sources = [
     data?.coordinates,
@@ -10,11 +22,11 @@ const getLocationCoordinates = (data) => {
   ].filter((source) => source && typeof source === "object");
 
   for (const source of sources) {
-    const lat = Number(source.lat ?? source.latitude);
-    const lon = Number(source.lon ?? source.lng ?? source.longitude);
+    const lat = parseCoordinate(source.lat ?? source.latitude);
+    const lon = parseCoordinate(source.lon ?? source.lng ?? source.longitude);
     if (
-      Number.isFinite(lat)
-      && Number.isFinite(lon)
+      lat !== null
+      && lon !== null
       && lat >= -90
       && lat <= 90
       && lon >= -180

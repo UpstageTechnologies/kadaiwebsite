@@ -158,15 +158,12 @@ export default function AddressChangeModal({
         }
 
         const firebaseUser = auth?.currentUser || null;
-        console.log("[ADDRESS DEBUG] Firebase auth user:", firebaseUser);
 
         if (!firebaseUser || !firebaseUser.uid) {
           setAddressError("Your Firebase session is missing. Please log in again.");
           return;
         }
-
         const customerUid = firebaseUser.uid;
-        console.log("[ADDRESS DEBUG] Firebase auth UID:", customerUid);
 
         const customerSnapshot = await firebaseCustomerSnapshot(customerUid);
         const customerData = customerSnapshot?.data?.() || {};
@@ -175,8 +172,6 @@ export default function AddressChangeModal({
         if (!active || detectionId !== addressDetectionId.current) {
           return;
         }
-
-        console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
 
         setAddressCountryId(customerAddress.country || "");
         setAddressHouse(customerAddress.house || "");
@@ -394,18 +389,14 @@ export default function AddressChangeModal({
         if (auth && typeof auth.authStateReady === "function") {
           await auth.authStateReady();
         }
-
         const firebaseUser = auth?.currentUser || null;
-        console.log("[ADDRESS DEBUG] Firebase auth user:", firebaseUser);
 
         if (!firebaseUser || !firebaseUser.uid) {
           setAddressError("Your Firebase session is missing. Please log in again.");
           console.error("[ADDRESS DEBUG] No authenticated Firebase user available for address update.");
           return;
         }
-
         customerUid = firebaseUser.uid;
-        console.log("[ADDRESS DEBUG] Firebase auth UID:", customerUid);
       }
 
       if (!isDirectAddressFlow && addressMode === "manual") {
@@ -487,12 +478,17 @@ export default function AddressChangeModal({
       if (!isDirectAddressFlow && addressMode === "manual") {
         const optionLabel = (options, value) =>
           options.find((option) => option.id === value || option.value === value)?.label || value;
-        manualCoordinates = await getManualAddressCoordinates({
-          country: optionLabel(addressCountryOptions, addressCountryId),
-          state: optionLabel(addressStateOptions, addressState),
-          district: optionLabel(addressDistrictOptions, addressDistrict),
-          city: optionLabel(addressCityOptions, addressCity),
-        });
+        const selectedArea = addressAreaOptions.find((option) =>
+          option.id === selectedAreaId || option.value === selectedAreaId
+        );
+        manualCoordinates = getAddressCoordinates(selectedArea)
+          || await getManualAddressCoordinates({
+            country: optionLabel(addressCountryOptions, addressCountryId),
+            state: optionLabel(addressStateOptions, addressState),
+            district: optionLabel(addressDistrictOptions, addressDistrict),
+            city: optionLabel(addressCityOptions, addressCity),
+            area: optionLabel(addressAreaOptions, addressArea),
+          });
       }
 
       const nextAddress = {
@@ -521,8 +517,6 @@ export default function AddressChangeModal({
       };
 
       if (!isCheckoutFlow) {
-        console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
-        console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
         await firebaseUpdateCustomer(customerUid, { address: nextAddress });
       }
       if (import.meta.env.DEV) {

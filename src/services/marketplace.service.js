@@ -9,7 +9,6 @@ import{
 } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
-import { resolveAreaCoordinates } from "./current-location-address.service";
 
 export const MARKET_MODES = {
   LOCAL: "local",
@@ -77,14 +76,6 @@ const getCoordinateSourceCandidates = (source = []) => {
   pushCandidate(source?.address?.coordinates);
   pushCandidate(source?.address?.location);
 
-  if (source && typeof source === "object" && !Array.isArray(source)) {
-    Object.values(source).forEach((value) => {
-      if (value && typeof value === "object" && !Array.isArray(value) && !candidates.includes(value)) {
-        candidates.push(value);
-      }
-    });
-  }
-
   return candidates;
 };
 
@@ -132,9 +123,7 @@ export const getAddressCoordinates = (source = {}) => extractCoordinatePair(sour
 
 export const getMarketplaceCoordinates = (source = {}) => extractCoordinatePair(source);
 
-const getSellerCoordinates = (sellerData = {}) =>
-  getMarketplaceCoordinates(sellerData)
-  || resolveAreaCoordinates(sellerData.address);
+const getSellerCoordinates = (sellerData = {}) => getMarketplaceCoordinates(sellerData);
 
 export const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
   if (
@@ -437,21 +426,15 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
     (snapshot) => {
       const sellers = snapshot.docs.map((sellerSnapshot) => {
         const sellerData = sellerSnapshot.data() || {};
-        const savedCoordinates = getMarketplaceCoordinates(sellerData);
-        const mappedAddressCoordinates = savedCoordinates
-          ? null
-          : resolveAreaCoordinates(sellerData.address);
-        const coordinates = savedCoordinates || mappedAddressCoordinates;
+        const coordinates = getSellerCoordinates(sellerData);
         logMarketplaceDiagnostic(
           "[MARKET DEBUG] seller coordinate resolution",
           {
             sellerId: sellerSnapshot.id,
-            savedCoordinates,
-            mappedAddressCoordinates,
             coordinates,
             reason: coordinates
-              ? savedCoordinates ? "saved_coordinates" : "matched_existing_location_mapping"
-              : "missing_or_invalid_coordinates",
+              ? "saved_shop_coordinates"
+              : "missing_or_invalid_saved_shop_coordinates",
           }
         );
         return {

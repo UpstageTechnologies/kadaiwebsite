@@ -583,11 +583,14 @@ const Register = () => {
         : [area, city, district, state, countryLabel];
       const manualCoordinates = isGpsAddress
         ? null
-        : await getManualAddressCoordinates({
+        : getAddressCoordinates(
+          locationOptions.areas.find((option) => option.id === area || option.value === area)
+        ) || await getManualAddressCoordinates({
           country: countryLabel,
           state,
           district,
           city,
+          area,
         });
       const savedCoordinates = gpsCoordinates || manualCoordinates;
       if (!getAddressCoordinates(savedCoordinates)) {

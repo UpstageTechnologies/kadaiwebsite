@@ -403,10 +403,6 @@ export const firebaseUpdateCustomer = async (uid, data) => {
   const authUser = auth?.currentUser || null;
   const authenticatedUid = authUser?.uid || "";
 
-  console.log("[ADDRESS DEBUG] auth.currentUser:", authUser);
-  console.log("[ADDRESS DEBUG] auth.currentUser exists:", !!authUser);
-  console.log("[ADDRESS DEBUG] auth UID:", authenticatedUid);
-
   if (!authUser || !authenticatedUid) {
     const expired = new Error("Your Firebase session is missing. Please log in again.");
     expired.code = "auth/session-expired";
@@ -442,9 +438,7 @@ export const firebaseUpdateCustomer = async (uid, data) => {
   }
 
   try {
-    console.log("[ADDRESS DEBUG] customer document path:", `customers/${customerUid}`);
     await updateDoc(customerRef, { address: nextAddress });
-    console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
     return true;
   } catch (error) {
     console.error("[FIRESTORE] firebaseUpdateCustomer failed:", error?.code || error?.message || error);
