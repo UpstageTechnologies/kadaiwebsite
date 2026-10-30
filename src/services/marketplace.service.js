@@ -55,60 +55,75 @@ export const sanitizeLatLon = (value, fallback = null) => {
   return parsed;
 };
 
-export const getAddressCoordinates = (source = {}) => {
-  const nestedAddress = source?.address
-    && typeof source.address === "object"
-    && !Array.isArray(source.address)
-    ? source.address
-    : source;
-  const address = nestedAddress || {};
-  const lat = sanitizeLatLon(address?.lat ?? address?.latitude, null);
-  const lon = sanitizeLatLon(address?.lon ?? address?.lng ?? address?.longitude, null);
+const getCoordinateSourceCandidates = (source = []) => {
+  const candidates = [];
+  const pushCandidate = (candidate) => {
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      candidates.push(candidate);
+    }
+  };
 
-  if (lat === null || lon === null) {
-    return null;
+  pushCandidate(source);
+  pushCandidate(source?.address);
+  pushCandidate(source?.coordinates);
+  pushCandidate(source?.location);
+  pushCandidate(source?.address?.coordinates);
+  pushCandidate(source?.address?.location);
+
+  if (source && typeof source === "object" && !Array.isArray(source)) {
+    Object.values(source).forEach((value) => {
+      if (value && typeof value === "object" && !Array.isArray(value) && !candidates.includes(value)) {
+        candidates.push(value);
+      }
+    });
   }
 
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-    return null;
-  }
-
-  return { lat, lon };
+  return candidates;
 };
 
-export const getMarketplaceCoordinates = (source = {}) => {
-  const nestedAddress = source?.address
-    && typeof source.address === "object"
-    && !Array.isArray(source.address)
-    ? source.address
-    : {};
-  const lat = sanitizeLatLon(
-    source?.lat ?? source?.latitude ?? nestedAddress.lat ?? nestedAddress.latitude,
-    null
-  );
-  const lon = sanitizeLatLon(
-    source?.lon
-      ?? source?.lng
-      ?? source?.longitude
-      ?? nestedAddress.lon
-      ?? nestedAddress.lng
-      ?? nestedAddress.longitude,
-    null
-  );
+const extractCoordinatePair = (source = {}) => {
+  const candidates = getCoordinateSourceCandidates(source);
 
-  if (
-    lat === null
-    || lon === null
-    || lat < -90
-    || lat > 90
-    || lon < -180
-    || lon > 180
-  ) {
-    return null;
+  for (const candidate of candidates) {
+    const lat = sanitizeLatLon(
+      candidate?.lat
+        ?? candidate?.latitude
+        ?? candidate?.coordinates?.lat
+        ?? candidate?.coordinates?.latitude
+        ?? candidate?.location?.lat
+        ?? candidate?.location?.latitude,
+      null
+    );
+    const lon = sanitizeLatLon(
+      candidate?.lon
+        ?? candidate?.lng
+        ?? candidate?.longitude
+        ?? candidate?.coordinates?.lon
+        ?? candidate?.coordinates?.lng
+        ?? candidate?.coordinates?.longitude
+        ?? candidate?.location?.lon
+        ?? candidate?.location?.lng
+        ?? candidate?.location?.longitude,
+      null
+    );
+
+    if (lat === null || lon === null) {
+      continue;
+    }
+
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      continue;
+    }
+
+    return { lat, lon };
   }
 
-  return { lat, lon };
+  return null;
 };
+
+export const getAddressCoordinates = (source = {}) => extractCoordinatePair(source);
+
+export const getMarketplaceCoordinates = (source = {}) => extractCoordinatePair(source);
 
 export const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
   if (

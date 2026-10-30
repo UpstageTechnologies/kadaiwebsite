@@ -50,7 +50,7 @@ const Products = () => {
 
   const customerLocation = useMemo(
     () => getAddressCoordinates(customer?.address),
-    [customer?.address]
+    [customer]
   );
 
   useEffect(() => {

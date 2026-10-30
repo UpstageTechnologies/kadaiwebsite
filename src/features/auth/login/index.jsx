@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiPhone, FiArrowLeft } from "react-icons/fi";
 import { signOut } from "firebase/auth";
-import { useLocation as useLocationContext } from "../../../components/LocationContext";
 import {
 auth,
 firebaseCreatePhoneVerifier,
@@ -19,7 +18,6 @@ import "./login.css";
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { requestLocation } = useLocationContext();
 
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -112,7 +110,6 @@ const validateAndShow = () => {
       }
 
       setSuccess("Login successful!");
-      requestLocation();
 
       const redirectPath = new URLSearchParams(location.search).get("redirect") || "/";
       navigate(redirectPath || "/", { replace: true });

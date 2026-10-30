@@ -57,21 +57,10 @@ const Products = () => {
       ? MARKET_MODES.GLOBAL
       : DEFAULT_MARKET_MODE;
   const userId = user?.uid || "";
-  const customerLocation = useMemo(() => {
-    const savedAddress = customer?.address;
-    const hasSavedAddress = (savedAddress
-    && typeof savedAddress === "object"
-    && !Array.isArray(savedAddress)
-    && Object.keys(savedAddress).length > 0)
-    || (typeof savedAddress === "string" && savedAddress.trim().length > 0);
-    const addressCoordinates = getMarketplaceCoordinates(savedAddress);
-
-    return addressCoordinates
-    || (hasSavedAddress && savedAddress.locationSource !== "gps"
-      ? null
-      : getMarketplaceCoordinates(customer?.currentLocation)
-        || getMarketplaceCoordinates(customer));
-  }, [customer]);
+  const customerLocation = useMemo(
+    () => getMarketplaceCoordinates(customer?.address),
+    [customer]
+  );
   const locationError = userId ? customerError : "";
   const [sellerState, setSellerState] = useState({
     sellers: [],
