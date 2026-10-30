@@ -385,6 +385,7 @@ const Products = () => {
               </div>
             </div>
 
+            <div className="products-list">
             {(error || sellerProfilesError || locationError) && (
               <div className="no-products">
                 <p>{error || sellerProfilesError || locationError}</p>
@@ -507,6 +508,7 @@ const Products = () => {
                 <button onClick={() => handleMarketChange(MARKET_MODES.LOCAL)}>View Local Products</button>
               </div>
             )}
+            </div>
           </section>
         </div>
       </main>
