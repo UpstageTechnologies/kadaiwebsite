@@ -9,6 +9,7 @@ import{
 } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
+import { resolveAreaCoordinates } from "./current-location-address.service";
 
 export const MARKET_MODES = {
   LOCAL: "local",
@@ -17,6 +18,12 @@ export const MARKET_MODES = {
 
 export const DEFAULT_MARKET_MODE = MARKET_MODES.LOCAL;
 export const NEARBY_DISTANCE_KM = 3;
+
+const logMarketplaceDiagnostic = (...values) => {
+  if (import.meta.env.DEV) {
+    console.debug(...values);
+  }
+};
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80";
@@ -125,6 +132,10 @@ export const getAddressCoordinates = (source = {}) => extractCoordinatePair(sour
 
 export const getMarketplaceCoordinates = (source = {}) => extractCoordinatePair(source);
 
+const getSellerCoordinates = (sellerData = {}) =>
+  getMarketplaceCoordinates(sellerData)
+  || resolveAreaCoordinates(sellerData.address);
+
 export const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
   if (
     !Number.isFinite(lat1) ||
@@ -231,26 +242,50 @@ export const mapFirestoreProduct = async (productSnapshot, marketType = MARKET_M
 export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => {
   const customerCoordinates = getAddressCoordinates(customerLocation);
   if (!customerCoordinates) {
+    logMarketplaceDiagnostic("[MARKET DEBUG] customer coordinates unavailable", {
+      reason: "missing_or_invalid_saved_address_coordinates",
+    });
     return [];
   }
 
-  return Object.entries(sellerLocationMap)
-    .filter(([, sellerLocation]) => {
-      const sellerCoordinates = getAddressCoordinates(sellerLocation);
-      if (!sellerCoordinates) {
-        return false;
-      }
+  logMarketplaceDiagnostic("[MARKET DEBUG] customer coordinates", customerCoordinates);
+  const nearbySellerIds = [];
 
-      const distanceKm = haversineDistanceKm(
-        customerCoordinates.lat,
-        customerCoordinates.lon,
-        sellerCoordinates.lat,
-        sellerCoordinates.lon
-      );
+  Object.entries(sellerLocationMap).forEach(([sellerId, sellerLocation]) => {
+    const sellerCoordinates = getAddressCoordinates(sellerLocation);
+    if (!sellerCoordinates) {
+      logMarketplaceDiagnostic("[MARKET DEBUG] seller excluded", {
+        sellerId,
+        reason: "missing_or_invalid_coordinates",
+      });
+      return;
+    }
 
-      return Number.isFinite(distanceKm) && distanceKm <= NEARBY_DISTANCE_KM;
-    })
-    .map(([sellerId]) => sellerId);
+    const distanceKm = haversineDistanceKm(
+      customerCoordinates.lat,
+      customerCoordinates.lon,
+      sellerCoordinates.lat,
+      sellerCoordinates.lon
+    );
+    const included = Number.isFinite(distanceKm) && distanceKm <= NEARBY_DISTANCE_KM;
+
+    logMarketplaceDiagnostic("[MARKET DEBUG] seller distance", {
+      sellerId,
+      coordinates: sellerCoordinates,
+      distanceKm,
+      included,
+      reason: Number.isFinite(distanceKm)
+        ? included ? "within_radius" : "outside_radius"
+        : "invalid_distance",
+    });
+
+    if (included) {
+      nearbySellerIds.push(sellerId);
+    }
+  });
+
+  logMarketplaceDiagnostic("[MARKET DEBUG] nearby seller IDs", nearbySellerIds);
+  return nearbySellerIds;
 };
 
 export const subscribeMarketplaceProducts = ({
@@ -277,6 +312,21 @@ export const subscribeMarketplaceProducts = ({
 
         const catalog = products.filter(Boolean);
         setMarketplaceCatalog(catalog);
+
+        if (marketMode === MARKET_MODES.LOCAL) {
+          const productCountsBySeller = {};
+          catalog.forEach((product) => {
+            const sellerId = String(product.shopId || product.sellerId || "");
+            productCountsBySeller[sellerId || "(missing)"] =
+              (productCountsBySeller[sellerId || "(missing)"] || 0) + 1;
+          });
+          logMarketplaceDiagnostic("[MARKET DEBUG] local inventory snapshot", {
+            collectionGroup: collectionName,
+            documents: snapshot.size,
+            mappedProducts: catalog.length,
+            productCountsBySeller,
+          });
+        }
 
         if (typeof onProducts === "function") {
           onProducts(catalog);
@@ -387,6 +437,23 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
     (snapshot) => {
       const sellers = snapshot.docs.map((sellerSnapshot) => {
         const sellerData = sellerSnapshot.data() || {};
+        const savedCoordinates = getMarketplaceCoordinates(sellerData);
+        const mappedAddressCoordinates = savedCoordinates
+          ? null
+          : resolveAreaCoordinates(sellerData.address);
+        const coordinates = savedCoordinates || mappedAddressCoordinates;
+        logMarketplaceDiagnostic(
+          "[MARKET DEBUG] seller coordinate resolution",
+          {
+            sellerId: sellerSnapshot.id,
+            savedCoordinates,
+            mappedAddressCoordinates,
+            coordinates,
+            reason: coordinates
+              ? savedCoordinates ? "saved_coordinates" : "matched_existing_location_mapping"
+              : "missing_or_invalid_coordinates",
+          }
+        );
         return {
           id: sellerSnapshot.id,
           shopName: safeText(
@@ -395,7 +462,7 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
           ),
           image: getSellerImage(sellerData),
           address: getSellerAddressText(sellerData),
-          coordinates: getMarketplaceCoordinates(sellerData),
+          coordinates,
         };
       });
 
@@ -431,7 +498,7 @@ export const subscribeSellerLocations = ({ onLocations, onError }) => {
 
       snapshot.docs.forEach((documentSnapshot) => {
         const sellerData = documentSnapshot.data() || {};
-        const coordinates = getAddressCoordinates(sellerData);
+        const coordinates = getSellerCoordinates(sellerData);
 
         if (coordinates) {
           sellerLocations[documentSnapshot.id] = coordinates;

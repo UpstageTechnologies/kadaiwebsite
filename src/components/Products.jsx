@@ -69,11 +69,7 @@ const Products = () => {
   }, []);
 
   const sellerLocations = useMemo(
-    () => Object.fromEntries(
-      sellerProfiles
-        .filter((seller) => seller.coordinates)
-        .map((seller) => [seller.id, seller.coordinates])
-    ),
+    () => Object.fromEntries(sellerProfiles.map((seller) => [seller.id, seller.coordinates])),
     [sellerProfiles]
   );
 
@@ -124,6 +120,32 @@ const Products = () => {
 
     return [...uniqueProducts.values()];
   }, [localProducts, nearbySellerIds]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const productCountsBySeller = {};
+    localProducts.forEach((product) => {
+      const sellerId = String(product.shopId || product.sellerId || "");
+      productCountsBySeller[sellerId || "(missing)"] =
+        (productCountsBySeller[sellerId || "(missing)"] || 0) + 1;
+    });
+
+    console.debug("[MARKET DEBUG] home local product filtering", {
+      customerCoordinates: customerLocation,
+      sellerProfileCount: sellerProfiles.length,
+      nearbySellerIds,
+      inventoryProductCount: localProducts.length,
+      inventoryProductCountsBySeller: productCountsBySeller,
+      matchingLocalProductCount: filteredLocalProducts.length,
+    });
+  }, [
+    customerLocation,
+    filteredLocalProducts,
+    localProducts,
+    nearbySellerIds,
+    sellerProfiles.length,
+  ]);
 
   const eligibleShops = useMemo(() => {
     const shopIdsWithProducts = new Set(

@@ -47,8 +47,16 @@ export const AuthProvider = ({ children }) => {
         customerRef,
         (snapshot) => {
           if (auth.currentUser?.uid !== firebaseUser.uid) return;
-          setCustomer(snapshot.exists()
-            ? { ...snapshot.data(), uid: firebaseUser.uid }
+          const customerData = snapshot.exists() ? snapshot.data() || {} : null;
+          if (import.meta.env.DEV) {
+            console.debug("[AUTH DEBUG] customer snapshot address coordinates", {
+              documentExists: snapshot.exists(),
+              lat: customerData?.address?.lat ?? null,
+              lon: customerData?.address?.lon ?? null,
+            });
+          }
+          setCustomer(customerData
+            ? { ...customerData, uid: firebaseUser.uid }
             : null);
           setCustomerError("");
           setLoading(false);

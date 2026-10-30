@@ -128,11 +128,7 @@ const Products = () => {
   }, []);
 
   const sellerLocationMap = useMemo(
-    () => Object.fromEntries(
-      sellerProfiles
-        .filter((seller) => seller.coordinates)
-        .map((seller) => [seller.id, seller.coordinates])
-    ),
+    () => Object.fromEntries(sellerProfiles.map((seller) => [seller.id, seller.coordinates])),
     [sellerProfiles]
   );
   const nearbySellerIds = useMemo(

@@ -113,6 +113,7 @@ export const CITY_POPULAR_AREAS = {
 
 export const normalizeAddressPayload = (address = {}) => ({
   country: String(address.country || "").trim(),
+  countryCode: String(address.countryCode || "").trim(),
   state: String(address.state || "").trim(),
   district: String(address.district || "").trim(),
   city: String(address.city || "").trim(),
@@ -120,45 +121,51 @@ export const normalizeAddressPayload = (address = {}) => ({
   pincode: String(address.pincode || "").trim(),
 });
 
-const resolveKnownLocationCoordinates = ({ city, district, state, area, country }) => {
-  const cityKey = normalizeGeocodingLabel(city || district || state || country);
-  const districtKey = normalizeGeocodingLabel(district || city || state || country);
-  const areaKey = normalizeGeocodingLabel(area || city || district || state || country);
+const matchesMappedLocation = (address, mappedLocation) => {
+  if (!address.state || !labelsMatch(address.state, mappedLocation.state)) {
+    return false;
+  }
 
-  if (areaKey && CITY_POPULAR_AREAS[cityKey]) {
-    const areaMatch = Object.entries(CITY_POPULAR_AREAS[cityKey]).find(([key]) => normalizeGeocodingLabel(key) === areaKey);
-    if (areaMatch) {
-      const [, coordinates] = areaMatch;
-      return {
-        lat: Number(coordinates.lat),
-        lon: Number(coordinates.lon),
-      };
+  const countryValues = [address.country, address.countryCode]
+    .map(normalizeGeocodingLabel)
+    .filter(Boolean);
+  const mappedCountry = normalizeGeocodingLabel(mappedLocation.country);
+  if (
+    countryValues.length
+    && !countryValues.some((value) =>
+      value === mappedCountry || (value === "in" && mappedCountry === "india")
+    )
+  ) {
+    return false;
+  }
+
+  return !address.district || labelsMatch(address.district, mappedLocation.district);
+};
+
+const resolveKnownLocationCoordinates = (address) => {
+  const cityKey = normalizeGeocodingLabel(address.city);
+  const districtKey = normalizeGeocodingLabel(address.district);
+  const areaKey = normalizeGeocodingLabel(address.area);
+  const cityEntry = Object.entries(CITY_COORDINATES)
+    .find(([key]) => normalizeGeocodingLabel(key) === cityKey);
+
+  if (cityEntry) {
+    const [, mappedLocation] = cityEntry;
+    if (!matchesMappedLocation(address, mappedLocation)) {
+      return null;
     }
+
+    const areaCoordinates = Object.entries(CITY_POPULAR_AREAS[cityEntry[0]] || {})
+      .find(([key]) => normalizeGeocodingLabel(key) === areaKey)?.[1];
+    return areaCoordinates || mappedLocation;
   }
 
-  const cityMatch = Object.entries(CITY_COORDINATES).find(([key]) => normalizeGeocodingLabel(key) === cityKey || normalizeGeocodingLabel(key) === districtKey);
-  if (cityMatch) {
-    const [, coordinates] = cityMatch;
-    return {
-      lat: Number(coordinates.lat),
-      lon: Number(coordinates.lon),
-    };
-  }
-
-  if (districtKey) {
-    const districtMatch = Object.entries(CITY_COORDINATES).find(([key, value]) =>
-      normalizeGeocodingLabel(value.district || key) === districtKey
-    );
-    if (districtMatch) {
-      const [, coordinates] = districtMatch;
-      return {
-        lat: Number(coordinates.lat),
-        lon: Number(coordinates.lon),
-      };
-    }
-  }
-
-  return null;
+  const districtEntry = Object.entries(CITY_COORDINATES).find(([key, mappedLocation]) =>
+    normalizeGeocodingLabel(key) === districtKey
+    && normalizeGeocodingLabel(mappedLocation.district) === districtKey
+    && matchesMappedLocation(address, mappedLocation)
+  );
+  return districtEntry?.[1] || null;
 };
 
 export const resolveAreaCoordinates = (locationData = {}) => {

@@ -525,6 +525,14 @@ export default function AddressChangeModal({
         console.log("[ADDRESS DEBUG] successful customer update:", `customers/${customerUid}`);
         await firebaseUpdateCustomer(customerUid, { address: nextAddress });
       }
+      if (import.meta.env.DEV) {
+        console.debug("[ADDRESS DEBUG] address save coordinates", {
+          lat: nextAddress.lat,
+          lon: nextAddress.lon,
+          locationSource: nextAddress.locationSource,
+          persistedToCustomerDocument: !isCheckoutFlow,
+        });
+      }
       onSaved?.(nextAddress);
       onClose();
     } catch (error) {
