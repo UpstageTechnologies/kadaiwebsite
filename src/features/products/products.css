@@ -268,23 +268,23 @@
 
 .shop-selector-list {
   display: flex;
-  gap: 18px;
-  overflow-x: auto;
-  padding: 2px 2px 8px;
-  scrollbar-width: thin;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px;
 }
 
 .shop-selector-item {
-  width: 82px;
-  flex: 0 0 82px;
+  width: 100%;
+  flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 8px;
-  padding: 0;
+  gap: 10px;
+  padding: 4px 0;
   border: 0;
   background: transparent;
   color: #666;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -322,13 +322,10 @@
 
 .shop-selector-name {
   width: 100%;
-  overflow: hidden;
   color: #202a25;
   font-size: 11px;
   font-weight: 600;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .shop-selector-empty {
@@ -355,14 +352,14 @@
 }
 
 .products-sidebar .shop-selector-list {
-  gap: 12px;
-  margin: 0 -8px;
+  gap: 10px;
+  margin: 0;
 }
 
 .products-sidebar .shop-selector-item {
-  width: 66px;
-  flex-basis: 66px;
-  gap: 6px;
+  width: 100%;
+  flex-basis: auto;
+  gap: 10px;
 }
 
 .products-sidebar .shop-selector-icon {
