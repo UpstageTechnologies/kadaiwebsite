@@ -1,11 +1,5 @@
 .products-page {
-  --products-navbar-height: 76px;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - var(--products-navbar-height) - 10px);
-  height: calc(100dvh - var(--products-navbar-height) - 10px);
-  overflow: hidden;
   padding: 0 6% 70px;
   background: #f8faf9;
   box-sizing: border-box;
@@ -13,7 +7,6 @@
 
 .products-header {
   display: flex;
-  flex: 0 0 auto;
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
@@ -123,17 +116,14 @@
 
 .products-layout {
   display: grid;
-  flex: 1 1 auto;
-  min-height: 0;
   grid-template-columns: 220px 1fr;
   gap: 35px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .products-sidebar {
   position: sticky;
-  top: 0;
-  align-self: start;
+  top: 100px;
   padding: 22px;
   background: #ffffff;
   border-radius: 16px;
@@ -206,29 +196,17 @@
 }
 
 .products-content {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
   min-width: 0;
 }
 
 .products-topbar {
   display: flex;
-  flex: 0 0 auto;
 
   justify-content: space-between;
 
   align-items: center;
 
   margin-bottom: 22px;
-}
-
-.products-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 .products-topbar h2 {
@@ -708,10 +686,6 @@
 @media (max-width: 1024px) {
 
   .products-page {
-    --products-navbar-height: 64px;
-  }
-
-  .products-page {
     padding: 35px 4% 60px;
   }
 
@@ -741,7 +715,6 @@
 @media (max-width: 768px) {
 
   .products-page {
-    --products-navbar-height: 56px;
     padding: 30px 4% 50px;
   }
 
@@ -758,27 +731,19 @@
   }
 
   .products-layout {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
+    display: block;
   }
 
   /* Sidebar becomes top filter */
 
   .products-sidebar {
     position: static;
-    flex: 0 0 auto;
 
     margin-bottom: 25px;
 
     padding: 16px;
 
     overflow: hidden;
-  }
-
-  .products-content {
-    flex: 1 1 auto;
-    min-height: 0;
   }
 
   .products-sidebar h3 {
@@ -831,7 +796,6 @@
 @media (max-width: 480px) {
 
   .products-page {
-    --products-navbar-height: 52px;
     padding: 22px 15px 40px;
   }
 
@@ -996,4 +960,49 @@
     font-size: 7px;
   }
 
+}
+
+@media (min-width: 1025px) {
+  .products-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 76px);
+    height: calc(100dvh - 76px);
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .products-header {
+    flex: 0 0 auto;
+  }
+
+  .products-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .products-sidebar {
+    position: sticky;
+    top: 0;
+    align-self: start;
+  }
+
+  .products-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .products-topbar {
+    flex: 0 0 auto;
+  }
+
+  .products-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+  }
 }
