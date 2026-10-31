@@ -12,7 +12,6 @@ import { useCart } from "./CardContext";
 import { useAuth } from "./AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
-  getAddressCoordinates,
   getCustomerActiveCoordinates,
   getNearbySellerIds,
   MARKET_MODES,

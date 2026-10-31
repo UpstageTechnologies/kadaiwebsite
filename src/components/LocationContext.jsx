@@ -8,6 +8,7 @@ import { FiX } from "react-icons/fi";
 import { doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "./AuthContext";
 import { auth, db } from "../services/firebase";
+import { reverseGeocodeLocation } from "../services/current-location-address.service";
 
 const openLocationSettings = () => {
   const platform = navigator.userAgent || "";
@@ -111,16 +112,13 @@ export const LocationProvider = ({ children }) => {
         };
 
         try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coordinates.latitude}&lon=${coordinates.longitude}&accept-language=en`,
-            { headers: { Accept: "application/json", "User-Agent": "KadaiApp/1.0" } }
+          const data = await reverseGeocodeLocation(
+            coordinates.latitude,
+            coordinates.longitude
           );
-
-          if (!response.ok) {
+          if (!data) {
             throw new Error("Unable to find an address for this location.");
           }
-
-          const data = await response.json();
           const detectedLocation = {
             ...coordinates,
             lat: coordinates.latitude,

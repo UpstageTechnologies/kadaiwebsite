@@ -125,6 +125,7 @@ export const normalizeAddressPayload = (address = {}) => ({
   district: String(address.district || "").trim(),
   city: String(address.city || "").trim(),
   area: String(address.area || "").trim(),
+  road: String(address.road || "").trim(),
   pincode: String(address.pincode || "").trim(),
 });
 
@@ -748,16 +749,19 @@ export const BASE_LOCATION_HIERARCHY = {
 };
 
 const toFiniteNumber = (value) => {
+  if (
+    (typeof value !== "number" && typeof value !== "string")
+    || (typeof value === "string" && !value.trim())
+  ) {
+    return null;
+  }
+
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
 const isValidLatLonPair = (lat, lon) => {
   if (lat === null || lon === null) {
-    return false;
-  }
-
-  if (lat === 0 && lon === 0) {
     return false;
   }
 
@@ -769,13 +773,17 @@ const isValidLatLonPair = (lat, lon) => {
     && lon <= 180;
 };
 
-export const calculateDistance = (pointA, pointB) => {
-  const first = pointA && typeof pointA === "object" ? pointA : { lat: pointA, lon: pointB };
-  const second = pointB && typeof pointB === "object" ? pointB : { lat: pointA, lon: pointB };
-  const lat1 = toFiniteNumber(first.lat ?? first.latitude ?? first.latitude ?? null);
-  const lon1 = toFiniteNumber(first.lon ?? first.lng ?? first.longitude ?? null);
-  const lat2 = toFiniteNumber(second.lat ?? second.latitude ?? null);
-  const lon2 = toFiniteNumber(second.lon ?? second.lng ?? second.longitude ?? null);
+export const calculateDistance = (pointA, pointB, latitude2, longitude2) => {
+  const first = latitude2 === undefined && longitude2 === undefined
+    ? pointA
+    : { lat: pointA, lon: pointB };
+  const second = latitude2 === undefined && longitude2 === undefined
+    ? pointB
+    : { lat: latitude2, lon: longitude2 };
+  const lat1 = toFiniteNumber(first?.lat ?? first?.latitude);
+  const lon1 = toFiniteNumber(first?.lon ?? first?.lng ?? first?.longitude);
+  const lat2 = toFiniteNumber(second?.lat ?? second?.latitude);
+  const lon2 = toFiniteNumber(second?.lon ?? second?.lng ?? second?.longitude);
 
   if (!isValidLatLonPair(lat1, lon1) || !isValidLatLonPair(lat2, lon2)) {
     return Number.POSITIVE_INFINITY;
@@ -797,37 +805,54 @@ export const calculateDistance = (pointA, pointB) => {
 };
 
 export const getSellerCoordinates = (sellerData = {}) => {
-  const source = sellerData || {};
-  const lat = toFiniteNumber(
-    source.lat
-      ?? source.latitude
-      ?? source.location?.lat
-      ?? source.location?.latitude
-      ?? source.address?.lat
-      ?? source.address?.latitude
-      ?? source.coordinates?.lat
-      ?? source.coordinates?.latitude
-  );
-  const lon = toFiniteNumber(
-    source.lon
-      ?? source.lng
-      ?? source.longitude
-      ?? source.location?.lon
-      ?? source.location?.lng
-      ?? source.location?.longitude
-      ?? source.address?.lon
-      ?? source.address?.lng
-      ?? source.address?.longitude
-      ?? source.coordinates?.lon
-      ?? source.coordinates?.lng
-      ?? source.coordinates?.longitude
-  );
+  const source = sellerData && typeof sellerData === "object" ? sellerData : {};
+  const nestedFields = [
+    "address",
+    "coordinates",
+    "location",
+    "coords",
+    "shopAddress",
+    "storeAddress",
+    "shopLocation",
+    "storeLocation",
+    "shopCoordinates",
+    "storeCoordinates",
+    "geoPoint",
+  ];
+  const sources = [];
+  const queue = [source];
+  const visited = new Set();
 
-  if (!isValidLatLonPair(lat, lon)) {
-    return null;
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (
+      !candidate
+      || typeof candidate !== "object"
+      || Array.isArray(candidate)
+      || visited.has(candidate)
+    ) {
+      continue;
+    }
+
+    visited.add(candidate);
+    sources.push(candidate);
+    nestedFields.forEach((field) => {
+      const nested = candidate[field];
+      if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+        queue.push(nested);
+      }
+    });
   }
 
-  return { lat, lon };
+  for (const candidate of sources) {
+    const lat = toFiniteNumber(candidate.lat ?? candidate.latitude);
+    const lon = toFiniteNumber(candidate.lon ?? candidate.lng ?? candidate.longitude);
+    if (isValidLatLonPair(lat, lon)) {
+      return { lat, lon };
+    }
+  }
+
+  return null;
 };
 
 const safeLocalStorage = {
@@ -845,10 +870,12 @@ const safeLocalStorage = {
     try {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(key, value);
+        return true;
       }
     } catch {
-      // Ignore storage availability issues.
+      return false;
     }
+    return false;
   },
 };
 
@@ -865,11 +892,31 @@ export const getCachedLocation = (storageKey = "kadai_active_location") => {
 };
 
 export const saveActiveLocation = (location, storageKey = "kadai_active_location") => {
-  const nextLocation = location && typeof location === "object" ? location : null;
-  if (!nextLocation) return null;
-  safeLocalStorage.setItem(storageKey, JSON.stringify(nextLocation));
+  if (!location || typeof location !== "object" || Array.isArray(location)) {
+    throw new Error("Cannot cache an invalid active address.");
+  }
+
+  const lat = toFiniteNumber(location.lat ?? location.latitude);
+  const lon = toFiniteNumber(location.lon ?? location.lng ?? location.longitude);
+  if (!isValidLatLonPair(lat, lon)) {
+    throw new Error("Cannot cache an active address without valid coordinates.");
+  }
+
+  const nextLocation = {
+    ...location,
+    lat,
+    lon,
+    latitude: lat,
+    longitude: lon,
+  };
+  if (!safeLocalStorage.setItem(storageKey, JSON.stringify(nextLocation))) {
+    console.warn("[LOCATION] Active address saved in Firestore but browser storage is unavailable.");
+  }
   return nextLocation;
 };
+
+export const getActiveLocationStorageKey = (userId) =>
+  userId ? `kadai_active_location:${userId}` : "kadai_active_location";
 
 export const fetchUserSavedAddresses = (customer = []) => {
   if (Array.isArray(customer)) {
@@ -889,7 +936,6 @@ export const detectUserLocation = async () => getCurrentLocationAddress();
 
 const normalizeLanguageLabel = (value) => String(value ?? "")
   .trim()
-  .replace(/[\u0000-\u001F\u007F]/g, "")
   .replace(/\s+/g, " ");
 
 const normalizeEnglishAddressText = (value, fallback = "") => {
@@ -918,23 +964,22 @@ const sanitizeEnglishAddress = (address = {}) => {
 };
 
 export const reverseGeocodeLocation = async (lat, lon) => {
-  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
-    return null;
+  const latitude = toFiniteNumber(lat);
+  const longitude = toFiniteNumber(lon);
+  if (!isValidLatLonPair(latitude, longitude)) {
+    throw new Error("Cannot reverse geocode invalid coordinates.");
   }
 
   const url = new URL("https://nominatim.openstreetmap.org/reverse");
   url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("lat", String(Number(lat)));
-  url.searchParams.set("lon", String(Number(lon)));
+  url.searchParams.set("lat", String(latitude));
+  url.searchParams.set("lon", String(longitude));
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("zoom", "18");
   url.searchParams.set("accept-language", "en");
 
   const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "KadaiApp/1.0",
-    },
+    headers: { Accept: "application/json" },
   });
 
   if (!response.ok) {
@@ -995,72 +1040,58 @@ export const fetchAvailableStoreLocations = async () => {
   });
 };
 
-const matchesMappedLocation = (address, mappedLocation) => {
-  if (!address.state || !labelsMatch(address.state, mappedLocation.state)) {
-    return false;
+const findExactHierarchyEntry = (entries, value) => {
+  const token = normalizeGeocodingLabel(value);
+  if (!token || !entries || typeof entries !== "object") {
+    return null;
   }
 
-  const countryValues = [address.country, address.countryCode]
-    .map(normalizeGeocodingLabel)
-    .filter(Boolean);
-  const mappedCountry = normalizeGeocodingLabel(mappedLocation.country);
-  if (
-    countryValues.length
-    && !countryValues.some((value) =>
-      value === mappedCountry || (value === "in" && mappedCountry === "india")
+  return Object.entries(entries).find(([key, entry]) =>
+    [key, entry?.id, entry?.name].some(
+      (candidate) => normalizeGeocodingLabel(candidate) === token
     )
-  ) {
-    return false;
-  }
-
-  return !address.district || labelsMatch(address.district, mappedLocation.district);
+  )?.[1] || null;
 };
 
-const resolveKnownLocationCoordinates = (address) => {
-  const cityKey = normalizeGeocodingLabel(address.city);
-  const districtKey = normalizeGeocodingLabel(address.district);
-  const areaKey = normalizeGeocodingLabel(address.area);
-  const cityEntry = Object.entries(CITY_COORDINATES)
-    .find(([key]) => normalizeGeocodingLabel(key) === cityKey);
-
-  if (cityEntry) {
-    const [, mappedLocation] = cityEntry;
-    if (!matchesMappedLocation(address, mappedLocation)) {
-      return null;
-    }
-
-    const areaCoordinates = Object.entries(CITY_POPULAR_AREAS[cityEntry[0]] || {})
-      .find(([key]) => normalizeGeocodingLabel(key) === areaKey)?.[1];
-    return areaCoordinates || mappedLocation;
+const resolveKnownAreaCoordinates = (address) => {
+  const areaToken = normalizeGeocodingLabel(address.area || address.road);
+  if (!areaToken) {
+    return null;
   }
 
-  const districtEntry = Object.entries(CITY_COORDINATES).find(([key, mappedLocation]) =>
-    normalizeGeocodingLabel(key) === districtKey
-    && normalizeGeocodingLabel(mappedLocation.district) === districtKey
-    && matchesMappedLocation(address, mappedLocation)
+  const country = findExactHierarchyEntry(BASE_LOCATION_HIERARCHY, address.country);
+  const state = findExactHierarchyEntry(country?.states, address.state);
+  const district = findExactHierarchyEntry(state?.districts, address.district);
+  const city = findExactHierarchyEntry(district?.cities, address.city);
+  if (!city || !Array.isArray(city.streets)) {
+    return null;
+  }
+
+  const street = city.streets.find(
+    (entry) => normalizeGeocodingLabel(entry?.name) === areaToken
   );
-  return districtEntry?.[1] || null;
+  if (!street) {
+    return null;
+  }
+
+  const lat = toFiniteNumber(street.lat);
+  const lon = toFiniteNumber(street.lon);
+  return isValidLatLonPair(lat, lon) ? { lat, lon } : null;
 };
 
 export const resolveAreaCoordinates = (locationData = {}) => {
   const normalizedAddress = normalizeAddressPayload(locationData);
-  const result = resolveKnownLocationCoordinates(normalizedAddress);
-  if (!result) {
-    return null;
-  }
-
   if (
-    !Number.isFinite(result.lat)
-    || !Number.isFinite(result.lon)
-    || result.lat < -90
-    || result.lat > 90
-    || result.lon < -180
-    || result.lon > 180
+    !normalizedAddress.country
+    || !normalizedAddress.state
+    || !normalizedAddress.district
+    || !normalizedAddress.city
+    || !(normalizedAddress.area || normalizedAddress.road)
   ) {
     return null;
   }
 
-  return { lat: result.lat, lon: result.lon };
+  return resolveKnownAreaCoordinates(normalizedAddress);
 };
 
 export const forwardGeocodeAddress = async ({
@@ -1069,9 +1100,10 @@ export const forwardGeocodeAddress = async ({
   district,
   city,
   area,
+  road,
   pincode,
 }) => {
-  const queryParts = [area, city, district, state, country, pincode]
+  const queryParts = [road, area, city, district, state, country, pincode]
     .map((part) => String(part || "").trim())
     .filter(Boolean);
 
@@ -1084,6 +1116,7 @@ export const forwardGeocodeAddress = async ({
   searchUrl.searchParams.set("addressdetails", "1");
   searchUrl.searchParams.set("limit", "5");
   searchUrl.searchParams.set("q", queryParts.join(", "));
+  searchUrl.searchParams.set("accept-language", "en");
 
   const response = await fetch(searchUrl, {
     headers: { Accept: "application/json" },
@@ -1096,12 +1129,12 @@ export const forwardGeocodeAddress = async ({
   const results = await response.json();
   const matchingResult = (Array.isArray(results) ? results : []).find((result) => {
     const address = result?.address || {};
-    const districtMatches = matchesGeocodingLabel(district || city || state, [
+    const districtMatches = !district || matchesGeocodingLabel(district, [
       address.state_district,
       address.county,
       address.district,
     ]);
-    const cityMatches = matchesGeocodingLabel(city || district || state, [
+    const cityMatches = !city || matchesGeocodingLabel(city, [
       address.city,
       address.town,
       address.village,
@@ -1110,7 +1143,37 @@ export const forwardGeocodeAddress = async ({
       address.locality,
       address.city_district,
     ]);
-    return districtMatches && cityMatches;
+    const stateMatches = !state || matchesGeocodingLabel(state, [address.state]);
+    const countryMatches = !country || matchesGeocodingLabel(country, [address.country]);
+    const areaMatches = !area || matchesGeocodingLabel(area, [
+      address.suburb,
+      address.neighbourhood,
+      address.quarter,
+      address.city_district,
+      address.hamlet,
+      address.locality,
+      address.village,
+    ]);
+    const roadMatches = !road || matchesGeocodingLabel(road, [
+      address.road,
+      address.pedestrian,
+      address.residential,
+      address.street,
+      address.footway,
+      address.path,
+    ]);
+    const normalizedPincode = String(pincode || "").trim();
+    const resultPincode = String(address.postcode || "").trim();
+    const pincodeMatches = !normalizedPincode
+      || !resultPincode
+      || normalizedPincode === resultPincode;
+    return districtMatches
+      && cityMatches
+      && stateMatches
+      && countryMatches
+      && areaMatches
+      && roadMatches
+      && pincodeMatches;
   }) || null;
 
   if (!matchingResult) {
@@ -1186,14 +1249,12 @@ export const getManualAddressCoordinates = async ({
   district,
   city,
   area,
+  road,
+  pincode,
+  areaCoordinates,
 }) => {
   if (![country, state, district, city].every((value) => String(value || "").trim())) {
     throw new Error("Please select a City, District, State, and Country before locating this address.");
-  }
-
-  const knownCoordinates = resolveAreaCoordinates({ country, state, district, city, area });
-  if (knownCoordinates) {
-    return knownCoordinates;
   }
 
   const geocodedCoordinates = await forwardGeocodeAddress({
@@ -1202,28 +1263,41 @@ export const getManualAddressCoordinates = async ({
     district,
     city,
     area,
+    road,
+    pincode,
   });
   if (geocodedCoordinates) {
     return geocodedCoordinates;
   }
 
+  const areaLatitude = toFiniteNumber(areaCoordinates?.lat ?? areaCoordinates?.latitude);
+  const areaLongitude = toFiniteNumber(
+    areaCoordinates?.lon ?? areaCoordinates?.lng ?? areaCoordinates?.longitude
+  );
+  if (isValidLatLonPair(areaLatitude, areaLongitude)) {
+    return { lat: areaLatitude, lon: areaLongitude };
+  }
+
+  const exactAreaCoordinates = resolveAreaCoordinates({
+    country,
+    state,
+    district,
+    city,
+    area,
+    road,
+  });
+  if (exactAreaCoordinates) {
+    return exactAreaCoordinates;
+  }
+
   throw new Error(
-    "We couldn't reliably locate this address. Check the selected City and District, then try again."
+    "We couldn't resolve this selected address. Check the area or street and try again; no previous or default coordinates were used."
   );
 };
 
 export const getCurrentLocationAddress = async () => {
   const coordinates = await getCoordinates();
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coordinates.latitude}&lon=${coordinates.longitude}&accept-language=en`,
-    { headers: { Accept: "application/json", "User-Agent": "KadaiApp/1.0" } }
-  );
-
-  if (!response.ok) {
-    throw new Error("Unable to reverse geocode current location.");
-  }
-
-  const data = await response.json();
+  const data = await reverseGeocodeLocation(coordinates.latitude, coordinates.longitude);
   const parts = data?.address || {};
   const house = firstValue(parts.house_number, parts["addr:housenumber"]);
   const building = firstValue(

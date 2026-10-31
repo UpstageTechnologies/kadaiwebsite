@@ -6,6 +6,10 @@ import {
 } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, firebaseCustomerDoc, onSnapshot } from "../services/firebase";
+import {
+  getActiveLocationStorageKey,
+  saveActiveLocation,
+} from "../services/current-location-address.service";
 
 const AuthContext = createContext({
   user: null,
@@ -48,6 +52,18 @@ export const AuthProvider = ({ children }) => {
         (snapshot) => {
           if (auth.currentUser?.uid !== firebaseUser.uid) return;
           const customerData = snapshot.exists() ? snapshot.data() || {} : null;
+          if (customerData?.address && typeof customerData.address === "object") {
+            try {
+              saveActiveLocation(
+                customerData.address,
+                getActiveLocationStorageKey(firebaseUser.uid)
+              );
+            } catch (cacheError) {
+              if (import.meta.env.DEV) {
+                console.warn("[AUTH] Saved address was not cached:", cacheError);
+              }
+            }
+          }
           if (import.meta.env.DEV) {
             console.debug("[AUTH DEBUG] customer snapshot address coordinates", {
               documentExists: snapshot.exists(),

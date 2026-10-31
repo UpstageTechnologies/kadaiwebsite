@@ -9,8 +9,10 @@ import {
   getRegistrationLocationOptions,
 } from "../services/registration-location.service";
 import {
+  getActiveLocationStorageKey,
   getCurrentLocationAddress,
   getManualAddressCoordinates,
+  saveActiveLocation,
 } from "../services/current-location-address.service";
 import { getAddressCoordinates } from "../services/marketplace.service";
 
@@ -29,8 +31,8 @@ const normalizeAddress = (value = {}) => ({
   fullAddress: value.fullAddress || value.address || "",
   formattedAddress: value.formattedAddress || value.fullAddress || value.address || "",
   pincode: value.pincode || "",
-  lat: value.lat ?? null,
-  lon: value.lon ?? null,
+  lat: value.lat ?? value.latitude ?? null,
+  lon: value.lon ?? value.lng ?? value.longitude ?? null,
   locationSource: value.locationSource === "gps" ? "gps" : "manual",
 });
 
@@ -474,22 +476,21 @@ export default function AddressChangeModal({
       setIsSavingAddress(true);
       setAddressError("");
 
-      let manualCoordinates = null;
-      if (!isDirectAddressFlow && addressMode === "manual") {
-        const optionLabel = (options, value) =>
-          options.find((option) => option.id === value || option.value === value)?.label || value;
-        const selectedArea = addressAreaOptions.find((option) =>
-          option.id === selectedAreaId || option.value === selectedAreaId
-        );
-        manualCoordinates = getAddressCoordinates(selectedArea)
-          || await getManualAddressCoordinates({
-            country: optionLabel(addressCountryOptions, addressCountryId),
-            state: optionLabel(addressStateOptions, addressState),
-            district: optionLabel(addressDistrictOptions, addressDistrict),
-            city: optionLabel(addressCityOptions, addressCity),
-            area: optionLabel(addressAreaOptions, addressArea),
-          });
-      }
+      const selectedAreaOption = addressAreaOptions.find(
+        (option) => option.id === selectedAreaId || option.value === selectedAreaId
+      );
+      const manualCoordinates = addressMode === "manual" && !isCheckoutFlow
+        ? await getManualAddressCoordinates({
+          country: optionLabel(addressCountryOptions, selectedCountryId),
+          state: optionLabel(addressStateOptions, selectedStateId),
+          district: optionLabel(addressDistrictOptions, selectedDistrictId),
+          city: optionLabel(addressCityOptions, selectedCityId),
+          area: optionLabel(addressAreaOptions, selectedAreaId),
+          road: addressRoad,
+          pincode: addressPincode,
+          areaCoordinates: selectedAreaOption,
+        })
+        : null;
 
       const nextAddress = {
         country: isDirectAddressFlow ? selectedCountryId : addressCountryId,
@@ -509,15 +510,20 @@ export default function AddressChangeModal({
         village: addressMode === "gps" ? addressVillage.trim() : "",
         fullAddress,
         formattedAddress: addressMode === "gps" || isDirectAddressFlow ? addressFormatted.trim() : "",
-        pincode: addressMode === "gps" || isDirectAddressFlow ? addressPincode.trim() : "",
+        pincode: addressMode === "gps"
+          ? addressPincode.trim()
+          : selectedAreaOption?.pincode || addressPincode.trim(),
         lat: addressMode === "gps" ? gpsCoordinates.lat : manualCoordinates?.lat ?? null,
         lon: addressMode === "gps" ? gpsCoordinates.lon : manualCoordinates?.lon ?? null,
+        latitude: addressMode === "gps" ? gpsCoordinates.lat : manualCoordinates?.lat ?? null,
+        longitude: addressMode === "gps" ? gpsCoordinates.lon : manualCoordinates?.lon ?? null,
         locationSource: addressMode === "gps" ? "gps" : "manual",
         address: fullAddress,
       };
 
       if (!isCheckoutFlow) {
         await firebaseUpdateCustomer(customerUid, { address: nextAddress });
+        saveActiveLocation(nextAddress, getActiveLocationStorageKey(customerUid));
       }
       if (import.meta.env.DEV) {
         console.debug("[ADDRESS DEBUG] address save coordinates", {

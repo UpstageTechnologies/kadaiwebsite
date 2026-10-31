@@ -29,6 +29,8 @@ import {
 import {
   getCurrentLocationAddress,
   getManualAddressCoordinates,
+  getActiveLocationStorageKey,
+  saveActiveLocation,
 } from "../../../services/current-location-address.service";
 import { getAddressCoordinates } from "../../../services/marketplace.service";
 import "./register.css";
@@ -581,16 +583,20 @@ const Register = () => {
           pincode,
         ]
         : [area, city, district, state, countryLabel];
+      const selectedAreaOption = locationOptions.areas.find(
+        (option) => option.id === area || option.value === area
+      );
       const manualCoordinates = isGpsAddress
         ? null
-        : getAddressCoordinates(
-          locationOptions.areas.find((option) => option.id === area || option.value === area)
-        ) || await getManualAddressCoordinates({
+        : await getManualAddressCoordinates({
           country: countryLabel,
           state,
           district,
           city,
           area,
+          road,
+          pincode,
+          areaCoordinates: selectedAreaOption,
         });
       const savedCoordinates = gpsCoordinates || manualCoordinates;
       if (!getAddressCoordinates(savedCoordinates)) {
@@ -599,6 +605,28 @@ const Register = () => {
       const fullAddress = addressFields
         .filter(Boolean)
         .join(", ") || (isGpsAddress ? detectedFullAddress : "");
+      const savedAddress = {
+        country: countryId,
+        state,
+        district,
+        city,
+        area,
+        house: isGpsAddress ? house : "",
+        building: isGpsAddress ? building : "",
+        flat: isGpsAddress ? flat : "",
+        road: isGpsAddress ? road : "",
+        landmark: isGpsAddress ? landmark : "",
+        village: isGpsAddress ? village : "",
+        fullAddress,
+        address: fullAddress,
+        formattedAddress: isGpsAddress ? formattedAddress : "",
+        pincode: isGpsAddress ? pincode : selectedAreaOption?.pincode || pincode,
+        lat: savedCoordinates.lat,
+        lon: savedCoordinates.lon,
+        latitude: savedCoordinates.lat,
+        longitude: savedCoordinates.lon,
+        locationSource: locationMode,
+      };
       await updateProfile(authenticatedUser, { displayName: username.trim() });
       await firebaseUpsertCustomerProfile(authenticatedUser.uid, {
         uid: authenticatedUser.uid,
@@ -606,27 +634,12 @@ const Register = () => {
         fullName: username.trim(),
         displayName: username.trim(),
         mobile: authenticatedUser.phoneNumber,
-        address: {
-          country: countryId,
-          state,
-          district,
-          city,
-          area,
-          house: isGpsAddress ? house : "",
-          building: isGpsAddress ? building : "",
-          flat: isGpsAddress ? flat : "",
-          road: isGpsAddress ? road : "",
-          landmark: isGpsAddress ? landmark : "",
-          village: isGpsAddress ? village : "",
-          fullAddress,
-          address: fullAddress,
-          formattedAddress: isGpsAddress ? formattedAddress : "",
-          pincode: isGpsAddress ? pincode : "",
-          lat: savedCoordinates.lat,
-          lon: savedCoordinates.lon,
-          locationSource: locationMode,
-        },
+        address: savedAddress,
       });
+      saveActiveLocation(
+        savedAddress,
+        getActiveLocationStorageKey(authenticatedUser.uid)
+      );
       clearRegistrationPhone();
       clearRegistrationUsername();
       navigate("/login", { replace: true });

@@ -49,25 +49,20 @@ export const getCurrentCustomerUid = () => {
 
 export const fetchAvailableStoreLocations = async () => {
   if (!db) {
-    return [];
+    throw new Error("Firebase Firestore is not configured.");
   }
 
-  try {
-    const sellersQuery = query(collection(db, "users"), where("role", "==", "seller"));
-    const snapshot = await getDocs(sellersQuery);
-    return snapshot.docs.map((sellerDoc) => {
-      const sellerData = sellerDoc.data() || {};
-      return {
-        id: sellerDoc.id,
-        ...sellerData,
-        coordinates: getSellerCoordinates(sellerData),
-      };
-    });
-  } catch (error) {
-    console.error("[MARKET] fetchAvailableStoreLocations failed:", error);
-    return [];
-  }
-};
+  const sellersQuery = query(collection(db, "users"), where("role", "==", "seller"));
+  const snapshot = await getDocs(sellersQuery);
+  return snapshot.docs.map((sellerDoc) => {
+    const sellerData = sellerDoc.data() || {};
+    return {
+      id: sellerDoc.id,
+      ...sellerData,
+      coordinates: getSellerCoordinates(sellerData),
+    };
+  });
+}
 
 export const getCachedLocation = (storageKey = "kadai_active_location") => {
   try {
@@ -139,20 +134,44 @@ export const sanitizeLatLon = (value, fallback = null) => {
   return parsed;
 };
 
-const getCoordinateSourceCandidates = (source = []) => {
+const getCoordinateSourceCandidates = (source = {}) => {
+  const nestedFields = [
+    "address",
+    "coordinates",
+    "location",
+    "coords",
+    "shopAddress",
+    "storeAddress",
+    "shopLocation",
+    "storeLocation",
+    "shopCoordinates",
+    "storeCoordinates",
+    "geoPoint",
+  ];
   const candidates = [];
-  const pushCandidate = (candidate) => {
-    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
-      candidates.push(candidate);
-    }
-  };
+  const queue = [source];
+  const visited = new Set();
 
-  pushCandidate(source);
-  pushCandidate(source?.address);
-  pushCandidate(source?.coordinates);
-  pushCandidate(source?.location);
-  pushCandidate(source?.address?.coordinates);
-  pushCandidate(source?.address?.location);
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (
+      !candidate
+      || typeof candidate !== "object"
+      || Array.isArray(candidate)
+      || visited.has(candidate)
+    ) {
+      continue;
+    }
+
+    visited.add(candidate);
+    candidates.push(candidate);
+    nestedFields.forEach((field) => {
+      const nested = candidate[field];
+      if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+        queue.push(nested);
+      }
+    });
+  }
 
   return candidates;
 };
@@ -206,26 +225,15 @@ export const getCustomerActiveLocation = (customer = {}) => {
     return null;
   }
 
-  const candidateSources = [
-    customer.currentLocation,
-    customer.activeAddress,
-    customer.selectedAddress,
-    customer.address,
-    ...(Array.isArray(customer.addresses) ? customer.addresses : []),
-  ];
-
-  for (const candidate of candidateSources) {
-    if (!candidate || typeof candidate !== "object") {
-      continue;
-    }
-
-    const coordinates = getMarketplaceCoordinates(candidate);
-    if (coordinates) {
-      return { ...candidate, ...coordinates };
-    }
+  const activeAddress = customer.address
+    || customer.activeAddress
+    || customer.selectedAddress;
+  if (!activeAddress || typeof activeAddress !== "object" || Array.isArray(activeAddress)) {
+    return null;
   }
 
-  return null;
+  const coordinates = getMarketplaceCoordinates(activeAddress);
+  return coordinates ? { ...activeAddress, ...coordinates } : null;
 };
 
 export const getCustomerActiveCoordinates = (customer = {}) => {
@@ -252,71 +260,35 @@ export const normalizeAddressPayload = (address = {}) => ({
 
 export const getSellerCoordinates = (sellerData = {}) => getMarketplaceCoordinates(sellerData);
 
-export const calculateDistance = (pointA, pointB) => {
-  const first = pointA && typeof pointA === "object" ? pointA : { lat: pointA, lon: pointB };
-  const second = pointB && typeof pointB === "object" ? pointB : { lat: pointA, lon: pointB };
-
-  const lat1 = Number(first?.lat ?? first?.latitude ?? null);
-  const lon1 = Number(first?.lon ?? first?.lng ?? first?.longitude ?? null);
-  const lat2 = Number(second?.lat ?? second?.latitude ?? null);
-  const lon2 = Number(second?.lon ?? second?.lng ?? second?.longitude ?? null);
-
-  if (
-    !Number.isFinite(lat1) ||
-    !Number.isFinite(lon1) ||
-    !Number.isFinite(lat2) ||
-    !Number.isFinite(lon2)
-  ) {
+export const calculateDistance = (pointA, pointB, latitude2, longitude2) => {
+  const firstPoint = latitude2 === undefined && longitude2 === undefined
+    ? pointA
+    : { lat: pointA, lon: pointB };
+  const secondPoint = latitude2 === undefined && longitude2 === undefined
+    ? pointB
+    : { lat: latitude2, lon: longitude2 };
+  const first = getAddressCoordinates(firstPoint);
+  const second = getAddressCoordinates(secondPoint);
+  if (!first || !second) {
     return Number.POSITIVE_INFINITY;
   }
 
-  if ((lat1 === 0 && lon1 === 0) || (lat2 === 0 && lon2 === 0)) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  if (
-    lat1 < -90 || lat1 > 90 || lon1 < -180 || lon1 > 180 ||
-    lat2 < -90 || lat2 > 90 || lon2 < -180 || lon2 > 180
-  ) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  const earthRadiusKm = 6371;
-  const toRadians = (degree) => (degree * Math.PI) / 180;
-  const deltaLat = toRadians(lat2 - lat1);
-  const deltaLon = toRadians(lon2 - lon1);
-  const startLat = toRadians(lat1);
-  const endLat = toRadians(lat2);
-
-  const a =
-    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-    Math.cos(startLat) *
-      Math.cos(endLat) *
-      Math.sin(deltaLon / 2) *
-      Math.sin(deltaLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return earthRadiusKm * c;
+  return haversineDistanceKm(first.lat, first.lon, second.lat, second.lon);
 };
 
 export const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
-  if (
-    !Number.isFinite(lat1) ||
-    !Number.isFinite(lon1) ||
-    !Number.isFinite(lat2) ||
-    !Number.isFinite(lon2)
-  ) {
+  const first = getAddressCoordinates({ lat: lat1, lon: lon1 });
+  const second = getAddressCoordinates({ lat: lat2, lon: lon2 });
+  if (!first || !second) {
     return Number.POSITIVE_INFINITY;
   }
 
   const earthRadiusKm = 6371;
   const toRadians = (degree) => (degree * Math.PI) / 180;
-
-  const deltaLat = toRadians(lat2 - lat1);
-  const deltaLon = toRadians(lon2 - lon1);
-  const startLat = toRadians(lat1);
-  const endLat = toRadians(lat2);
+  const deltaLat = toRadians(second.lat - first.lat);
+  const deltaLon = toRadians(second.lon - first.lon);
+  const startLat = toRadians(first.lat);
+  const endLat = toRadians(second.lat);
 
   const a =
     Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
@@ -325,7 +297,8 @@ export const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
       Math.sin(deltaLon / 2) *
       Math.sin(deltaLon / 2);
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const boundedA = Math.min(1, Math.max(0, a));
+  const c = 2 * Math.atan2(Math.sqrt(boundedA), Math.sqrt(1 - boundedA));
 
   return earthRadiusKm * c;
 };
