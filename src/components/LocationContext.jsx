@@ -112,8 +112,8 @@ export const LocationProvider = ({ children }) => {
 
         try {
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coordinates.latitude}&lon=${coordinates.longitude}`,
-            { headers: { Accept: "application/json" } }
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coordinates.latitude}&lon=${coordinates.longitude}&accept-language=en`,
+            { headers: { Accept: "application/json", "User-Agent": "KadaiApp/1.0" } }
           );
 
           if (!response.ok) {

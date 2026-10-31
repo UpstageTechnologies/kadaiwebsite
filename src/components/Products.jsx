@@ -13,6 +13,7 @@ import { useAuth } from "./AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
   getAddressCoordinates,
+  getCustomerActiveCoordinates,
   getNearbySellerIds,
   MARKET_MODES,
   subscribeMarketplaceProducts,
@@ -49,7 +50,7 @@ const Products = () => {
   const isLoading = Boolean(user?.uid) && productState.uid !== user.uid;
 
   const customerLocation = useMemo(
-    () => getAddressCoordinates(customer?.address),
+    () => getCustomerActiveCoordinates(customer),
     [customer]
   );
 

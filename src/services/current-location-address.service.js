@@ -887,6 +887,93 @@ export const fetchUserSavedAddresses = (customer = []) => {
 
 export const detectUserLocation = async () => getCurrentLocationAddress();
 
+const normalizeLanguageLabel = (value) => String(value ?? "")
+  .trim()
+  .replace(/[\u0000-\u001F\u007F]/g, "")
+  .replace(/\s+/g, " ");
+
+const normalizeEnglishAddressText = (value, fallback = "") => {
+  const text = normalizeLanguageLabel(value);
+  return text || fallback;
+};
+
+const sanitizeEnglishAddress = (address = {}) => {
+  const country = normalizeEnglishAddressText(address.country, "");
+  const state = normalizeEnglishAddressText(address.state, "");
+  const district = normalizeEnglishAddressText(address.district, "");
+  const city = normalizeEnglishAddressText(address.city, "");
+  const area = normalizeEnglishAddressText(address.area, "");
+  const road = normalizeEnglishAddressText(address.road, "");
+  const pincode = normalizeEnglishAddressText(address.postcode || address.postalCode || address.pincode, "");
+
+  return {
+    country,
+    state,
+    district,
+    city,
+    area,
+    road,
+    pincode,
+  };
+};
+
+export const reverseGeocodeLocation = async (lat, lon) => {
+  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
+    return null;
+  }
+
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("lat", String(Number(lat)));
+  url.searchParams.set("lon", String(Number(lon)));
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("zoom", "18");
+  url.searchParams.set("accept-language", "en");
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "KadaiApp/1.0",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Unable to reverse geocode this location.");
+  }
+
+  const payload = await response.json();
+  if (!payload || payload.error) {
+    throw new Error(payload?.error || "Unable to resolve the address for this location.");
+  }
+
+  const englishAddress = sanitizeEnglishAddress(payload.address || {});
+  const displayName = String(payload.display_name || "").trim();
+  return {
+    ...payload,
+    address: {
+      ...(payload.address || {}),
+      ...englishAddress,
+      country: englishAddress.country || payload.address?.country || "",
+      state: englishAddress.state || payload.address?.state || "",
+      district: englishAddress.district || payload.address?.state_district || payload.address?.county || payload.address?.district || "",
+      city: englishAddress.city || payload.address?.city || payload.address?.town || payload.address?.village || payload.address?.municipality || "",
+      area: englishAddress.area || payload.address?.suburb || payload.address?.neighbourhood || payload.address?.quarter || payload.address?.hamlet || payload.address?.locality || "",
+      road: englishAddress.road || payload.address?.road || payload.address?.pedestrian || payload.address?.residential || payload.address?.street || "",
+      postcode: englishAddress.pincode || payload.address?.postcode || "",
+      pincode: englishAddress.pincode || payload.address?.postcode || "",
+    },
+    display_name: displayName || [
+      payload.address?.house_number,
+      payload.address?.road,
+      payload.address?.suburb,
+      payload.address?.city,
+      payload.address?.state,
+      payload.address?.country,
+      payload.address?.postcode,
+    ].filter(Boolean).join(", "),
+  };
+};
+
 export const fetchAvailableStoreLocations = async () => {
   if (!db) {
     return [];
@@ -1046,31 +1133,6 @@ export const forwardGeocodeAddress = async ({
   return { lat: latitude, lon: longitude };
 };
 
-export const reverseGeocodeLocation = async (lat, lon) => {
-  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
-    return null;
-  }
-
-  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(Number(lat))}&lon=${encodeURIComponent(Number(lon))}&addressdetails=1&zoom=18`;
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "KadaiApp/1.0",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error("Unable to reverse geocode this location.");
-  }
-
-  const payload = await response.json();
-  if (!payload || payload.error) {
-    throw new Error(payload?.error || "Unable to resolve the address for this location.");
-  }
-
-  return payload;
-};
-
 const getCoordinates = () => new Promise((resolve, reject) => {
   if (!navigator.geolocation) {
     reject(new Error("Location is not supported by this browser."));
@@ -1153,8 +1215,8 @@ export const getManualAddressCoordinates = async ({
 export const getCurrentLocationAddress = async () => {
   const coordinates = await getCoordinates();
   const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coordinates.latitude}&lon=${coordinates.longitude}`,
-    { headers: { Accept: "application/json" } }
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coordinates.latitude}&lon=${coordinates.longitude}&accept-language=en`,
+    { headers: { Accept: "application/json", "User-Agent": "KadaiApp/1.0" } }
   );
 
   if (!response.ok) {

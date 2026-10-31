@@ -201,6 +201,45 @@ export const getAddressCoordinates = (source = {}) => extractCoordinatePair(sour
 
 export const getMarketplaceCoordinates = (source = {}) => extractCoordinatePair(source);
 
+export const getCustomerActiveLocation = (customer = {}) => {
+  if (!customer || typeof customer !== "object") {
+    return null;
+  }
+
+  const candidateSources = [
+    customer.currentLocation,
+    customer.activeAddress,
+    customer.selectedAddress,
+    customer.address,
+    ...(Array.isArray(customer.addresses) ? customer.addresses : []),
+  ];
+
+  for (const candidate of candidateSources) {
+    if (!candidate || typeof candidate !== "object") {
+      continue;
+    }
+
+    const coordinates = getMarketplaceCoordinates(candidate);
+    if (coordinates) {
+      return { ...candidate, ...coordinates };
+    }
+  }
+
+  return null;
+};
+
+export const getCustomerActiveCoordinates = (customer = {}) => {
+  const activeLocation = getCustomerActiveLocation(customer);
+  if (!activeLocation) {
+    return null;
+  }
+
+  const coordinates = getAddressCoordinates(activeLocation);
+  return coordinates && (coordinates.lat !== null || coordinates.lon !== null)
+    ? { lat: coordinates.lat, lon: coordinates.lon }
+    : null;
+};
+
 export const normalizeAddressPayload = (address = {}) => ({
   country: String(address.country || "").trim(),
   countryCode: String(address.countryCode || "").trim(),

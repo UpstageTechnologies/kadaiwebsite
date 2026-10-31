@@ -18,7 +18,7 @@ import {
 import {
   DEFAULT_MARKET_MODE,
   MARKET_MODES,
-  getMarketplaceCoordinates,
+  getCustomerActiveCoordinates,
   getNearbySellerIds,
   haversineDistanceKm,
   subscribeMarketplaceProducts,
@@ -58,7 +58,7 @@ const Products = () => {
       : DEFAULT_MARKET_MODE;
   const userId = user?.uid || "";
   const customerLocation = useMemo(
-    () => getMarketplaceCoordinates(customer?.address),
+    () => getCustomerActiveCoordinates(customer),
     [customer]
   );
   const locationError = userId ? customerError : "";
