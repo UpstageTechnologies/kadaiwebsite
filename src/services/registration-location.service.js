@@ -1,5 +1,6 @@
 import { collection, getDocs } from "firebase/firestore";
 
+import { BASE_LOCATION_HIERARCHY } from "./current-location-address.service";
 import { db } from "./firebase";
 
 const parseCoordinate = (value) => {
@@ -58,6 +59,99 @@ const mapLocationOptions = (snapshot, fallbackFields) => snapshot.docs
   })
   .filter(Boolean)
   .sort((first, second) => first.label.localeCompare(second.label));
+
+const normalizeHierarchyToken = (value) => String(value ?? "").trim().toLowerCase();
+
+const findHierarchyMatch = (entries, token) => {
+  const normalizedToken = normalizeHierarchyToken(token);
+  if (!normalizedToken || !entries || typeof entries !== "object") {
+    return null;
+  }
+
+  const matchEntry = Object.entries(entries).find(([entryKey, entryValue]) => {
+    const entryId = String(entryValue?.id || entryKey || "").trim();
+    const entryName = String(entryValue?.name || entryKey || "").trim();
+    return [entryKey, entryId, entryName].some(
+      (candidate) => normalizeHierarchyToken(candidate) === normalizedToken
+    );
+  });
+
+  return matchEntry ? matchEntry[1] : null;
+};
+
+const getHierarchyCountryEntries = () => Object.entries(BASE_LOCATION_HIERARCHY || {})
+  .map(([countryKey, countryValue]) => ({
+    id: String(countryValue?.id || countryKey),
+    value: String(countryValue?.id || countryKey),
+    label: String(countryValue?.name || countryKey),
+    code: String(countryValue?.code || ""),
+  }))
+  .sort((first, second) => first.label.localeCompare(second.label));
+
+const getHierarchyOptionsForLevel = ({ countryId, stateId, districtId, cityId, level }) => {
+  const hierarchy = BASE_LOCATION_HIERARCHY || {};
+  const countryEntry = findHierarchyMatch(hierarchy, countryId)
+    || (countryId && hierarchy[countryId])
+    || null;
+
+  if (!countryEntry) {
+    return [];
+  }
+
+  const stateEntries = countryEntry.states || {};
+
+  switch (level) {
+    case "states": {
+      return Object.entries(stateEntries).map(([stateKey, stateValue]) => ({
+        id: String(stateValue?.id || stateKey),
+        value: String(stateValue?.name || stateKey),
+        label: String(stateValue?.name || stateKey),
+      })).sort((first, second) => first.label.localeCompare(second.label));
+    }
+    case "districts": {
+      const matchedState = findHierarchyMatch(stateEntries, stateId) || (stateId && stateEntries[stateId]) || null;
+      const districtEntries = matchedState?.districts || {};
+      return Object.entries(districtEntries).map(([districtKey, districtValue]) => ({
+        id: String(districtValue?.id || districtKey),
+        value: String(districtValue?.name || districtKey),
+        label: String(districtValue?.name || districtKey),
+      })).sort((first, second) => first.label.localeCompare(second.label));
+    }
+    case "cities": {
+      const matchedState = findHierarchyMatch(stateEntries, stateId) || (stateId && stateEntries[stateId]) || null;
+      const districtEntries = matchedState?.districts || {};
+      const matchedDistrict = findHierarchyMatch(districtEntries, districtId) || (districtId && districtEntries[districtId]) || null;
+      const cityEntries = matchedDistrict?.cities || {};
+      return Object.entries(cityEntries).map(([cityKey, cityValue]) => ({
+        id: String(cityValue?.id || cityKey),
+        value: String(cityValue?.name || cityKey),
+        label: String(cityValue?.name || cityKey),
+        lat: cityValue?.lat ?? null,
+        lon: cityValue?.lon ?? null,
+        pincode: cityValue?.pincode || "",
+      })).sort((first, second) => first.label.localeCompare(second.label));
+    }
+    case "areas": {
+      const matchedState = findHierarchyMatch(stateEntries, stateId) || (stateId && stateEntries[stateId]) || null;
+      const districtEntries = matchedState?.districts || {};
+      const matchedDistrict = findHierarchyMatch(districtEntries, districtId) || (districtId && districtEntries[districtId]) || null;
+      const cityEntries = matchedDistrict?.cities || {};
+      const matchedCity = findHierarchyMatch(cityEntries, cityId) || (cityId && cityEntries[cityId]) || null;
+      const streetEntries = matchedCity?.streets || [];
+      return streetEntries.map((street) => ({
+        id: String(street?.name || ""),
+        value: String(street?.name || ""),
+        label: String(street?.name || ""),
+        lat: street?.lat ?? null,
+        lon: street?.lon ?? null,
+        pincode: street?.pincode || "",
+        isStore: Boolean(street?.isStore),
+      })).filter((entry) => entry.id).sort((first, second) => first.label.localeCompare(second.label));
+    }
+    default:
+      return [];
+  }
+};
 
 const mapCountryOptions = (snapshot) => snapshot.docs
   .map((locationSnapshot) => {

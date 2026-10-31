@@ -1,4 +1,11 @@
 import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
+import { db } from "./firebase";
+import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "./registration-location.service";
@@ -120,6 +127,786 @@ export const normalizeAddressPayload = (address = {}) => ({
   area: String(address.area || "").trim(),
   pincode: String(address.pincode || "").trim(),
 });
+
+export const BASE_LOCATION_HIERARCHY = {
+  india: {
+    id: 'india',
+    name: 'India',
+    flag: '🇮🇳',
+    storeCount: 3,
+    states: {
+      tamil_nadu: {
+        id: 'tamil_nadu',
+        name: 'Tamil Nadu',
+        storeCount: 3,
+        districts: {
+          virudhunagar: {
+            id: 'virudhunagar',
+            name: 'Virudhunagar',
+            storeCount: 3,
+            cities: {
+              sattur: {
+                id: 'sattur',
+                name: 'Sattur',
+                district: 'Virudhunagar',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.3639,
+                lon: 77.9254,
+                pincode: '626203',
+                storeCount: 2,
+                streets: [
+                  { name: 'Padanthal', lat: 9.3565, lon: 77.9250, pincode: '626203', isStore: true },
+                  { name: 'Main Road / Bazaar', lat: 9.3642, lon: 77.9260, pincode: '626203', isStore: true },
+                  { name: 'Bus Stand Area', lat: 9.3628, lon: 77.9248, pincode: '626203' },
+                  { name: 'Railway Station Road', lat: 9.3665, lon: 77.9275, pincode: '626203' },
+                  { name: 'North Car Street', lat: 9.3650, lon: 77.9255, pincode: '626203' },
+                  { name: 'Melapudur', lat: 9.3580, lon: 77.9220, pincode: '626203' },
+                  { name: 'Kamarajar Nagar', lat: 9.3610, lon: 77.9290, pincode: '626203' },
+                  { name: 'Venkatachalapuram', lat: 9.3520, lon: 77.9180, pincode: '626203' },
+                ],
+              },
+              padanthal: {
+                id: 'padanthal',
+                name: 'Padanthal',
+                district: 'Virudhunagar',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.3565,
+                lon: 77.9250,
+                pincode: '626203',
+                storeCount: 1,
+                streets: [
+                  { name: 'Padanthal Main Area', lat: 9.3565, lon: 77.9250, pincode: '626203', isStore: true },
+                  { name: 'Kamaraj Nagar', lat: 9.3580, lon: 77.9230, pincode: '626203' },
+                  { name: 'College Road', lat: 9.3540, lon: 77.9260, pincode: '626203' },
+                ],
+              },
+              virudhunagar: {
+                id: 'virudhunagar',
+                name: 'Virudhunagar',
+                district: 'Virudhunagar',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.5680,
+                lon: 77.9624,
+                pincode: '626001',
+                storeCount: 1,
+                streets: [
+                  { name: 'Main Bazaar', lat: 9.5685, lon: 77.9620, pincode: '626001', isStore: true },
+                  { name: 'Madurai Road', lat: 9.5750, lon: 77.9650, pincode: '626001' },
+                  { name: 'Railway Feeder Road', lat: 9.5660, lon: 77.9600, pincode: '626001' },
+                  { name: 'Collectorate Complex / Kooraikundu', lat: 9.5850, lon: 77.9550, pincode: '626002' },
+                  { name: 'Ramamoorthy Road', lat: 9.5695, lon: 77.9640, pincode: '626001' },
+                  { name: 'Aruppukottai Road', lat: 9.5640, lon: 77.9710, pincode: '626001' },
+                  { name: 'Kamarajar Salai', lat: 9.5710, lon: 77.9630, pincode: '626001' },
+                  { name: 'Allampatti', lat: 9.5590, lon: 77.9680, pincode: '626001' },
+                  { name: 'Rosalpatti', lat: 9.5520, lon: 77.9590, pincode: '626001' },
+                ],
+              },
+              sivakasi: {
+                id: 'sivakasi',
+                name: 'Sivakasi',
+                district: 'Virudhunagar',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.4533,
+                lon: 77.7947,
+                pincode: '626123',
+                storeCount: 1,
+                streets: [
+                  { name: 'Main Bazaar', lat: 9.4533, lon: 77.7947, pincode: '626123', isStore: true },
+                  { name: 'NRKR Road', lat: 9.4510, lon: 77.7980, pincode: '626123' },
+                  { name: 'Bus Stand Area', lat: 9.4560, lon: 77.7930, pincode: '626123' },
+                  { name: 'Coronation Colony', lat: 9.4590, lon: 77.8010, pincode: '626123' },
+                  { name: 'Palaniandavar Colony', lat: 9.4620, lon: 77.7910, pincode: '626123' },
+                  { name: 'Thiruthangal Road', lat: 9.4750, lon: 77.8050, pincode: '626130' },
+                  { name: 'Paraipatti', lat: 9.4470, lon: 77.7880, pincode: '626123' },
+                ],
+              },
+              aruppukkottai: {
+                id: 'aruppukkottai',
+                name: 'Aruppukkottai',
+                district: 'Virudhunagar',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.5103,
+                lon: 78.0984,
+                pincode: '626101',
+                storeCount: 0,
+                streets: [
+                  { name: 'Main Bazaar', lat: 9.5103, lon: 78.0984, pincode: '626101' },
+                  { name: 'Bus Stand Area', lat: 9.5120, lon: 78.0950, pincode: '626101' },
+                  { name: 'Railway Feeder Road', lat: 9.5080, lon: 78.1020, pincode: '626101' },
+                  { name: 'Gandhi Nagar', lat: 9.5150, lon: 78.0920, pincode: '626101' },
+                ],
+              },
+              rajapalayam: {
+                id: 'rajapalayam',
+                name: 'Rajapalayam',
+                district: 'Virudhunagar',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.4532,
+                lon: 77.5540,
+                pincode: '626117',
+                storeCount: 0,
+                streets: [
+                  { name: 'Main Bazaar', lat: 9.4532, lon: 77.5540, pincode: '626117' },
+                  { name: 'PACR Road', lat: 9.4580, lon: 77.5590, pincode: '626117' },
+                  { name: 'Tenkasi Road', lat: 9.4480, lon: 77.5490, pincode: '626117' },
+                  { name: 'Gandhi Kalaimandram Area', lat: 9.4550, lon: 77.5520, pincode: '626117' },
+                ],
+              },
+              srivilliputhur: {
+                id: 'srivilliputhur',
+                name: 'Srivilliputhur',
+                district: 'Virudhunagar',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.5107,
+                lon: 77.6322,
+                pincode: '626125',
+                storeCount: 0,
+                streets: [
+                  { name: 'Andal Temple / Car Street', lat: 9.5107, lon: 77.6322, pincode: '626125' },
+                  { name: 'Madurai Road', lat: 9.5160, lon: 77.6380, pincode: '626125' },
+                  { name: 'Bus Stand Area', lat: 9.5120, lon: 77.6290, pincode: '626125' },
+                ],
+              },
+            },
+          },
+          thoothukudi: {
+            id: 'thoothukudi',
+            name: 'Thoothukudi',
+            storeCount: 0,
+            cities: {
+              kovilpatti: {
+                id: 'kovilpatti',
+                name: 'Kovilpatti',
+                district: 'Thoothukudi',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.1729,
+                lon: 77.8687,
+                pincode: '628501',
+                storeCount: 0,
+                streets: [
+                  { name: 'Main Road', lat: 9.1729, lon: 77.8687, pincode: '628501' },
+                  { name: 'New Bus Stand', lat: 9.1780, lon: 77.8720, pincode: '628501' },
+                  { name: 'Old Bus Stand', lat: 9.1690, lon: 77.8650, pincode: '628501' },
+                ],
+              },
+            },
+          },
+          madurai: {
+            id: 'madurai',
+            name: 'Madurai',
+            storeCount: 0,
+            cities: {
+              madurai: {
+                id: 'madurai',
+                name: 'Madurai',
+                district: 'Madurai',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 9.9252,
+                lon: 78.1198,
+                pincode: '625001',
+                storeCount: 0,
+                streets: [
+                  { name: 'Meenakshi Amman Temple / South Masi St', lat: 9.9195, lon: 78.1193, pincode: '625001' },
+                  { name: 'KK Nagar', lat: 9.9320, lon: 78.1480, pincode: '625020' },
+                  { name: 'Anna Nagar', lat: 9.9210, lon: 78.1450, pincode: '625020' },
+                  { name: 'Simmakkal', lat: 9.9270, lon: 78.1230, pincode: '625001' },
+                  { name: 'Mattuthavani', lat: 9.9450, lon: 78.1620, pincode: '625007' },
+                  { name: 'Goripalayam', lat: 9.9310, lon: 78.1310, pincode: '625002' },
+                  { name: 'Periyar Bus Stand', lat: 9.9170, lon: 78.1130, pincode: '625001' },
+                ],
+              },
+            },
+          },
+          chennai: {
+            id: 'chennai',
+            name: 'Chennai',
+            storeCount: 0,
+            cities: {
+              chennai: {
+                id: 'chennai',
+                name: 'Chennai',
+                district: 'Chennai',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 13.0827,
+                lon: 80.2707,
+                pincode: '600001',
+                storeCount: 0,
+                streets: [
+                  { name: 'T. Nagar', lat: 13.0418, lon: 80.2341, pincode: '600017' },
+                  { name: 'Adyar', lat: 13.0012, lon: 80.2565, pincode: '600020' },
+                  { name: 'Anna Nagar', lat: 13.0850, lon: 80.2100, pincode: '600040' },
+                  { name: 'Velachery', lat: 12.9750, lon: 80.2200, pincode: '600042' },
+                  { name: 'Mylapore', lat: 13.0330, lon: 80.2670, pincode: '600004' },
+                  { name: 'Guindy', lat: 13.0067, lon: 80.2025, pincode: '600032' },
+                  { name: 'Tambaram', lat: 12.9249, lon: 80.1000, pincode: '600045' },
+                ],
+              },
+            },
+          },
+          coimbatore: {
+            id: 'coimbatore',
+            name: 'Coimbatore',
+            storeCount: 0,
+            cities: {
+              coimbatore: {
+                id: 'coimbatore',
+                name: 'Coimbatore',
+                district: 'Coimbatore',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 11.0168,
+                lon: 76.9558,
+                pincode: '641001',
+                storeCount: 0,
+                streets: [
+                  { name: 'RS Puram', lat: 11.0080, lon: 76.9510, pincode: '641002' },
+                  { name: 'Gandhipuram', lat: 11.0180, lon: 76.9680, pincode: '641012' },
+                  { name: 'Peelamedu', lat: 11.0280, lon: 77.0120, pincode: '641004' },
+                  { name: 'Saibaba Colony', lat: 11.0320, lon: 76.9450, pincode: '641011' },
+                ],
+              },
+            },
+          },
+          tirunelveli: {
+            id: 'tirunelveli',
+            name: 'Tirunelveli',
+            storeCount: 0,
+            cities: {
+              tirunelveli: {
+                id: 'tirunelveli',
+                name: 'Tirunelveli',
+                district: 'Tirunelveli',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 8.7139,
+                lon: 77.7567,
+                pincode: '627001',
+                storeCount: 0,
+                streets: [
+                  { name: 'Palayamkottai', lat: 8.7190, lon: 77.7420, pincode: '627002' },
+                  { name: 'Junction / Bus Stand', lat: 8.7280, lon: 77.7210, pincode: '627001' },
+                  { name: 'Town / Nellaiappar Temple', lat: 8.7290, lon: 77.6980, pincode: '627006' },
+                ],
+              },
+            },
+          },
+          salem: {
+            id: 'salem',
+            name: 'Salem',
+            storeCount: 0,
+            cities: {
+              salem: {
+                id: 'salem',
+                name: 'Salem',
+                district: 'Salem',
+                state: 'Tamil Nadu',
+                country: 'India',
+                lat: 11.6643,
+                lon: 78.1460,
+                pincode: '636001',
+                storeCount: 0,
+                streets: [
+                  { name: 'Fairlands', lat: 11.6780, lon: 78.1420, pincode: '636016' },
+                  { name: 'Four Roads', lat: 11.6580, lon: 78.1520, pincode: '636009' },
+                  { name: 'New Bus Stand', lat: 11.6690, lon: 78.1380, pincode: '636004' },
+                ],
+              },
+            },
+          },
+        },
+      },
+      kerala: {
+        id: 'kerala',
+        name: 'Kerala',
+        storeCount: 0,
+        districts: {
+          ernakulam: {
+            id: 'ernakulam',
+            name: 'Ernakulam',
+            storeCount: 0,
+            cities: {
+              kochi: {
+                id: 'kochi',
+                name: 'Kochi',
+                district: 'Ernakulam',
+                state: 'Kerala',
+                country: 'India',
+                lat: 9.9312,
+                lon: 76.2673,
+                pincode: '682001',
+                storeCount: 0,
+                streets: [
+                  { name: 'MG Road', lat: 9.9720, lon: 76.2840, pincode: '682035' },
+                  { name: 'Marine Drive', lat: 9.9810, lon: 76.2750, pincode: '682031' },
+                  { name: 'Fort Kochi', lat: 9.9650, lon: 76.2420, pincode: '682001' },
+                  { name: 'Edappally', lat: 10.0260, lon: 76.3080, pincode: '682024' },
+                ],
+              },
+            },
+          },
+          thiruvananthapuram: {
+            id: 'thiruvananthapuram',
+            name: 'Thiruvananthapuram',
+            storeCount: 0,
+            cities: {
+              thiruvananthapuram: {
+                id: 'thiruvananthapuram',
+                name: 'Thiruvananthapuram',
+                district: 'Thiruvananthapuram',
+                state: 'Kerala',
+                country: 'India',
+                lat: 8.5241,
+                lon: 76.9366,
+                pincode: '695001',
+                storeCount: 0,
+                streets: [
+                  { name: 'East Fort', lat: 8.4830, lon: 76.9480, pincode: '695023' },
+                  { name: 'Palayam', lat: 8.5020, lon: 76.9510, pincode: '695034' },
+                  { name: 'Kowdiar', lat: 8.5280, lon: 76.9640, pincode: '695003' },
+                ],
+              },
+            },
+          },
+        },
+      },
+      karnataka: {
+        id: 'karnataka',
+        name: 'Karnataka',
+        storeCount: 0,
+        districts: {
+          bengaluru_urban: {
+            id: 'bengaluru_urban',
+            name: 'Bengaluru Urban',
+            storeCount: 0,
+            cities: {
+              bengaluru: {
+                id: 'bengaluru',
+                name: 'Bengaluru',
+                district: 'Bengaluru Urban',
+                state: 'Karnataka',
+                country: 'India',
+                lat: 12.9716,
+                lon: 77.5946,
+                pincode: '560001',
+                storeCount: 0,
+                streets: [
+                  { name: 'Indiranagar', lat: 12.9784, lon: 77.6408, pincode: '560038' },
+                  { name: 'Koramangala', lat: 12.9352, lon: 77.6245, pincode: '560034' },
+                  { name: 'Whitefield', lat: 12.9698, lon: 77.7500, pincode: '560066' },
+                  { name: 'Jayanagar', lat: 12.9308, lon: 77.5838, pincode: '560041' },
+                  { name: 'MG Road', lat: 12.9756, lon: 77.6066, pincode: '560001' },
+                ],
+              },
+            },
+          },
+        },
+      },
+      maharashtra: {
+        id: 'maharashtra',
+        name: 'Maharashtra',
+        storeCount: 0,
+        districts: {
+          mumbai: {
+            id: 'mumbai',
+            name: 'Mumbai',
+            storeCount: 0,
+            cities: {
+              mumbai: {
+                id: 'mumbai',
+                name: 'Mumbai',
+                district: 'Mumbai',
+                state: 'Maharashtra',
+                country: 'India',
+                lat: 19.0760,
+                lon: 72.8777,
+                pincode: '400001',
+                storeCount: 0,
+                streets: [
+                  { name: 'Bandra West', lat: 19.0596, lon: 72.8295, pincode: '400050' },
+                  { name: 'Andheri West', lat: 19.1197, lon: 72.8468, pincode: '400058' },
+                  { name: 'Colaba', lat: 18.9067, lon: 72.8147, pincode: '400005' },
+                  { name: 'Juhu', lat: 19.1075, lon: 72.8263, pincode: '400049' },
+                ],
+              },
+            },
+          },
+          pune: {
+            id: 'pune',
+            name: 'Pune',
+            storeCount: 0,
+            cities: {
+              pune: {
+                id: 'pune',
+                name: 'Pune',
+                district: 'Pune',
+                state: 'Maharashtra',
+                country: 'India',
+                lat: 18.5204,
+                lon: 73.8567,
+                pincode: '411001',
+                storeCount: 0,
+                streets: [
+                  { name: 'Kothrud', lat: 18.5074, lon: 73.8077, pincode: '411038' },
+                  { name: 'Koregaon Park', lat: 18.5362, lon: 73.8940, pincode: '411001' },
+                  { name: 'Viman Nagar', lat: 18.5679, lon: 73.9143, pincode: '411014' },
+                ],
+              },
+            },
+          },
+        },
+      },
+      delhi: {
+        id: 'delhi',
+        name: 'Delhi',
+        storeCount: 0,
+        districts: {
+          new_delhi: {
+            id: 'new_delhi',
+            name: 'New Delhi',
+            storeCount: 0,
+            cities: {
+              new_delhi: {
+                id: 'new_delhi',
+                name: 'New Delhi',
+                district: 'New Delhi',
+                state: 'Delhi',
+                country: 'India',
+                lat: 28.6139,
+                lon: 77.2090,
+                pincode: '110001',
+                storeCount: 0,
+                streets: [
+                  { name: 'Connaught Place', lat: 28.6315, lon: 77.2167, pincode: '110001' },
+                  { name: 'South Extension', lat: 28.5724, lon: 77.2208, pincode: '110049' },
+                  { name: 'Hauz Khas', lat: 28.5494, lon: 77.2001, pincode: '110016' },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  united_arab_emirates: {
+    id: 'united_arab_emirates',
+    name: 'United Arab Emirates',
+    flag: '🇦🇪',
+    storeCount: 0,
+    states: {
+      dubai: {
+        id: 'dubai',
+        name: 'Dubai',
+        storeCount: 0,
+        districts: {
+          dubai: {
+            id: 'dubai',
+            name: 'Dubai City',
+            storeCount: 0,
+            cities: {
+              dubai: {
+                id: 'dubai',
+                name: 'Dubai',
+                district: 'Dubai City',
+                state: 'Dubai',
+                country: 'United Arab Emirates',
+                lat: 25.2048,
+                lon: 55.2708,
+                pincode: '',
+                storeCount: 0,
+                streets: [
+                  { name: 'Downtown / Burj Khalifa', lat: 25.1972, lon: 55.2744 },
+                  { name: 'Dubai Marina', lat: 25.0805, lon: 55.1403 },
+                  { name: 'Deira / Gold Souk', lat: 25.2711, lon: 55.3075 },
+                  { name: 'Bur Dubai', lat: 25.2532, lon: 55.2974 },
+                  { name: 'Jumeirah', lat: 25.1872, lon: 55.2446 },
+                ],
+              },
+            },
+          },
+        },
+      },
+      abu_dhabi: {
+        id: 'abu_dhabi',
+        name: 'Abu Dhabi',
+        storeCount: 0,
+        districts: {
+          abu_dhabi: {
+            id: 'abu_dhabi',
+            name: 'Abu Dhabi City',
+            storeCount: 0,
+            cities: {
+              abu_dhabi: {
+                id: 'abu_dhabi',
+                name: 'Abu Dhabi',
+                district: 'Abu Dhabi City',
+                state: 'Abu Dhabi',
+                country: 'United Arab Emirates',
+                lat: 24.4539,
+                lon: 54.3773,
+                pincode: '',
+                storeCount: 0,
+                streets: [
+                  { name: 'Corniche Road', lat: 24.4764, lon: 54.3312 },
+                  { name: 'Al Reem Island', lat: 24.4984, lon: 54.4072 },
+                  { name: 'Yas Island', lat: 24.4988, lon: 54.6044 },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  sri_lanka: {
+    id: 'sri_lanka',
+    name: 'Sri Lanka',
+    flag: '🇱🇰',
+    storeCount: 0,
+    states: {
+      western_province: {
+        id: 'western_province',
+        name: 'Western Province',
+        storeCount: 0,
+        districts: {
+          colombo: {
+            id: 'colombo',
+            name: 'Colombo District',
+            storeCount: 0,
+            cities: {
+              colombo: {
+                id: 'colombo',
+                name: 'Colombo',
+                district: 'Colombo District',
+                state: 'Western Province',
+                country: 'Sri Lanka',
+                lat: 6.9271,
+                lon: 79.8612,
+                pincode: '',
+                storeCount: 0,
+                streets: [
+                  { name: 'Pettah Main Street', lat: 6.9388, lon: 79.8540 },
+                  { name: 'Galle Face Green', lat: 6.9249, lon: 79.8458 },
+                  { name: 'Kollupitiya', lat: 6.9080, lon: 79.8510 },
+                  { name: 'Bambalapitiya', lat: 6.8920, lon: 79.8550 },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  singapore: {
+    id: 'singapore',
+    name: 'Singapore',
+    flag: '🇸🇬',
+    storeCount: 0,
+    states: {
+      central_region: {
+        id: 'central_region',
+        name: 'Central Region',
+        storeCount: 0,
+        districts: {
+          central: {
+            id: 'central',
+            name: 'Central Area',
+            storeCount: 0,
+            cities: {
+              singapore: {
+                id: 'singapore',
+                name: 'Singapore',
+                district: 'Central Area',
+                state: 'Central Region',
+                country: 'Singapore',
+                lat: 1.3521,
+                lon: 103.8198,
+                pincode: '',
+                storeCount: 0,
+                streets: [
+                  { name: 'Orchard Road', lat: 1.3048, lon: 103.8318 },
+                  { name: 'Marina Bay Sands', lat: 1.2834, lon: 103.8607 },
+                  { name: 'Little India', lat: 1.3068, lon: 103.8519 },
+                  { name: 'Chinatown', lat: 1.2815, lon: 103.8436 },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+const toFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const isValidLatLonPair = (lat, lon) => {
+  if (lat === null || lon === null) {
+    return false;
+  }
+
+  if (lat === 0 && lon === 0) {
+    return false;
+  }
+
+  return Number.isFinite(lat)
+    && Number.isFinite(lon)
+    && lat >= -90
+    && lat <= 90
+    && lon >= -180
+    && lon <= 180;
+};
+
+export const calculateDistance = (pointA, pointB) => {
+  const first = pointA && typeof pointA === "object" ? pointA : { lat: pointA, lon: pointB };
+  const second = pointB && typeof pointB === "object" ? pointB : { lat: pointA, lon: pointB };
+  const lat1 = toFiniteNumber(first.lat ?? first.latitude ?? first.latitude ?? null);
+  const lon1 = toFiniteNumber(first.lon ?? first.lng ?? first.longitude ?? null);
+  const lat2 = toFiniteNumber(second.lat ?? second.latitude ?? null);
+  const lon2 = toFiniteNumber(second.lon ?? second.lng ?? second.longitude ?? null);
+
+  if (!isValidLatLonPair(lat1, lon1) || !isValidLatLonPair(lat2, lon2)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const earthRadiusKm = 6371;
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const deltaLat = toRadians(lat2 - lat1);
+  const deltaLon = toRadians(lon2 - lon1);
+  const startLat = toRadians(lat1);
+  const endLat = toRadians(lat2);
+
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(startLat) * Math.cos(endLat) * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+};
+
+export const getSellerCoordinates = (sellerData = {}) => {
+  const source = sellerData || {};
+  const lat = toFiniteNumber(
+    source.lat
+      ?? source.latitude
+      ?? source.location?.lat
+      ?? source.location?.latitude
+      ?? source.address?.lat
+      ?? source.address?.latitude
+      ?? source.coordinates?.lat
+      ?? source.coordinates?.latitude
+  );
+  const lon = toFiniteNumber(
+    source.lon
+      ?? source.lng
+      ?? source.longitude
+      ?? source.location?.lon
+      ?? source.location?.lng
+      ?? source.location?.longitude
+      ?? source.address?.lon
+      ?? source.address?.lng
+      ?? source.address?.longitude
+      ?? source.coordinates?.lon
+      ?? source.coordinates?.lng
+      ?? source.coordinates?.longitude
+  );
+
+  if (!isValidLatLonPair(lat, lon)) {
+    return null;
+  }
+
+  return { lat, lon };
+};
+
+const safeLocalStorage = {
+  getItem: (key) => {
+    try {
+      if (typeof window === "undefined") {
+        return null;
+      }
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key, value) => {
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, value);
+      }
+    } catch {
+      // Ignore storage availability issues.
+    }
+  },
+};
+
+export const getCachedLocation = (storageKey = "kadai_active_location") => {
+  const rawValue = safeLocalStorage.getItem(storageKey);
+  if (!rawValue) return null;
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveActiveLocation = (location, storageKey = "kadai_active_location") => {
+  const nextLocation = location && typeof location === "object" ? location : null;
+  if (!nextLocation) return null;
+  safeLocalStorage.setItem(storageKey, JSON.stringify(nextLocation));
+  return nextLocation;
+};
+
+export const fetchUserSavedAddresses = (customer = []) => {
+  if (Array.isArray(customer)) {
+    return customer.filter(Boolean);
+  }
+
+  if (!customer || typeof customer !== "object") {
+    return [];
+  }
+
+  const directAddresses = Array.isArray(customer.addresses) ? customer.addresses : [];
+  const fallbackAddress = customer.address ? [customer.address] : [];
+  return [...directAddresses, ...fallbackAddress].filter(Boolean);
+};
+
+export const detectUserLocation = async () => getCurrentLocationAddress();
+
+export const fetchAvailableStoreLocations = async () => {
+  if (!db) {
+    return [];
+  }
+
+  const sellersQuery = query(collection(db, "users"), where("role", "==", "seller"));
+  const snapshot = await getDocs(sellersQuery);
+
+  return snapshot.docs.map((sellerDoc) => {
+    const sellerData = sellerDoc.data() || {};
+    const coordinates = getSellerCoordinates(sellerData);
+
+    return {
+      id: sellerDoc.id,
+      ...sellerData,
+      coordinates,
+      address: sellerData.address || {},
+    };
+  });
+};
 
 const matchesMappedLocation = (address, mappedLocation) => {
   if (!address.state || !labelsMatch(address.state, mappedLocation.state)) {

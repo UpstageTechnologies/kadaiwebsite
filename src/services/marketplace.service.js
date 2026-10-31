@@ -3,6 +3,7 @@ import{
   collectionGroup,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   where,
@@ -44,6 +45,83 @@ export const extractSellerIdFromDocPath = (docPath = "") => {
 
 export const getCurrentCustomerUid = () => {
   return auth?.currentUser?.uid || "";
+};
+
+export const fetchAvailableStoreLocations = async () => {
+  if (!db) {
+    return [];
+  }
+
+  try {
+    const sellersQuery = query(collection(db, "users"), where("role", "==", "seller"));
+    const snapshot = await getDocs(sellersQuery);
+    return snapshot.docs.map((sellerDoc) => {
+      const sellerData = sellerDoc.data() || {};
+      return {
+        id: sellerDoc.id,
+        ...sellerData,
+        coordinates: getSellerCoordinates(sellerData),
+      };
+    });
+  } catch (error) {
+    console.error("[MARKET] fetchAvailableStoreLocations failed:", error);
+    return [];
+  }
+};
+
+export const getCachedLocation = (storageKey = "kadai_active_location") => {
+  try {
+    if (typeof window === "undefined") return null;
+    const rawValue = window.localStorage.getItem(storageKey);
+    if (!rawValue) return null;
+    return JSON.parse(rawValue);
+  } catch {
+    return null;
+  }
+};
+
+export const saveActiveLocation = (location, storageKey = "kadai_active_location") => {
+  if (!location || typeof location !== "object") {
+    return null;
+  }
+
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(storageKey, JSON.stringify(location));
+    }
+  } catch {
+    // Ignore storage issues.
+  }
+
+  return location;
+};
+
+export const fetchUserSavedAddresses = (customer = []) => {
+  if (Array.isArray(customer)) {
+    return customer.filter(Boolean);
+  }
+
+  if (!customer || typeof customer !== "object") {
+    return [];
+  }
+
+  const addresses = Array.isArray(customer.addresses) ? customer.addresses : [];
+  const fallbackAddress = customer.address ? [customer.address] : [];
+  return [...addresses, ...fallbackAddress].filter(Boolean);
+};
+
+export const detectUserLocation = async () => {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    throw new Error("Location is not supported by this browser.");
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
+      (error) => reject(error),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  });
 };
 
 export const sanitizeLatLon = (value, fallback = null) => {
@@ -123,7 +201,65 @@ export const getAddressCoordinates = (source = {}) => extractCoordinatePair(sour
 
 export const getMarketplaceCoordinates = (source = {}) => extractCoordinatePair(source);
 
-const getSellerCoordinates = (sellerData = {}) => getMarketplaceCoordinates(sellerData);
+export const normalizeAddressPayload = (address = {}) => ({
+  country: String(address.country || "").trim(),
+  countryCode: String(address.countryCode || "").trim(),
+  state: String(address.state || "").trim(),
+  district: String(address.district || "").trim(),
+  city: String(address.city || "").trim(),
+  area: String(address.area || "").trim(),
+  pincode: String(address.pincode || "").trim(),
+});
+
+export const getSellerCoordinates = (sellerData = {}) => getMarketplaceCoordinates(sellerData);
+
+export const calculateDistance = (pointA, pointB) => {
+  const first = pointA && typeof pointA === "object" ? pointA : { lat: pointA, lon: pointB };
+  const second = pointB && typeof pointB === "object" ? pointB : { lat: pointA, lon: pointB };
+
+  const lat1 = Number(first?.lat ?? first?.latitude ?? null);
+  const lon1 = Number(first?.lon ?? first?.lng ?? first?.longitude ?? null);
+  const lat2 = Number(second?.lat ?? second?.latitude ?? null);
+  const lon2 = Number(second?.lon ?? second?.lng ?? second?.longitude ?? null);
+
+  if (
+    !Number.isFinite(lat1) ||
+    !Number.isFinite(lon1) ||
+    !Number.isFinite(lat2) ||
+    !Number.isFinite(lon2)
+  ) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  if ((lat1 === 0 && lon1 === 0) || (lat2 === 0 && lon2 === 0)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  if (
+    lat1 < -90 || lat1 > 90 || lon1 < -180 || lon1 > 180 ||
+    lat2 < -90 || lat2 > 90 || lon2 < -180 || lon2 > 180
+  ) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const earthRadiusKm = 6371;
+  const toRadians = (degree) => (degree * Math.PI) / 180;
+  const deltaLat = toRadians(lat2 - lat1);
+  const deltaLon = toRadians(lon2 - lon1);
+  const startLat = toRadians(lat1);
+  const endLat = toRadians(lat2);
+
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(startLat) *
+      Math.cos(endLat) *
+      Math.sin(deltaLon / 2) *
+      Math.sin(deltaLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusKm * c;
+};
 
 export const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
   if (
