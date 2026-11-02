@@ -76,6 +76,11 @@ export const AuthProvider = ({ children }) => {
               documentExists: snapshot.exists(),
               lat: customerData?.address?.lat ?? null,
               lon: customerData?.address?.lon ?? null,
+              city: customerData?.address?.city || "",
+              district: customerData?.address?.district || "",
+              state: customerData?.address?.state || "",
+              country: customerData?.address?.country || "",
+              pincode: customerData?.address?.pincode || "",
             });
           }
           setCustomer(customerData

@@ -104,6 +104,13 @@ export default function AddressChangeModal({
   const selectedAreaId = isDirectAddressFlow
     ? resolveLocationOptionId(addressAreaOptions, addressArea)
     : addressArea;
+  const handleAreaChange = (value) => {
+    setAddressArea(value);
+    const selectedAreaOption = addressAreaOptions.find(
+      (option) => option.id === value || option.value === value
+    );
+    setAddressPincode(selectedAreaOption?.pincode || "");
+  };
 
   useEffect(() => {
     if (!open) {
@@ -465,13 +472,14 @@ export default function AddressChangeModal({
           optionLabel(addressDistrictOptions, addressDistrict),
           optionLabel(addressStateOptions, addressState),
           optionLabel(addressCountryOptions, addressCountryId),
+          addressPincode,
         ];
       const composedAddress = addressParts
         .map((part) => String(part || "").trim())
         .filter((part, index, parts) => part && parts.indexOf(part) === index)
         .join(", ");
-      const fullAddress = (isDirectAddressFlow ? addressFormatted.trim() : composedAddress)
-        || composedAddress
+      const fullAddress = composedAddress
+        || addressFormatted.trim()
         || (addressMode === "gps" ? addressFormatted || addressFullFallback : "");
       setIsSavingAddress(true);
       setAddressError("");
@@ -493,26 +501,24 @@ export default function AddressChangeModal({
         : null;
 
       const nextAddress = {
-        country: isDirectAddressFlow ? selectedCountryId : addressCountryId,
+        country: optionLabel(addressCountryOptions, selectedCountryId),
         house: addressMode === "gps" || isDirectAddressFlow ? addressHouse.trim() : "",
         building: addressMode === "gps" ? addressBuilding.trim() : "",
         flat: addressMode === "gps" ? addressFlat.trim() : "",
         road: addressMode === "gps" || isDirectAddressFlow ? addressRoad.trim() : "",
-        state: isDirectAddressFlow ? selectedStateId : addressState,
-        district: isDirectAddressFlow ? selectedDistrictId : addressDistrict,
-        city: isDirectAddressFlow ? selectedCityId : addressCity,
+        state: optionLabel(addressStateOptions, selectedStateId),
+        district: optionLabel(addressDistrictOptions, selectedDistrictId),
+        city: optionLabel(addressCityOptions, selectedCityId),
         area: isDirectAddressFlow
-          ? selectedAreaId
+          ? optionLabel(addressAreaOptions, selectedAreaId)
           : addressMode === "gps"
             ? addressArea.trim()
-            : addressArea,
+            : optionLabel(addressAreaOptions, selectedAreaId),
         landmark: addressMode === "gps" || isDirectAddressFlow ? addressLandmark.trim() : "",
         village: addressMode === "gps" ? addressVillage.trim() : "",
         fullAddress,
-        formattedAddress: addressMode === "gps" || isDirectAddressFlow ? addressFormatted.trim() : "",
-        pincode: addressMode === "gps"
-          ? addressPincode.trim()
-          : selectedAreaOption?.pincode || addressPincode.trim(),
+        formattedAddress: fullAddress,
+        pincode: addressPincode.trim(),
         lat: addressMode === "gps" ? gpsCoordinates.lat : manualCoordinates?.lat ?? null,
         lon: addressMode === "gps" ? gpsCoordinates.lon : manualCoordinates?.lon ?? null,
         latitude: addressMode === "gps" ? gpsCoordinates.lat : manualCoordinates?.lat ?? null,
@@ -528,6 +534,7 @@ export default function AddressChangeModal({
           district: nextAddress.district,
           city: nextAddress.city,
           area: nextAddress.area,
+          pincode: nextAddress.pincode,
           fullAddress: nextAddress.fullAddress,
           lat: nextAddress.lat,
           lon: nextAddress.lon,
@@ -543,6 +550,7 @@ export default function AddressChangeModal({
           lat: nextAddress.lat,
           lon: nextAddress.lon,
           locationSource: nextAddress.locationSource,
+          pincode: nextAddress.pincode,
           persistedToCustomerDocument: !isCheckoutFlow,
         });
       }
@@ -721,6 +729,7 @@ export default function AddressChangeModal({
                   setAddressDistrict("");
                   setAddressCity("");
                   setAddressArea("");
+                  setAddressPincode("");
                 }}
                 style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
               >
@@ -736,6 +745,7 @@ export default function AddressChangeModal({
                   setAddressDistrict("");
                   setAddressCity("");
                   setAddressArea("");
+                  setAddressPincode("");
                 }}
                 disabled={!selectedCountryId || addressLoading.states}
                 style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
@@ -751,6 +761,7 @@ export default function AddressChangeModal({
                   setAddressDistrict(event.target.value);
                   setAddressCity("");
                   setAddressArea("");
+                  setAddressPincode("");
                 }}
                 disabled={!selectedStateId || addressLoading.districts}
                 style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
@@ -765,6 +776,7 @@ export default function AddressChangeModal({
                 onChange={(event) => {
                   setAddressCity(event.target.value);
                   setAddressArea("");
+                  setAddressPincode("");
                 }}
                 disabled={!selectedDistrictId || addressLoading.cities}
                 style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
@@ -776,7 +788,7 @@ export default function AddressChangeModal({
               </select>
               <select
                 value={selectedAreaId}
-                onChange={(event) => setAddressArea(event.target.value)}
+                onChange={(event) => handleAreaChange(event.target.value)}
                 disabled={!selectedCityId || addressLoading.areas}
                 style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
               >
@@ -883,6 +895,7 @@ export default function AddressChangeModal({
                 setAddressDistrict("");
                 setAddressCity("");
                 setAddressArea("");
+                setAddressPincode("");
               }}
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             >
@@ -899,6 +912,7 @@ export default function AddressChangeModal({
                 setAddressDistrict("");
                 setAddressCity("");
                 setAddressArea("");
+                setAddressPincode("");
               }}
               disabled={!addressCountryId || addressLoading.states}
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
@@ -915,6 +929,7 @@ export default function AddressChangeModal({
                 setAddressDistrict(event.target.value);
                 setAddressCity("");
                 setAddressArea("");
+                setAddressPincode("");
               }}
               disabled={!addressState || addressLoading.districts}
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
@@ -930,6 +945,7 @@ export default function AddressChangeModal({
               onChange={(event) => {
                 setAddressCity(event.target.value);
                 setAddressArea("");
+                setAddressPincode("");
               }}
               disabled={!addressDistrict || addressLoading.cities}
               style={{ padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
@@ -942,7 +958,7 @@ export default function AddressChangeModal({
 
             <select
               value={addressArea}
-              onChange={(event) => setAddressArea(event.target.value)}
+              onChange={(event) => handleAreaChange(event.target.value)}
               disabled={!addressCity || addressLoading.areas}
               style={{ gridColumn: "1 / -1", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             >
@@ -951,6 +967,13 @@ export default function AddressChangeModal({
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
+            <input
+              type="text"
+              value={addressPincode}
+              onChange={(event) => setAddressPincode(event.target.value)}
+              placeholder="Pincode"
+              style={{ gridColumn: "1 / -1", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+            />
             </div>
           )}
         </fieldset>

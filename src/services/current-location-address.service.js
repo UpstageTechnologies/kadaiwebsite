@@ -1005,6 +1005,16 @@ export const reverseGeocodeLocation = async (lat, lon) => {
 
   const englishAddress = sanitizeEnglishAddress(payload.address || {});
   const displayName = String(payload.display_name || "").trim();
+  if (import.meta.env.DEV) {
+    console.debug("[LOCATION DEBUG] reverse geocoder address", {
+      country: englishAddress.country || payload.address?.country || "",
+      state: englishAddress.state || payload.address?.state || "",
+      district: englishAddress.district || payload.address?.state_district || payload.address?.county || payload.address?.district || "",
+      city: englishAddress.city || payload.address?.city || payload.address?.town || payload.address?.village || payload.address?.municipality || "",
+      area: englishAddress.area || payload.address?.suburb || payload.address?.neighbourhood || payload.address?.quarter || payload.address?.hamlet || payload.address?.locality || "",
+      pincode: englishAddress.pincode || payload.address?.postcode || "",
+    });
+  }
   return {
     ...payload,
     address: {

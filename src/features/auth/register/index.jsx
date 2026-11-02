@@ -402,6 +402,7 @@ const Register = () => {
     locationRequestIds.current.cities += 1;
     locationRequestIds.current.areas += 1;
     setCountryId(value);
+    setPincode("");
     setState("");
     setDistrict("");
     setCity("");
@@ -423,6 +424,7 @@ const Register = () => {
     locationRequestIds.current.cities += 1;
     locationRequestIds.current.areas += 1;
     setState(value);
+    setPincode("");
     setDistrict("");
     setCity("");
     setArea("");
@@ -444,6 +446,7 @@ const Register = () => {
     locationRequestIds.current.cities += 1;
     locationRequestIds.current.areas += 1;
     setDistrict(value);
+    setPincode("");
     setCity("");
     setArea("");
     setLocationOptions((current) => ({ ...current, cities: [], areas: [] }));
@@ -456,6 +459,7 @@ const Register = () => {
   const handleCityChange = (value) => {
     locationRequestIds.current.areas += 1;
     setCity(value);
+    setPincode("");
     setArea("");
     setLocationOptions((current) => ({ ...current, areas: [] }));
     setLocationLoading((current) => ({ ...current, areas: false }));
@@ -582,7 +586,7 @@ const Register = () => {
           countryId,
           pincode,
         ]
-        : [area, city, district, state, countryLabel];
+        : [area, city, district, state, countryLabel, pincode];
       const selectedAreaOption = locationOptions.areas.find(
         (option) => option.id === area || option.value === area
       );
@@ -619,8 +623,8 @@ const Register = () => {
         village: isGpsAddress ? village : "",
         fullAddress,
         address: fullAddress,
-        formattedAddress: isGpsAddress ? formattedAddress : "",
-        pincode: isGpsAddress ? pincode : selectedAreaOption?.pincode || pincode,
+        formattedAddress: fullAddress,
+        pincode,
         lat: savedCoordinates.lat,
         lon: savedCoordinates.lon,
         latitude: savedCoordinates.lat,
@@ -949,10 +953,25 @@ const Register = () => {
                   </div>
                   <div className="register-field">
                     <span>Area</span>
-                    <select value={area} onChange={(event) => setArea(event.target.value)} disabled={loading || locationLoading.areas || !city}>
+                    <select
+                      value={area}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        const selectedAreaOption = locationOptions.areas.find(
+                          (option) => option.id === value || option.value === value
+                        );
+                        setArea(value);
+                        setPincode(selectedAreaOption?.pincode || "");
+                      }}
+                      disabled={loading || locationLoading.areas || !city}
+                    >
                       <option value="">{locationLoading.areas ? "Loading areas..." : "Select Area"}</option>
                       {locationOptions.areas.map((option) => <option key={option.id} value={option.value}>{option.label}</option>)}
                     </select>
+                  </div>
+                  <div className="register-field">
+                    <span>Pincode</span>
+                    <input value={pincode} onChange={(event) => setPincode(event.target.value)} disabled={loading} />
                   </div>
                 </div>
               )}
