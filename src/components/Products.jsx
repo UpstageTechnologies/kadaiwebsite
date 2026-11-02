@@ -12,7 +12,7 @@ import { useCart } from "./CardContext";
 import { useAuth } from "./AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
-  getCustomerActiveCoordinates,
+  getCustomerActiveLocation,
   getNearbySellerIds,
   MARKET_MODES,
   subscribeMarketplaceProducts,
@@ -49,7 +49,7 @@ const Products = () => {
   const isLoading = Boolean(user?.uid) && productState.uid !== user.uid;
 
   const customerLocation = useMemo(
-    () => getCustomerActiveCoordinates(customer),
+    () => getCustomerActiveLocation(customer),
     [customer]
   );
 
@@ -69,7 +69,9 @@ const Products = () => {
   }, []);
 
   const sellerLocations = useMemo(
-    () => Object.fromEntries(sellerProfiles.map((seller) => [seller.id, seller.coordinates])),
+    () => Object.fromEntries(
+      sellerProfiles.map((seller) => [seller.id, seller.addressData || seller.coordinates || seller])
+    ),
     [sellerProfiles]
   );
 
@@ -373,7 +375,7 @@ const Products = () => {
         </div>
       ) : visibleProducts.length === 0 ? (
         <div className="no-products">
-          <h3>No local products available within 3 KM</h3>
+          <h3>No local products found for your area</h3>
           <p>Try the global catalog for more products from other stores.</p>
         </div>
       ) : (

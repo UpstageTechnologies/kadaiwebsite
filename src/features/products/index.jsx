@@ -18,7 +18,7 @@ import {
 import {
   DEFAULT_MARKET_MODE,
   MARKET_MODES,
-  getCustomerActiveCoordinates,
+  getCustomerActiveLocation,
   getNearbySellerIds,
   haversineDistanceKm,
   subscribeMarketplaceProducts,
@@ -58,7 +58,7 @@ const Products = () => {
       : DEFAULT_MARKET_MODE;
   const userId = user?.uid || "";
   const customerLocation = useMemo(
-    () => getCustomerActiveCoordinates(customer),
+    () => getCustomerActiveLocation(customer),
     [customer]
   );
   const locationError = userId ? customerError : "";
@@ -128,7 +128,9 @@ const Products = () => {
   }, []);
 
   const sellerLocationMap = useMemo(
-    () => Object.fromEntries(sellerProfiles.map((seller) => [seller.id, seller.coordinates])),
+    () => Object.fromEntries(
+      sellerProfiles.map((seller) => [seller.id, seller.addressData || seller.coordinates || seller])
+    ),
     [sellerProfiles]
   );
   const nearbySellerIds = useMemo(
@@ -402,10 +404,9 @@ const Products = () => {
               && marketMode === MARKET_MODES.LOCAL
               && !customerLocation ? (
                 <div className="no-products">
-                  <h3>Location coordinates needed</h3>
+                  <h3>Saved city or district needed</h3>
                   <p>
-                    Local shops can only be shown when your saved address has latitude and longitude.
-                    Update your address from the profile menu; GPS will not be requested automatically.
+                    Add or update your saved address so we can match local shops by city or district.
                   </p>
                 </div>
               ) : null}

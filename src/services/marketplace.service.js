@@ -233,7 +233,7 @@ export const getCustomerActiveLocation = (customer = {}) => {
   }
 
   const coordinates = getMarketplaceCoordinates(activeAddress);
-  return coordinates ? { ...activeAddress, ...coordinates } : null;
+  return coordinates ? { ...activeAddress, ...coordinates } : { ...activeAddress };
 };
 
 export const getCustomerActiveCoordinates = (customer = {}) => {
@@ -257,6 +257,105 @@ export const normalizeAddressPayload = (address = {}) => ({
   area: String(address.area || "").trim(),
   pincode: String(address.pincode || "").trim(),
 });
+
+const normalizeLocationText = (value) => String(value ?? "")
+  .trim()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/[^\p{L}\p{N}]+/gu, " ")
+  .replace(/\s+/g, " ")
+  .toLowerCase();
+
+const valuesMatch = (left, right) => {
+  const normalizedLeft = normalizeLocationText(left);
+  const normalizedRight = normalizeLocationText(right);
+
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+
+  if (normalizedLeft === normalizedRight) {
+    return true;
+  }
+
+  return normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft);
+};
+
+const getLocationMatchSource = (source = {}) => {
+  if (!source || typeof source !== "object") {
+    return {};
+  }
+
+  const nestedAddress = source.address && typeof source.address === "object" && !Array.isArray(source.address)
+    ? source.address
+    : {};
+
+  return {
+    ...source,
+    ...nestedAddress,
+    ...(source.coordinates && typeof source.coordinates === "object" ? source.coordinates : {}),
+    ...(source.location && typeof source.location === "object" ? source.location : {}),
+  };
+};
+
+const getLocationMatchValue = (source = {}, keys = []) => {
+  const matchSource = getLocationMatchSource(source);
+
+  for (const key of keys) {
+    const rawValue = matchSource[key];
+    const textValue = typeof rawValue === "string" ? rawValue : typeof rawValue === "number" ? String(rawValue) : "";
+
+    if (textValue.trim()) {
+      return textValue.trim();
+    }
+  }
+
+  return "";
+};
+
+const getLocationMatchContext = (source = {}) => {
+  const matchSource = getLocationMatchSource(source);
+  return {
+    country: getLocationMatchValue(matchSource, ["country", "countryName"]),
+    state: getLocationMatchValue(matchSource, ["state", "stateName"]),
+    district: getLocationMatchValue(matchSource, ["district", "districtName", "cityDistrict"]),
+    city: getLocationMatchValue(matchSource, ["city", "cityName", "town", "village", "municipality", "locality"]),
+    area: getLocationMatchValue(matchSource, ["area", "areaName", "road", "street", "suburb"]),
+    lat: sanitizeLatLon(matchSource.lat ?? matchSource.latitude ?? matchSource.coordinates?.lat ?? null, null),
+    lon: sanitizeLatLon(matchSource.lon ?? matchSource.lng ?? matchSource.longitude ?? matchSource.coordinates?.lon ?? null, null),
+  };
+};
+
+const locationHierarchyMatches = (customerLocation, sellerLocation) => {
+  if (!customerLocation || !sellerLocation) {
+    return false;
+  }
+
+  const customer = getLocationMatchContext(customerLocation);
+  const seller = getLocationMatchContext(sellerLocation);
+
+  if (customer.country && seller.country && !valuesMatch(customer.country, seller.country)) {
+    return false;
+  }
+
+  if (customer.state && seller.state && !valuesMatch(customer.state, seller.state)) {
+    return false;
+  }
+
+  if (customer.city && seller.city) {
+    return valuesMatch(customer.city, seller.city);
+  }
+
+  if (customer.city && seller.district && customer.district && valuesMatch(customer.district, seller.district)) {
+    return true;
+  }
+
+  if (!customer.city && customer.district && seller.district) {
+    return valuesMatch(customer.district, seller.district);
+  }
+
+  return false;
+};
 
 export const getSellerCoordinates = (sellerData = {}) => getMarketplaceCoordinates(sellerData);
 
@@ -377,23 +476,43 @@ export const mapFirestoreProduct = async (productSnapshot, marketType = MARKET_M
 };
 
 export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => {
+  const customerAddress = getLocationMatchContext(customerLocation || {});
   const customerCoordinates = getAddressCoordinates(customerLocation);
-  if (!customerCoordinates) {
-    logMarketplaceDiagnostic("[MARKET DEBUG] customer coordinates unavailable", {
-      reason: "missing_or_invalid_saved_address_coordinates",
+
+  if (!customerCoordinates && !customerAddress.country && !customerAddress.state && !customerAddress.city && !customerAddress.district) {
+    logMarketplaceDiagnostic("[MARKET DEBUG] customer location unavailable", {
+      reason: "missing_customer_address_and_coordinates",
     });
     return [];
   }
 
-  logMarketplaceDiagnostic("[MARKET DEBUG] customer coordinates", customerCoordinates);
+  logMarketplaceDiagnostic("[MARKET DEBUG] customer location context", {
+    customerAddress,
+    customerCoordinates,
+  });
+
   const nearbySellerIds = [];
 
   Object.entries(sellerLocationMap).forEach(([sellerId, sellerLocation]) => {
+    const sellerAddress = getLocationMatchContext(sellerLocation || {});
     const sellerCoordinates = getAddressCoordinates(sellerLocation);
-    if (!sellerCoordinates) {
+    const matchesLocationHierarchy = locationHierarchyMatches(customerLocation, sellerLocation);
+
+    if (matchesLocationHierarchy) {
+      nearbySellerIds.push(sellerId);
+      logMarketplaceDiagnostic("[MARKET DEBUG] seller matched by hierarchy", {
+        sellerId,
+        sellerAddress,
+        reason: "city_or_district_match",
+      });
+      return;
+    }
+
+    if (!sellerCoordinates || !customerCoordinates) {
       logMarketplaceDiagnostic("[MARKET DEBUG] seller excluded", {
         sellerId,
-        reason: "missing_or_invalid_coordinates",
+        sellerAddress,
+        reason: sellerCoordinates ? "missing_customer_coordinates" : "missing_or_invalid_seller_coordinates",
       });
       return;
     }
@@ -585,6 +704,8 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
               : "missing_or_invalid_saved_shop_coordinates",
           }
         );
+        const addressData = getLocationMatchContext(sellerData);
+
         return {
           id: sellerSnapshot.id,
           shopName: safeText(
@@ -594,6 +715,10 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
           image: getSellerImage(sellerData),
           address: getSellerAddressText(sellerData),
           coordinates,
+          addressData: {
+            ...addressData,
+            ...(coordinates ? { lat: coordinates.lat, lon: coordinates.lon } : {}),
+          },
         };
       });
 
