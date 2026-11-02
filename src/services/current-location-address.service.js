@@ -16,6 +16,12 @@ const LOCATION_ERROR_CODES = {
   TIMEOUT: 3,
 };
 
+const logLocationDiagnostic = (...values) => {
+  if (import.meta.env.DEV) {
+    console.debug(...values);
+  }
+};
+
 const firstValue = (...values) => values.find((value) => String(value || "").trim()) || "";
 
 const normalizeLabel = (value) => String(value || "")
@@ -1215,21 +1221,40 @@ export const forwardGeocodeAddress = async ({
 
 const getCoordinates = () => new Promise((resolve, reject) => {
   if (!navigator.geolocation) {
+    logLocationDiagnostic("[LOCATION DEBUG] geolocation unavailable", {
+      secureContext: Boolean(globalThis.isSecureContext),
+      geolocationSupported: false,
+    });
     reject(new Error("Location is not supported by this browser."));
     return;
   }
 
-  const onSuccess = ({ coords }) => resolve({
-    latitude: Number(coords.latitude),
-    longitude: Number(coords.longitude),
-  });
+  const onSuccess = ({ coords }) => {
+    logLocationDiagnostic("[LOCATION DEBUG] geolocation succeeded", {
+      secureContext: Boolean(globalThis.isSecureContext),
+      geolocationSupported: true,
+    });
+    resolve({
+      latitude: Number(coords.latitude),
+      longitude: Number(coords.longitude),
+    });
+  };
   const requestLocation = (options, onError) => {
     navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
   };
 
+  logLocationDiagnostic("[LOCATION DEBUG] requesting geolocation", {
+    secureContext: Boolean(globalThis.isSecureContext),
+    geolocationSupported: true,
+    highAccuracy: true,
+  });
   requestLocation(
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     (highAccuracyError) => {
+      logLocationDiagnostic("[LOCATION DEBUG] high-accuracy geolocation failed", {
+        code: highAccuracyError?.code || 0,
+        message: highAccuracyError?.message || "",
+      });
       if (highAccuracyError?.code === LOCATION_ERROR_CODES.PERMISSION_DENIED) {
         reject(new Error("Location permission is disabled. Please allow this site to access your location, then try again."));
         return;
@@ -1246,6 +1271,10 @@ const getCoordinates = () => new Promise((resolve, reject) => {
       requestLocation(
         { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 },
         (fallbackError) => {
+          logLocationDiagnostic("[LOCATION DEBUG] standard geolocation failed", {
+            code: fallbackError?.code || 0,
+            message: fallbackError?.message || "",
+          });
           const message = fallbackError?.code === LOCATION_ERROR_CODES.PERMISSION_DENIED
             ? "Location permission is disabled. Please allow this site to access your location, then try again."
             : fallbackError?.code === LOCATION_ERROR_CODES.TIMEOUT
