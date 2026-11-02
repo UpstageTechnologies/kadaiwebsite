@@ -134,7 +134,13 @@ const Products = () => {
     });
 
     console.debug("[MARKET DEBUG] home local product filtering", {
-      customerCoordinates: customerLocation,
+      customerLocation: {
+        country: customerLocation?.country || "",
+        state: customerLocation?.state || "",
+        district: customerLocation?.district || "",
+        city: customerLocation?.city || "",
+        hasCoordinates: Boolean(customerLocation?.lat != null && customerLocation?.lon != null),
+      },
       sellerProfileCount: sellerProfiles.length,
       nearbySellerIds,
       inventoryProductCount: localProducts.length,
@@ -178,6 +184,24 @@ const Products = () => {
   const visibleProducts = showAll
     ? displayedLocalProducts
     : displayedLocalProducts.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    console.debug("[MARKET DEBUG] home local render counts", {
+      matchedSellerCount: nearbySellerIds.length,
+      eligibleShopCount: eligibleShops.length,
+      inventoryProductCount: localProducts.length,
+      matchingProductCount: filteredLocalProducts.length,
+      displayedProductCount: visibleProducts.length,
+    });
+  }, [
+    eligibleShops.length,
+    filteredLocalProducts.length,
+    localProducts.length,
+    nearbySellerIds.length,
+    visibleProducts.length,
+  ]);
 
   const getProductQuantity = (productId) => {
     const cartItem = cartItems.find(

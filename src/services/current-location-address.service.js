@@ -907,9 +907,6 @@ export const saveActiveLocation = (location, storageKey = "kadai_active_location
       district: location.district || "",
       state: location.state || "",
       country: location.country || "",
-      fullAddress: location.fullAddress || location.address || "",
-      lat,
-      lon,
     });
   }
 
@@ -1011,8 +1008,6 @@ export const reverseGeocodeLocation = async (lat, lon) => {
       state: englishAddress.state || payload.address?.state || "",
       district: englishAddress.district || payload.address?.state_district || payload.address?.county || payload.address?.district || "",
       city: englishAddress.city || payload.address?.city || payload.address?.town || payload.address?.village || payload.address?.municipality || "",
-      area: englishAddress.area || payload.address?.suburb || payload.address?.neighbourhood || payload.address?.quarter || payload.address?.hamlet || payload.address?.locality || "",
-      pincode: englishAddress.pincode || payload.address?.postcode || "",
     });
   }
   return {

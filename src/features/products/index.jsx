@@ -253,6 +253,28 @@ const Products = () => {
       }));
   }, [customerLocation, filteredProducts, marketMode, nearbySellerIds, sellerProfiles]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || marketMode !== MARKET_MODES.LOCAL) return;
+
+    console.debug("[MARKET DEBUG] local products page render counts", {
+      matchedSellerCount: nearbySellerIds.length,
+      eligibleShopCount: eligibleShops.length,
+      loadedProductCount: productState.marketMode === MARKET_MODES.LOCAL
+        ? productState.products.length
+        : 0,
+      matchingProductCount: activeProducts.length,
+      displayedProductCount: filteredProducts.length,
+    });
+  }, [
+    activeProducts.length,
+    eligibleShops.length,
+    filteredProducts.length,
+    marketMode,
+    nearbySellerIds.length,
+    productState.marketMode,
+    productState.products.length,
+  ]);
+
   const selectedShopProfile = sellerProfiles.find((seller) =>
     seller.id === selectedShopId
     && (marketMode !== MARKET_MODES.LOCAL || nearbySellerIds.includes(seller.id))

@@ -335,15 +335,21 @@ const getLocationMatchSource = (source = {}) => {
     return {};
   }
 
-  const nestedAddress = source.address && typeof source.address === "object" && !Array.isArray(source.address)
-    ? source.address
-    : {};
+  const nestedAddress = [
+    source.address,
+    source.shopAddress,
+    source.storeAddress,
+    source.shopLocation,
+    source.storeLocation,
+    source.location,
+  ].find((candidate) =>
+    candidate && typeof candidate === "object" && !Array.isArray(candidate)
+  ) || {};
 
   return {
     ...source,
     ...nestedAddress,
     ...(source.coordinates && typeof source.coordinates === "object" ? source.coordinates : {}),
-    ...(source.location && typeof source.location === "object" ? source.location : {}),
   };
 };
 
@@ -375,35 +381,35 @@ const getLocationMatchContext = (source = {}) => {
   };
 };
 
-const locationHierarchyMatches = (customerLocation, sellerLocation) => {
+const getLocationHierarchyMatchType = (customerLocation, sellerLocation) => {
   if (!customerLocation || !sellerLocation) {
-    return false;
+    return "";
   }
 
   const customer = getLocationMatchContext(customerLocation);
   const seller = getLocationMatchContext(sellerLocation);
 
   if (customer.country && seller.country && !valuesMatch(customer.country, seller.country)) {
-    return false;
+    return "";
   }
 
   if (customer.state && seller.state && !valuesMatch(customer.state, seller.state)) {
-    return false;
+    return "";
   }
 
   if (customer.city && seller.city) {
-    return valuesMatch(customer.city, seller.city);
+    return valuesMatch(customer.city, seller.city) ? "city" : "";
   }
 
   if (customer.city && seller.district && customer.district && valuesMatch(customer.district, seller.district)) {
-    return true;
+    return "district";
   }
 
   if (!customer.city && customer.district && seller.district) {
-    return valuesMatch(customer.district, seller.district);
+    return valuesMatch(customer.district, seller.district) ? "district" : "";
   }
 
-  return false;
+  return "";
 };
 
 export const getSellerCoordinates = (sellerData = {}) => getMarketplaceCoordinates(sellerData);
@@ -536,23 +542,34 @@ export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => 
   }
 
   logMarketplaceDiagnostic("[MARKET DEBUG] customer location context", {
-    customerAddress,
-    customerCoordinates,
+    country: customerAddress.country,
+    state: customerAddress.state,
+    district: customerAddress.district,
+    city: customerAddress.city,
+    hasCoordinates: Boolean(customerCoordinates),
   });
 
   const nearbySellerIds = [];
+  let cityMatches = 0;
+  let districtMatches = 0;
+  let coordinateFallbackMatches = 0;
 
   Object.entries(sellerLocationMap).forEach(([sellerId, sellerLocation]) => {
     const sellerAddress = getLocationMatchContext(sellerLocation || {});
     const sellerCoordinates = getAddressCoordinates(sellerLocation);
-    const matchesLocationHierarchy = locationHierarchyMatches(customerLocation, sellerLocation);
+    const hierarchyMatchType = getLocationHierarchyMatchType(customerLocation, sellerLocation);
 
-    if (matchesLocationHierarchy) {
+    if (hierarchyMatchType) {
       nearbySellerIds.push(sellerId);
+      if (hierarchyMatchType === "city") cityMatches += 1;
+      if (hierarchyMatchType === "district") districtMatches += 1;
       logMarketplaceDiagnostic("[MARKET DEBUG] seller matched by hierarchy", {
         sellerId,
-        sellerAddress,
-        reason: "city_or_district_match",
+        country: sellerAddress.country,
+        state: sellerAddress.state,
+        district: sellerAddress.district,
+        city: sellerAddress.city,
+        reason: `${hierarchyMatchType}_match`,
       });
       return;
     }
@@ -560,7 +577,6 @@ export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => 
     if (!sellerCoordinates || !customerCoordinates) {
       logMarketplaceDiagnostic("[MARKET DEBUG] seller excluded", {
         sellerId,
-        sellerAddress,
         reason: sellerCoordinates ? "missing_customer_coordinates" : "missing_or_invalid_seller_coordinates",
       });
       return;
@@ -576,7 +592,6 @@ export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => 
 
     logMarketplaceDiagnostic("[MARKET DEBUG] seller distance", {
       sellerId,
-      coordinates: sellerCoordinates,
       distanceKm,
       included,
       reason: Number.isFinite(distanceKm)
@@ -586,10 +601,18 @@ export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => 
 
     if (included) {
       nearbySellerIds.push(sellerId);
+      coordinateFallbackMatches += 1;
     }
   });
 
-  logMarketplaceDiagnostic("[MARKET DEBUG] nearby seller IDs", nearbySellerIds);
+  logMarketplaceDiagnostic("[MARKET DEBUG] seller matching summary", {
+    sellerCount: Object.keys(sellerLocationMap).length,
+    cityMatches,
+    districtMatches,
+    coordinateFallbackMatches,
+    matchedSellerCount: nearbySellerIds.length,
+    matchedSellerIds: nearbySellerIds,
+  });
   return nearbySellerIds;
 };
 
@@ -743,16 +766,6 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
       const sellers = snapshot.docs.map((sellerSnapshot) => {
         const sellerData = sellerSnapshot.data() || {};
         const coordinates = getSellerCoordinates(sellerData);
-        logMarketplaceDiagnostic(
-          "[MARKET DEBUG] seller coordinate resolution",
-          {
-            sellerId: sellerSnapshot.id,
-            coordinates,
-            reason: coordinates
-              ? "saved_shop_coordinates"
-              : "missing_or_invalid_saved_shop_coordinates",
-          }
-        );
         const addressData = getLocationMatchContext(sellerData);
 
         return {
@@ -769,6 +782,22 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
             ...(coordinates ? { lat: coordinates.lat, lon: coordinates.lon } : {}),
           },
         };
+      });
+
+      const sellersWithLocation = sellers.filter((seller) =>
+        Boolean(
+          seller.addressData.country
+          || seller.addressData.state
+          || seller.addressData.district
+          || seller.addressData.city
+          || getAddressCoordinates(seller.addressData)
+        )
+      ).length;
+      logMarketplaceDiagnostic("[MARKET DEBUG] seller profiles loaded", {
+        collection: "users",
+        role: "seller",
+        sellerCount: sellers.length,
+        sellersWithLocation,
       });
 
       if (typeof onSellers === "function") {

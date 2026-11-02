@@ -1,11 +1,17 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
 } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, firebaseCustomerDoc, onSnapshot } from "../services/firebase";
+import {
+  auth,
+  firebaseCustomerDoc,
+  firebaseUpdateCustomer,
+  onSnapshot,
+} from "../services/firebase";
 import {
   getActiveLocationStorageKey,
   saveActiveLocation,
@@ -23,6 +29,40 @@ export const AuthProvider = ({ children }) => {
   const [customer, setCustomer] = useState(null);
   const [customerError, setCustomerError] = useState("");
   const [loading, setLoading] = useState(Boolean(auth));
+
+  const updateCustomerAddress = useCallback(async (address) => {
+    const customerUid = auth?.currentUser?.uid || "";
+    if (!customerUid) {
+      throw new Error("Your Firebase session is missing. Please log in again.");
+    }
+
+    await firebaseUpdateCustomer(customerUid, { address });
+    const activeAddress = saveActiveLocation(
+      address,
+      getActiveLocationStorageKey(customerUid)
+    );
+
+    if (auth?.currentUser?.uid === customerUid) {
+      setCustomer((currentCustomer) => ({
+        ...(currentCustomer || {}),
+        uid: customerUid,
+        address: activeAddress || address,
+      }));
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug("[AUTH DEBUG] customer address saved and refreshed", {
+        city: address.city || "",
+        district: address.district || "",
+        state: address.state || "",
+        country: address.country || "",
+        hasCoordinates: Boolean(address.lat != null && address.lon != null),
+        addressField: "customers/{uid}.address",
+      });
+    }
+
+    return activeAddress || address;
+  }, []);
 
   useEffect(() => {
     if (!auth) return undefined;
@@ -66,21 +106,21 @@ export const AuthProvider = ({ children }) => {
                   district: customerData.address.district || "",
                   state: customerData.address.state || "",
                   country: customerData.address.country || "",
-                  fullAddress: customerData.address.fullAddress || customerData.address.address || "",
                 });
               }
             }
           }
           if (import.meta.env.DEV) {
-            console.debug("[AUTH DEBUG] customer snapshot address coordinates", {
+            console.debug("[AUTH DEBUG] customer snapshot address refreshed", {
               documentExists: snapshot.exists(),
-              lat: customerData?.address?.lat ?? null,
-              lon: customerData?.address?.lon ?? null,
               city: customerData?.address?.city || "",
               district: customerData?.address?.district || "",
               state: customerData?.address?.state || "",
               country: customerData?.address?.country || "",
-              pincode: customerData?.address?.pincode || "",
+              hasCoordinates: Boolean(
+                customerData?.address?.lat != null
+                && customerData?.address?.lon != null
+              ),
             });
           }
           setCustomer(customerData
@@ -107,7 +147,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, customer, customerError, loading }}>
+    <AuthContext.Provider value={{
+      user,
+      customer,
+      customerError,
+      loading,
+      updateCustomerAddress,
+    }}>
       {children}
     </AuthContext.Provider>
   );

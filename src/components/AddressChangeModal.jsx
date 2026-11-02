@@ -2,17 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import {
   auth,
   firebaseCustomerSnapshot,
-  firebaseUpdateCustomer,
 } from "../services/firebase";
+import { useAuth } from "./AuthContext";
 import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "../services/registration-location.service";
 import {
-  getActiveLocationStorageKey,
   getCurrentLocationAddress,
   getManualAddressCoordinates,
-  saveActiveLocation,
 } from "../services/current-location-address.service";
 import { getAddressCoordinates } from "../services/marketplace.service";
 
@@ -55,6 +53,7 @@ export default function AddressChangeModal({
   const isAddFlow = flow === "add";
   const isCheckoutFlow = flow === "checkout";
   const isDirectAddressFlow = isAddFlow || isCheckoutFlow;
+  const { updateCustomerAddress } = useAuth();
   const [addressError, setAddressError] = useState("");
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [isDetectingAddress, setIsDetectingAddress] = useState(false);
@@ -533,24 +532,20 @@ export default function AddressChangeModal({
           state: nextAddress.state,
           district: nextAddress.district,
           city: nextAddress.city,
-          area: nextAddress.area,
-          pincode: nextAddress.pincode,
-          fullAddress: nextAddress.fullAddress,
-          lat: nextAddress.lat,
-          lon: nextAddress.lon,
+          hasCoordinates: Boolean(nextAddress.lat != null && nextAddress.lon != null),
         });
       }
 
       if (!isCheckoutFlow) {
-        await firebaseUpdateCustomer(customerUid, { address: nextAddress });
-        saveActiveLocation(nextAddress, getActiveLocationStorageKey(customerUid));
+        if (auth?.currentUser?.uid !== customerUid) {
+          throw new Error("Your Firebase session changed. Please try saving the address again.");
+        }
+        await updateCustomerAddress(nextAddress);
       }
       if (import.meta.env.DEV) {
         console.debug("[ADDRESS DEBUG] address save coordinates", {
-          lat: nextAddress.lat,
-          lon: nextAddress.lon,
           locationSource: nextAddress.locationSource,
-          pincode: nextAddress.pincode,
+          hasCoordinates: Boolean(nextAddress.lat != null && nextAddress.lon != null),
           persistedToCustomerDocument: !isCheckoutFlow,
         });
       }
