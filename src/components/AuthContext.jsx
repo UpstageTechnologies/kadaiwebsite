@@ -60,7 +60,14 @@ export const AuthProvider = ({ children }) => {
               );
             } catch (cacheError) {
               if (import.meta.env.DEV) {
-                console.warn("[AUTH] Saved address was not cached:", cacheError);
+                console.warn("[AUTH] Saved address was not cached:", {
+                  error: cacheError?.message || String(cacheError),
+                  city: customerData.address.city || "",
+                  district: customerData.address.district || "",
+                  state: customerData.address.state || "",
+                  country: customerData.address.country || "",
+                  fullAddress: customerData.address.fullAddress || customerData.address.address || "",
+                });
               }
             }
           }

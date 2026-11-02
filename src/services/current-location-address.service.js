@@ -898,17 +898,29 @@ export const saveActiveLocation = (location, storageKey = "kadai_active_location
 
   const lat = toFiniteNumber(location.lat ?? location.latitude);
   const lon = toFiniteNumber(location.lon ?? location.lng ?? location.longitude);
-  if (!isValidLatLonPair(lat, lon)) {
-    throw new Error("Cannot cache an active address without valid coordinates.");
+  const hasCoordinates = isValidLatLonPair(lat, lon);
+
+  if (import.meta.env.DEV) {
+    console.debug("[LOCATION DEBUG] caching active address", {
+      hasCoordinates,
+      city: location.city || "",
+      district: location.district || "",
+      state: location.state || "",
+      country: location.country || "",
+      fullAddress: location.fullAddress || location.address || "",
+      lat,
+      lon,
+    });
   }
 
   const nextLocation = {
     ...location,
-    lat,
-    lon,
-    latitude: lat,
-    longitude: lon,
+    lat: lat ?? null,
+    lon: lon ?? null,
+    latitude: lat ?? null,
+    longitude: lon ?? null,
   };
+
   if (!safeLocalStorage.setItem(storageKey, JSON.stringify(nextLocation))) {
     console.warn("[LOCATION] Active address saved in Firestore but browser storage is unavailable.");
   }

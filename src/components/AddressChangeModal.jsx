@@ -521,6 +521,19 @@ export default function AddressChangeModal({
         address: fullAddress,
       };
 
+      if (import.meta.env.DEV) {
+        console.debug("[ADDRESS DEBUG] saving selected address", {
+          country: nextAddress.country,
+          state: nextAddress.state,
+          district: nextAddress.district,
+          city: nextAddress.city,
+          area: nextAddress.area,
+          fullAddress: nextAddress.fullAddress,
+          lat: nextAddress.lat,
+          lon: nextAddress.lon,
+        });
+      }
+
       if (!isCheckoutFlow) {
         await firebaseUpdateCustomer(customerUid, { address: nextAddress });
         saveActiveLocation(nextAddress, getActiveLocationStorageKey(customerUid));

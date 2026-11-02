@@ -225,15 +225,64 @@ export const getCustomerActiveLocation = (customer = {}) => {
     return null;
   }
 
-  const activeAddress = customer.address
-    || customer.activeAddress
-    || customer.selectedAddress;
-  if (!activeAddress || typeof activeAddress !== "object" || Array.isArray(activeAddress)) {
+  const addressCandidates = [
+    customer.address,
+    customer.activeAddress,
+    customer.selectedAddress,
+    customer.currentLocation,
+    customer.location,
+    customer.locationDetails,
+    ...(Array.isArray(customer.addresses) ? customer.addresses : []),
+    ...(Array.isArray(customer.savedAddresses) ? customer.savedAddresses : []),
+  ].filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate));
+
+  const validAddress = addressCandidates.find((candidate) => {
+    const details = candidate?.address && typeof candidate.address === "object" && !Array.isArray(candidate.address)
+      ? { ...candidate, ...candidate.address }
+      : candidate;
+
+    const hasLocationData = Boolean(
+      details.country
+      || details.state
+      || details.city
+      || details.district
+      || details.area
+      || details.fullAddress
+      || details.formattedAddress
+      || details.address
+      || getMarketplaceCoordinates(details)
+    );
+
+    return hasLocationData;
+  });
+
+  if (!validAddress) {
+    if (import.meta.env.DEV) {
+      console.debug("[MARKET DEBUG] no active customer address found", {
+        customerKeys: Object.keys(customer),
+        hasAddresses: Array.isArray(customer.addresses),
+      });
+    }
     return null;
   }
 
-  const coordinates = getMarketplaceCoordinates(activeAddress);
-  return coordinates ? { ...activeAddress, ...coordinates } : { ...activeAddress };
+  const addressObject = validAddress.address && typeof validAddress.address === "object" && !Array.isArray(validAddress.address)
+    ? { ...validAddress, ...validAddress.address }
+    : validAddress;
+
+  const coordinates = getMarketplaceCoordinates(addressObject);
+  if (import.meta.env.DEV) {
+    console.debug("[MARKET DEBUG] active customer address resolved", {
+      keys: Object.keys(addressObject),
+      country: addressObject.country || "",
+      state: addressObject.state || "",
+      district: addressObject.district || "",
+      city: addressObject.city || "",
+      hasCoordinates: Boolean(coordinates),
+    });
+  }
+
+  return coordinates ? { ...addressObject, ...coordinates } : { ...addressObject };
 };
 
 export const getCustomerActiveCoordinates = (customer = {}) => {
