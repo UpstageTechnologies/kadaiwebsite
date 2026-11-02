@@ -1999,6 +1999,111 @@
   transform: translateY(-2px);
 }
 
+.home-local-shops {
+  margin: 0 0 28px;
+}
+
+.home-local-shops-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.home-local-shops-header h2,
+.home-local-products-heading {
+  margin: 0;
+  color: #20252a;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.home-local-shops-clear {
+  padding: 9px 14px;
+  border: 1px solid #079866;
+  border-radius: 6px;
+  background: transparent;
+  color: #079866;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.home-local-shops-list {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(16px, 3vw, 32px);
+  overflow-x: auto;
+  padding: 4px 2px 12px;
+  scrollbar-width: thin;
+}
+
+.home-local-shop-option {
+  display: flex;
+  flex: 0 0 104px;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 0 4px 6px;
+  border: 0;
+  background: transparent;
+  color: #20252a;
+  cursor: pointer;
+}
+
+.home-local-shop-image {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  overflow: hidden;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  background: #e8f5ed;
+  color: #079866;
+  font-size: 32px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.home-local-shop-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.home-local-shop-option:hover .home-local-shop-image {
+  transform: translateY(-2px);
+}
+
+.home-local-shop-option[aria-pressed="true"] .home-local-shop-image {
+  border-color: #079866;
+}
+
+.home-local-shop-name {
+  width: 100%;
+  overflow: hidden;
+  color: #20252a;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-local-shop-option[aria-pressed="true"] .home-local-shop-name {
+  color: #079866;
+}
+
+.home-local-products-heading {
+  margin: 0 0 16px;
+}
+
 .products-grid {
   width: 100%;
   max-width: 1250px;

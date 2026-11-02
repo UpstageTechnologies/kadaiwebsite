@@ -292,18 +292,9 @@ const Products = () => {
         </div>
       ) : (
         <>
-      <section aria-label="Local Shops" style={{ margin: "0 0 32px" }}>
-        <div style={{
-          alignItems: "center",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "12px",
-          justifyContent: "space-between",
-          marginBottom: "16px",
-        }}>
-          <h2 style={{ color: "#20252a", fontSize: "24px", fontWeight: 800, margin: 0 }}>
-            Local Shops
-          </h2>
+      <section className="home-local-shops" aria-label="Available Shops">
+        <div className="home-local-shops-header">
+          <h2>Available Shops</h2>
           {activeSelectedShopId && (
             <button
               type="button"
@@ -311,67 +302,26 @@ const Products = () => {
                 setSelectedShopId("");
                 setCurrentPage(1);
               }}
-              style={{
-                background: "transparent",
-                border: "1px solid #079866",
-                borderRadius: "6px",
-                color: "#079866",
-                cursor: "pointer",
-                fontWeight: 700,
-                padding: "9px 14px",
-              }}
+              className="home-local-shops-clear"
             >
               All Shops
             </button>
           )}
         </div>
         {sellerProfilesLoaded && eligibleShops.length > 0 ? (
-          <div style={{
-            display: "grid",
-            gap: "12px",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))",
-          }}>
+          <div className="home-local-shops-list">
             {eligibleShops.map((shop) => (
               <button
                 type="button"
                 key={shop.id}
                 aria-pressed={activeSelectedShopId === shop.id}
+                className="home-local-shop-option"
                 onClick={() => {
                   setSelectedShopId(shop.id);
                   setCurrentPage(1);
                 }}
-                style={{
-                  alignItems: "center",
-                  background: activeSelectedShopId === shop.id ? "#079866" : "#ffffff",
-                  border: "1px solid #dce5dc",
-                  borderRadius: "6px",
-                  color: activeSelectedShopId === shop.id ? "#ffffff" : "#20252a",
-                  cursor: "pointer",
-                  display: "flex",
-                  gap: "8px",
-                  justifyContent: "center",
-                  fontWeight: 700,
-                  minHeight: "48px",
-                  padding: "8px 12px",
-                }}
               >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    alignItems: "center",
-                    background: "#f0f8f4",
-                    border: "1px solid #edf0ee",
-                    borderRadius: "50%",
-                    color: "#079866",
-                    display: "inline-flex",
-                    flex: "0 0 28px",
-                    height: "28px",
-                    justifyContent: "center",
-                    overflow: "hidden",
-                    position: "relative",
-                    width: "28px",
-                  }}
-                >
+                <span className="home-local-shop-image" aria-hidden="true">
                   <FiShoppingBag />
                   {(shop.localImage || shop.image) && (
                     <img
@@ -380,18 +330,10 @@ const Products = () => {
                       onError={(event) => {
                         event.currentTarget.hidden = true;
                       }}
-                      style={{
-                        borderRadius: "50%",
-                        height: "100%",
-                        inset: 0,
-                        objectFit: "cover",
-                        position: "absolute",
-                        width: "100%",
-                      }}
                     />
                   )}
                 </span>
-                {shop.shopName}
+                <span className="home-local-shop-name">{shop.shopName}</span>
               </button>
             ))}
           </div>
@@ -401,6 +343,8 @@ const Products = () => {
           <p>Loading local shops...</p>
         )}
       </section>
+
+      <h2 className="home-local-products-heading">Local</h2>
 
       {isLoading ? (
         <div className="no-products">
