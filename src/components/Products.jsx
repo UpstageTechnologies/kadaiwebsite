@@ -348,7 +348,7 @@ const Products = () => {
         <h2 className="home-local-products-heading">Local</h2>
         {!isLoading && (
           <p className="home-local-products-count">
-            {displayedLocalProducts.length} {displayedLocalProducts.length === 1 ? "product" : "products"}
+            {displayedLocalProducts.length} {displayedLocalProducts.length === 1 ? "product" : "products"} available
           </p>
         )}
       </div>
