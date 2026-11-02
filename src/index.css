@@ -2000,7 +2000,7 @@
 }
 
 .home-local-shops {
-  margin: 0 0 28px;
+  margin: 0 0 24px;
 }
 
 .home-local-shops-header {
@@ -2008,7 +2008,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .home-local-shops-header h2,
@@ -2032,20 +2032,20 @@
 .home-local-shops-list {
   display: flex;
   align-items: flex-start;
-  gap: clamp(16px, 3vw, 32px);
+  gap: clamp(8px, 1.5vw, 14px);
   overflow-x: auto;
-  padding: 4px 2px 12px;
+  padding: 2px 2px 8px;
   scrollbar-width: thin;
 }
 
 .home-local-shop-option {
   display: flex;
-  flex: 0 0 104px;
+  flex: 0 0 72px;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   min-width: 0;
-  padding: 0 4px 6px;
+  padding: 0 2px 4px;
   border: 0;
   background: transparent;
   color: #20252a;
@@ -2057,14 +2057,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 88px;
-  height: 88px;
+  width: 60px;
+  height: 60px;
   overflow: hidden;
   border: 3px solid transparent;
   border-radius: 50%;
   background: #e8f5ed;
   color: #079866;
-  font-size: 32px;
+  font-size: 23px;
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
@@ -2089,7 +2089,7 @@
   width: 100%;
   overflow: hidden;
   color: #20252a;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   text-align: center;
   text-overflow: ellipsis;
@@ -2102,6 +2102,29 @@
 
 .home-local-products-heading {
   margin: 0 0 16px;
+}
+
+@media (max-width: 768px) {
+  .home-local-shop-option {
+    flex-basis: 68px;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-local-shop-option {
+    flex-basis: 62px;
+    gap: 5px;
+  }
+
+  .home-local-shop-image {
+    width: 52px;
+    height: 52px;
+    font-size: 20px;
+  }
+
+  .home-local-shop-name {
+    font-size: 11px;
+  }
 }
 
 .products-grid {
