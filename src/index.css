@@ -2104,6 +2104,12 @@
   margin: 0 0 16px;
 }
 
+.home-local-products-count {
+  margin: -10px 0 16px;
+  color: #68736c;
+  font-size: 13px;
+}
+
 @media (max-width: 768px) {
   .home-local-shop-option {
     flex-basis: 68px;

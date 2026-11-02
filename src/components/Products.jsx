@@ -344,7 +344,14 @@ const Products = () => {
         )}
       </section>
 
-      <h2 className="home-local-products-heading">Local</h2>
+      <div className="home-local-products-title">
+        <h2 className="home-local-products-heading">Local</h2>
+        {!isLoading && (
+          <p className="home-local-products-count">
+            {displayedLocalProducts.length} {displayedLocalProducts.length === 1 ? "product" : "products"}
+          </p>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="no-products">
