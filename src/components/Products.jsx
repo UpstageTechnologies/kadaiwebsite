@@ -127,10 +127,14 @@ const Products = () => {
     if (!import.meta.env.DEV) return;
 
     const productCountsBySeller = {};
+    let matchedSellerInventoryCount = 0;
+    let outOfStockInventoryCount = 0;
     localProducts.forEach((product) => {
       const sellerId = String(product.shopId || product.sellerId || "");
       productCountsBySeller[sellerId || "(missing)"] =
         (productCountsBySeller[sellerId || "(missing)"] || 0) + 1;
+      if (nearbySellerIds.includes(sellerId)) matchedSellerInventoryCount += 1;
+      if (product.quantity <= 0) outOfStockInventoryCount += 1;
     });
 
     console.debug("[MARKET DEBUG] home local product filtering", {
@@ -145,6 +149,10 @@ const Products = () => {
       nearbySellerIds,
       inventoryProductCount: localProducts.length,
       inventoryProductCountsBySeller: productCountsBySeller,
+      matchedSellerInventoryCount,
+      inventoryQuantityPositiveCount: localProducts.length - outOfStockInventoryCount,
+      inventoryQuantityZeroOrLessCount: outOfStockInventoryCount,
+      productsRemovedByAvailabilityFilter: 0,
       matchingLocalProductCount: filteredLocalProducts.length,
     });
   }, [

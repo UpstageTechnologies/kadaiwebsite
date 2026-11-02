@@ -256,12 +256,25 @@ const Products = () => {
   useEffect(() => {
     if (!import.meta.env.DEV || marketMode !== MARKET_MODES.LOCAL) return;
 
+    const loadedProducts = productState.marketMode === MARKET_MODES.LOCAL
+      ? productState.products
+      : [];
+    const matchedSellerInventoryCount = loadedProducts.filter((product) =>
+      nearbySellerIds.includes(String(product.shopId || product.sellerId || ""))
+    ).length;
+    const outOfStockInventoryCount = loadedProducts.filter((product) =>
+      product.quantity <= 0
+    ).length;
+
     console.debug("[MARKET DEBUG] local products page render counts", {
+      matchedSellerIds: nearbySellerIds,
       matchedSellerCount: nearbySellerIds.length,
       eligibleShopCount: eligibleShops.length,
-      loadedProductCount: productState.marketMode === MARKET_MODES.LOCAL
-        ? productState.products.length
-        : 0,
+      loadedProductCount: loadedProducts.length,
+      matchedSellerInventoryCount,
+      inventoryQuantityPositiveCount: loadedProducts.length - outOfStockInventoryCount,
+      inventoryQuantityZeroOrLessCount: outOfStockInventoryCount,
+      productsRemovedByAvailabilityFilter: 0,
       matchingProductCount: activeProducts.length,
       displayedProductCount: filteredProducts.length,
     });
@@ -270,9 +283,9 @@ const Products = () => {
     eligibleShops.length,
     filteredProducts.length,
     marketMode,
-    nearbySellerIds.length,
+    nearbySellerIds,
     productState.marketMode,
-    productState.products.length,
+    productState.products,
   ]);
 
   const selectedShopProfile = sellerProfiles.find((seller) =>
