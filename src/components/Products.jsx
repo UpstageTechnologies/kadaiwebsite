@@ -75,6 +75,11 @@ const Products = () => {
     [sellerProfiles]
   );
 
+  const nearbySellerIds = useMemo(
+    () => getNearbySellerIds(customerLocation, sellerLocations),
+    [customerLocation, sellerLocations]
+  );
+
   useEffect(() => {
     const uid = user?.uid || "";
     if (!uid) {
@@ -83,6 +88,7 @@ const Products = () => {
 
     const unsubscribe = subscribeMarketplaceProducts({
       marketMode: MARKET_MODES.LOCAL,
+      sellerIds: nearbySellerIds,
       onProducts: (products) => {
         setProductState({
           uid,
@@ -95,12 +101,7 @@ const Products = () => {
     });
 
     return () => unsubscribe();
-  }, [user?.uid]);
-
-  const nearbySellerIds = useMemo(
-    () => getNearbySellerIds(customerLocation, sellerLocations),
-    [customerLocation, sellerLocations]
-  );
+  }, [nearbySellerIds, user?.uid]);
 
   const filteredLocalProducts = useMemo(() => {
     if (!nearbySellerIds.length) {
@@ -372,9 +373,9 @@ const Products = () => {
                   }}
                 >
                   <FiShoppingBag />
-                  {shop.image && (
+                  {(shop.localImage || shop.image) && (
                     <img
-                      src={shop.image}
+                      src={shop.localImage || shop.image}
                       alt=""
                       onError={(event) => {
                         event.currentTarget.hidden = true;

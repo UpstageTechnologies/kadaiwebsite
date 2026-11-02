@@ -137,6 +137,9 @@ const Products = () => {
     () => getNearbySellerIds(customerLocation, sellerLocationMap),
     [customerLocation, sellerLocationMap]
   );
+  const localSellerIds = marketMode === MARKET_MODES.LOCAL
+    ? nearbySellerIds
+    : null;
   useEffect(() => {
     if (!db) return undefined;
 
@@ -146,6 +149,7 @@ const Products = () => {
 
     const unsubscribe = subscribeMarketplaceProducts({
       marketMode: mode,
+      sellerIds: localSellerIds || undefined,
       onProducts: (products) => {
         if (!isActive) return;
         setProductState({
@@ -170,7 +174,7 @@ const Products = () => {
       isActive = false;
       unsubscribe();
     };
-  }, [marketMode]);
+  }, [localSellerIds, marketMode]);
 
   const activeProducts = useMemo(() => {
     const source = productState.marketMode === marketMode ? productState.products : [];
@@ -386,9 +390,13 @@ const Products = () => {
                         >
                           <span className="shop-selector-icon">
                             <FiShoppingBag aria-hidden="true" />
-                            {shop.image && (
+                            {(marketMode === MARKET_MODES.LOCAL
+                              ? shop.localImage || shop.image
+                              : shop.image) && (
                               <img
-                                src={shop.image}
+                                src={marketMode === MARKET_MODES.LOCAL
+                                  ? shop.localImage || shop.image
+                                  : shop.image}
                                 alt=""
                                 aria-hidden="true"
                                 onError={(event) => {

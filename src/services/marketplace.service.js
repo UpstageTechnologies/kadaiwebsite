@@ -308,29 +308,6 @@ export const normalizeAddressPayload = (address = {}) => ({
   pincode: String(address.pincode || "").trim(),
 });
 
-const normalizeLocationText = (value) => String(value ?? "")
-  .trim()
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "")
-  .replace(/[^\p{L}\p{N}]+/gu, " ")
-  .replace(/\s+/g, " ")
-  .toLowerCase();
-
-const valuesMatch = (left, right) => {
-  const normalizedLeft = normalizeLocationText(left);
-  const normalizedRight = normalizeLocationText(right);
-
-  if (!normalizedLeft || !normalizedRight) {
-    return false;
-  }
-
-  if (normalizedLeft === normalizedRight) {
-    return true;
-  }
-
-  return normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft);
-};
-
 const getLocationMatchSource = (source = {}) => {
   if (!source || typeof source !== "object") {
     return {};
@@ -384,41 +361,6 @@ const getLocationMatchContext = (source = {}) => {
     lat: sanitizeLatLon(matchSource.lat ?? matchSource.latitude ?? matchSource.coordinates?.lat ?? null, null),
     lon: sanitizeLatLon(matchSource.lon ?? matchSource.lng ?? matchSource.longitude ?? matchSource.coordinates?.lon ?? null, null),
   };
-};
-
-const getLocationHierarchyMatchType = (customerLocation, sellerLocation) => {
-  if (!customerLocation || !sellerLocation) {
-    return { type: "", reason: "location_missing" };
-  }
-
-  const customer = getLocationMatchContext(customerLocation);
-  const seller = getLocationMatchContext(sellerLocation);
-
-  if (customer.country && seller.country && !valuesMatch(customer.country, seller.country)) {
-    return { type: "", reason: "country_mismatch" };
-  }
-
-  if (customer.state && seller.state && !valuesMatch(customer.state, seller.state)) {
-    return { type: "", reason: "state_mismatch" };
-  }
-
-  if (customer.city && seller.city) {
-    return valuesMatch(customer.city, seller.city)
-      ? { type: "city", reason: "city_match" }
-      : { type: "", reason: "city_mismatch" };
-  }
-
-  if (customer.city && seller.district && customer.district && valuesMatch(customer.district, seller.district)) {
-    return { type: "district", reason: "district_fallback_match" };
-  }
-
-  if (!customer.city && customer.district && seller.district) {
-    return valuesMatch(customer.district, seller.district)
-      ? { type: "district", reason: "district_match" }
-      : { type: "", reason: "district_mismatch" };
-  }
-
-  return { type: "", reason: "location_hierarchy_incomplete" };
 };
 
 const getLocationFieldNames = (source = {}) => {
@@ -552,14 +494,11 @@ export const mapFirestoreProduct = async (productSnapshot, marketType = MARKET_M
 
 export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => {
   const customerAddress = getLocationMatchContext(customerLocation || {});
-  const customerCoordinates = getAddressCoordinates(customerLocation);
-
-  if (!customerCoordinates && !customerAddress.country && !customerAddress.state && !customerAddress.city && !customerAddress.district) {
-    logMarketplaceDiagnostic("[MARKET DEBUG] customer location unavailable", {
-      reason: "missing_customer_address_and_coordinates",
-    });
-    return [];
-  }
+  const normalizeCity = (city) => String(city ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase();
+  const normalizedCustomerCity = normalizeCity(customerAddress.city);
 
   logMarketplaceDiagnostic("[MARKET DEBUG] customer location context", {
     fieldNames: getLocationFieldNames(customerLocation),
@@ -568,24 +507,25 @@ export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => 
     district: customerAddress.district,
     city: customerAddress.city,
     pincode: customerAddress.pincode,
-    hasCoordinates: Boolean(customerCoordinates),
+    normalizedCity: normalizedCustomerCity,
   });
 
-  const nearbySellerIds = [];
-  let cityMatches = 0;
-  let districtMatches = 0;
-  let coordinateFallbackMatches = 0;
+  if (!normalizedCustomerCity) {
+    logMarketplaceDiagnostic("[MARKET DEBUG] local seller matching skipped", {
+      reason: "customer_city_missing",
+    });
+    return [];
+  }
 
+  const matchingSellerIds = [];
   Object.entries(sellerLocationMap).forEach(([sellerId, sellerLocation]) => {
     const sellerAddress = getLocationMatchContext(sellerLocation || {});
-    const sellerCoordinates = getAddressCoordinates(sellerLocation);
-    const hierarchyMatch = getLocationHierarchyMatchType(customerLocation, sellerLocation);
-
-    if (hierarchyMatch.type) {
-      nearbySellerIds.push(sellerId);
-      if (hierarchyMatch.type === "city") cityMatches += 1;
-      if (hierarchyMatch.type === "district") districtMatches += 1;
-      logMarketplaceDiagnostic("[MARKET DEBUG] seller matched by hierarchy", {
+    const normalizedSellerCity = normalizeCity(sellerAddress.city);
+    const matches = Boolean(normalizedSellerCity)
+      && normalizedSellerCity === normalizedCustomerCity;
+    if (matches) {
+      matchingSellerIds.push(sellerId);
+      logMarketplaceDiagnostic("[MARKET DEBUG] seller matched by city", {
         sellerId,
         fieldNames: getLocationFieldNames(sellerLocation),
         country: sellerAddress.country,
@@ -593,12 +533,10 @@ export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => 
         district: sellerAddress.district,
         city: sellerAddress.city,
         pincode: sellerAddress.pincode,
-        reason: hierarchyMatch.reason,
+        normalizedCity: normalizedSellerCity,
+        reason: "city_match",
       });
-      return;
-    }
-
-    if (!sellerCoordinates || !customerCoordinates) {
+    } else {
       logMarketplaceDiagnostic("[MARKET DEBUG] seller excluded", {
         sellerId,
         fieldNames: getLocationFieldNames(sellerLocation),
@@ -607,50 +545,23 @@ export const getNearbySellerIds = (customerLocation, sellerLocationMap = {}) => 
         district: sellerAddress.district,
         city: sellerAddress.city,
         pincode: sellerAddress.pincode,
-        reason: hierarchyMatch.reason,
-        coordinateFallback: sellerCoordinates ? "missing_customer_coordinates" : "missing_or_invalid_seller_coordinates",
+        normalizedCity: normalizedSellerCity,
+        reason: normalizedSellerCity ? "city_mismatch" : "seller_city_missing",
       });
-      return;
-    }
-
-    const distanceKm = haversineDistanceKm(
-      customerCoordinates.lat,
-      customerCoordinates.lon,
-      sellerCoordinates.lat,
-      sellerCoordinates.lon
-    );
-    const included = Number.isFinite(distanceKm) && distanceKm <= NEARBY_DISTANCE_KM;
-
-    logMarketplaceDiagnostic("[MARKET DEBUG] seller distance", {
-      sellerId,
-      fieldNames: getLocationFieldNames(sellerLocation),
-      distanceKm,
-      included,
-      hierarchyReason: hierarchyMatch.reason,
-      reason: Number.isFinite(distanceKm)
-        ? included ? "within_radius" : "outside_radius"
-        : "invalid_distance",
-    });
-
-    if (included) {
-      nearbySellerIds.push(sellerId);
-      coordinateFallbackMatches += 1;
     }
   });
 
-  logMarketplaceDiagnostic("[MARKET DEBUG] seller matching summary", {
+  logMarketplaceDiagnostic("[MARKET DEBUG] local seller matching summary", {
     sellerCount: Object.keys(sellerLocationMap).length,
-    cityMatches,
-    districtMatches,
-    coordinateFallbackMatches,
-    matchedSellerCount: nearbySellerIds.length,
-    matchedSellerIds: nearbySellerIds,
+    matchedSellerCount: matchingSellerIds.length,
+    matchedSellerIds: matchingSellerIds,
   });
-  return nearbySellerIds;
+  return matchingSellerIds;
 };
 
 export const subscribeMarketplaceProducts = ({
   marketMode = DEFAULT_MARKET_MODE,
+  sellerIds,
   onProducts,
   onError,
 }) => {
@@ -662,6 +573,98 @@ export const subscribeMarketplaceProducts = ({
   }
 
   const collectionName = marketMode === MARKET_MODES.GLOBAL ? "global_inventory" : "inventory";
+  if (marketMode === MARKET_MODES.LOCAL && Array.isArray(sellerIds)) {
+    const shopIds = [...new Set(
+      sellerIds.map((sellerId) => String(sellerId || "").trim()).filter(Boolean)
+    )];
+
+    if (!shopIds.length) {
+      let active = true;
+      logMarketplaceDiagnostic("[MARKET DEBUG] local inventory subscriptions skipped", {
+        reason: "no_city_matched_sellers",
+      });
+      Promise.resolve().then(() => {
+        if (active) onProducts?.([]);
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    let active = true;
+    let updateSequence = 0;
+    const snapshotsByShop = new Map();
+    const unsubscribers = shopIds.map((shopId) => {
+      const inventoryPath = `users/${shopId}/inventory`;
+      logMarketplaceDiagnostic("[MARKET DEBUG] subscribing to local inventory", {
+        shopId,
+        collectionPath: inventoryPath,
+      });
+
+      return onSnapshot(
+        collection(db, "users", shopId, "inventory"),
+        async (snapshot) => {
+          if (!active) return;
+          snapshotsByShop.set(shopId, snapshot.docs);
+          const currentSequence = ++updateSequence;
+          const productDocuments = [...snapshotsByShop.values()].flat();
+
+          try {
+            const products = await Promise.all(
+              productDocuments.map((documentSnapshot) =>
+                mapFirestoreProduct(documentSnapshot, MARKET_MODES.LOCAL)
+              )
+            );
+            if (!active || currentSequence !== updateSequence) return;
+
+            const mappedProducts = products.filter(Boolean);
+            const availableProducts = mappedProducts.filter(
+              (product) => product.quantity > 0
+            );
+            const productCountsBySeller = {};
+            availableProducts.forEach((product) => {
+              const productShopId = String(product.shopId || product.sellerId || "");
+              productCountsBySeller[productShopId || "(missing)"] =
+                (productCountsBySeller[productShopId || "(missing)"] || 0) + 1;
+            });
+            logMarketplaceDiagnostic("[MARKET DEBUG] local inventory snapshots", {
+              collectionPathPattern: "users/{shopId}/inventory",
+              matchedShopIds: shopIds,
+              inventoryDocumentCount: productDocuments.length,
+              mappedProductCount: mappedProducts.length,
+              availableProductCount: availableProducts.length,
+              outOfStockProductCount: mappedProducts.length - availableProducts.length,
+              productCountsBySeller,
+            });
+            setMarketplaceCatalog(availableProducts);
+            onProducts?.(availableProducts);
+          } catch (error) {
+            if (!active) return;
+            console.error("[MARKET] Local inventory mapping failed:", {
+              collectionPath: inventoryPath,
+              code: error?.code || "",
+              message: error?.message || String(error),
+            });
+            onError?.(error);
+          }
+        },
+        (error) => {
+          if (!active) return;
+          console.error("[MARKET] Local inventory listener failed:", {
+            collectionPath: inventoryPath,
+            code: error?.code || "",
+            message: error?.message || String(error),
+          });
+          onError?.(error);
+        }
+      );
+    });
+
+    return () => {
+      active = false;
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }
 
   const unsubscribe = onSnapshot(
     collectionGroup(db, collectionName),
@@ -716,7 +719,7 @@ export const subscribeMarketplaceProducts = ({
         onError(error);
       }
       if (typeof onProducts === "function") {
-        onProducts([]);
+        onProducts([]); 
       }
     }
   );
@@ -749,18 +752,30 @@ const getSellerAddressText = (sellerData) => {
   );
 };
 
-const getSellerImage = (sellerData) => {
-  const imageFields = [
-    "shopImage",
-    "local_shopImage",
-    "global_shopImage",
-    "shopLogo",
-    "local_shopLogo",
-    "global_shopLogo",
-    "profileImage",
-    "local_profileImage",
-    "global_profileImage",
-  ];
+const getSellerImage = (sellerData, preferLocalImage = false) => {
+  const imageFields = preferLocalImage
+    ? [
+      "local_shopImage",
+      "shopImage",
+      "local_shopLogo",
+      "shopLogo",
+      "local_profileImage",
+      "profileImage",
+      "global_shopImage",
+      "global_shopLogo",
+      "global_profileImage",
+    ]
+    : [
+      "shopImage",
+      "local_shopImage",
+      "global_shopImage",
+      "shopLogo",
+      "local_shopLogo",
+      "global_shopLogo",
+      "profileImage",
+      "local_profileImage",
+      "global_profileImage",
+    ];
 
   for (const field of imageFields) {
     const value = sellerData?.[field];
@@ -826,6 +841,7 @@ export const subscribeMarketplaceSellerProfiles = ({ onSellers, onError }) => {
             "Store"
           ),
           image: getSellerImage(sellerData),
+          localImage: getSellerImage(sellerData, true),
           address: getSellerAddressText(sellerData),
           coordinates,
           addressData: {
