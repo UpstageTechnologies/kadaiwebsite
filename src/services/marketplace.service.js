@@ -606,6 +606,8 @@ export const subscribeMarketplaceProducts = ({
         async (snapshot) => {
           if (!active) return;
           snapshotsByShop.set(shopId, snapshot.docs);
+          if (snapshotsByShop.size !== shopIds.length) return;
+
           const currentSequence = ++updateSequence;
           const productDocuments = [...snapshotsByShop.values()].flat();
 

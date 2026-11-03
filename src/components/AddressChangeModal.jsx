@@ -8,10 +8,7 @@ import {
   getRegistrationCountries,
   getRegistrationLocationOptions,
 } from "../services/registration-location.service";
-import {
-  getCurrentLocationAddress,
-  getManualAddressCoordinates,
-} from "../services/current-location-address.service";
+import { getCurrentLocationAddress } from "../services/current-location-address.service";
 import { getAddressCoordinates } from "../services/marketplace.service";
 
 const normalizeAddress = (value = {}) => ({
@@ -487,16 +484,7 @@ export default function AddressChangeModal({
         (option) => option.id === selectedAreaId || option.value === selectedAreaId
       );
       const manualCoordinates = addressMode === "manual" && !isCheckoutFlow
-        ? await getManualAddressCoordinates({
-          country: optionLabel(addressCountryOptions, selectedCountryId),
-          state: optionLabel(addressStateOptions, selectedStateId),
-          district: optionLabel(addressDistrictOptions, selectedDistrictId),
-          city: optionLabel(addressCityOptions, selectedCityId),
-          area: optionLabel(addressAreaOptions, selectedAreaId),
-          road: addressRoad,
-          pincode: addressPincode,
-          areaCoordinates: selectedAreaOption,
-        })
+        ? getAddressCoordinates(selectedAreaOption || {})
         : null;
 
       const nextAddress = {

@@ -36,18 +36,13 @@ const Products = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [showAll, setShowAll] = useState(false);
   const [productState, setProductState] = useState({
-    uid: "",
+    subscriptionKey: "",
     products: [],
+    error: "",
   });
   const [sellerProfiles, setSellerProfiles] = useState([]);
   const [sellerProfilesLoaded, setSellerProfilesLoaded] = useState(false);
   const [selectedShopId, setSelectedShopId] = useState("");
-  const localProducts = useMemo(
-    () => productState.uid === (user?.uid || "") ? productState.products : [],
-    [productState.products, productState.uid, user?.uid]
-  );
-  const isLoading = Boolean(user?.uid) && productState.uid !== user.uid;
-
   const customerLocation = useMemo(
     () => getCustomerActiveLocation(customer),
     [customer]
@@ -79,6 +74,16 @@ const Products = () => {
     () => getNearbySellerIds(customerLocation, sellerLocations),
     [customerLocation, sellerLocations]
   );
+  const subscriptionKey = JSON.stringify([user?.uid || "", nearbySellerIds]);
+  const localProducts = useMemo(
+    () => productState.subscriptionKey === subscriptionKey ? productState.products : [],
+    [productState.products, productState.subscriptionKey, subscriptionKey]
+  );
+  const localProductError = productState.subscriptionKey === subscriptionKey
+    ? productState.error
+    : "";
+  const isLoading = Boolean(user?.uid)
+    && (productState.subscriptionKey !== subscriptionKey || !sellerProfilesLoaded);
 
   useEffect(() => {
     const uid = user?.uid || "";
@@ -91,17 +96,22 @@ const Products = () => {
       sellerIds: nearbySellerIds,
       onProducts: (products) => {
         setProductState({
-          uid,
+          subscriptionKey,
           products: Array.isArray(products) ? products : [],
+          error: "",
         });
       },
-      onError: () => {
-        setProductState({ uid, products: [] });
+      onError: (error) => {
+        setProductState({
+          subscriptionKey,
+          products: [],
+          error: error?.message || "Unable to load local products. Please try again.",
+        });
       },
     });
 
     return () => unsubscribe();
-  }, [nearbySellerIds, user?.uid]);
+  }, [nearbySellerIds, subscriptionKey, user?.uid]);
 
   const filteredLocalProducts = useMemo(() => {
     if (!nearbySellerIds.length) {
@@ -308,7 +318,11 @@ const Products = () => {
             </button>
           )}
         </div>
-        {sellerProfilesLoaded && eligibleShops.length > 0 ? (
+        {isLoading ? (
+          <p>Loading local shops...</p>
+        ) : localProductError ? (
+          <p>Unable to load local shops.</p>
+        ) : eligibleShops.length > 0 ? (
           <div className="home-local-shops-list">
             {eligibleShops.map((shop) => (
               <button
@@ -357,9 +371,13 @@ const Products = () => {
         <div className="no-products">
           <h3>Loading nearby products...</h3>
         </div>
+      ) : localProductError ? (
+        <div className="no-products">
+          <h3>{localProductError}</h3>
+        </div>
       ) : visibleProducts.length === 0 ? (
         <div className="no-products">
-          <h3>No local products found for your area</h3>
+          <h3>No local products available for this address.</h3>
           <p>Try the global catalog for more products from other stores.</p>
         </div>
       ) : (
