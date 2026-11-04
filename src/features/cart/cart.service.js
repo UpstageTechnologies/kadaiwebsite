@@ -193,13 +193,18 @@ export const updateCustomerCart = async (uid, updateItems) => {
       return;
     }
 
-    transaction.set(
-      cartDocRef,
-      {
+    const updatedAt = new Date().toISOString();
+    if (cartSnapshot.exists()) {
+      transaction.update(cartDocRef, {
         items: serializedItems,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+        updatedAt,
+      });
+      return;
+    }
+
+    transaction.set(cartDocRef, {
+      items: serializedItems,
+      updatedAt,
+    });
   });
 };
