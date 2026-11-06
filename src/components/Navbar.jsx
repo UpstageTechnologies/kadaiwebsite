@@ -6,6 +6,7 @@ import {
   FiClipboard,
   FiX,
   FiChevronDown,
+  FiPackage,
 } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import "../index.css";
@@ -562,7 +563,7 @@ const Navbar = () => {
             aria-label="My Orders"
             title="My Orders"
           >
-            <FiClipboard size={24} />
+            <FiPackage size={24} />
           </button>
 
         </div>
