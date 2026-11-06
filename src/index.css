@@ -821,6 +821,7 @@
   }
 
   .nav-actions {
+    align-items: center;
     gap: 4px;
     margin-left: auto;
     flex-shrink: 0;
@@ -829,12 +830,21 @@
   .icon-btn,
   .user-btn,
   .mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 40px;
     height: 40px;
     padding: 0;
+    line-height: 0;
     border-radius: 50%;
     background: transparent;
     border: 1px solid transparent;
+  }
+
+  .profile-wrapper {
+    display: flex;
+    align-items: center;
   }
 
   .mobile-search-btn,
@@ -993,6 +1003,7 @@
   }
 
   .nav-actions {
+    align-items: center;
     gap: 2px;
     margin-left: auto;
     flex-shrink: 0;
@@ -1001,8 +1012,13 @@
   .icon-btn,
   .user-btn,
   .mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 34px;
     height: 34px;
+    padding: 0;
+    line-height: 0;
     font-size: 16px;
   }
 

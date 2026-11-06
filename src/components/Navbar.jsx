@@ -3,7 +3,6 @@ import {
   FiSearch,
   FiShoppingCart,
   FiUser,
-  FiClipboard,
   FiX,
   FiChevronDown,
   FiPackage,
@@ -563,7 +562,7 @@ const Navbar = () => {
             aria-label="My Orders"
             title="My Orders"
           >
-            <FiPackage size={24} />
+            <FiPackage />
           </button>
 
         </div>
