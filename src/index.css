@@ -831,9 +831,27 @@
   .mobile-menu-toggle {
     width: 40px;
     height: 40px;
+    padding: 0;
     border-radius: 50%;
     background: transparent;
     border: 1px solid transparent;
+  }
+
+  .mobile-search-btn,
+  .cart-btn,
+  .user-btn,
+  .mobile-menu-toggle {
+    color: #777;
+  }
+
+  .mobile-search-btn svg,
+  .cart-btn svg,
+  .user-btn svg,
+  .mobile-menu-toggle svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2;
+    flex-shrink: 0;
   }
 
   .mobile-search-btn,
