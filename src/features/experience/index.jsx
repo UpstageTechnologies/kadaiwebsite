@@ -1,9 +1,9 @@
 import { signOut } from "firebase/auth";
-import { FiArrowUpRight, FiLogOut, FiShoppingBag, FiCoffee } from "react-icons/fi";
+import { FiArrowUpRight, FiLogOut, FiShoppingBag } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../../services/firebase";
-import shopsImage from "../../assets/items.png";
-import bakery from "../../assets/bakery.png";
+import shopsImage from "../../assets/shops.jpeg";
+import restaurantsImage from "../../assets/restaurants.jpeg";
 import "./experience.css";
 
 const Experience = () => {
@@ -42,32 +42,26 @@ const Experience = () => {
 
         <div className="experience-options">
           <Link className="experience-card experience-card-shops" to="/products?market=local">
+            <img className="experience-card-background" src={shopsImage} alt="" aria-hidden="true" />
             <div className="experience-card-copy">
-              <span className="experience-card-icon"><FiShoppingBag aria-hidden="true" /></span>
-              <span className="experience-eyebrow">SHOP YOUR WAY</span>
+              <span className="experience-eyebrow">SHOPPING</span>
               <h2>Local &amp; Global Shops</h2>
               <p>Discover nearby stores and explore products from anywhere.</p>
               <span className="experience-card-action">
                 Explore Shops <FiArrowUpRight aria-hidden="true" />
               </span>
             </div>
-            <div className="experience-card-art">
-              <img src={bakery} alt="A selection of fresh groceries" />
-            </div>
           </Link>
 
           <Link className="experience-card experience-card-restaurants" to="/restaurants">
+            <img className="experience-card-background" src={restaurantsImage} alt="" aria-hidden="true" />
             <div className="experience-card-copy">
-              <span className="experience-card-icon"><FiCoffee aria-hidden="true" /></span>
-              <span className="experience-eyebrow">GOOD FOOD, CLOSE BY</span>
+              <span className="experience-eyebrow">FOOD &amp; DINING</span>
               <h2>Restaurants</h2>
               <p>Discover restaurants near you and explore delicious food.</p>
               <span className="experience-card-action">
                 Explore Restaurants <FiArrowUpRight aria-hidden="true" />
               </span>
-            </div>
-            <div className="experience-card-art">
-              <img src={bakery} alt="Freshly baked pastries and desserts" />
             </div>
           </Link>
         </div>

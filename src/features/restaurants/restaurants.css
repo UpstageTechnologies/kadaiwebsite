@@ -1,70 +1,10 @@
 .restaurants-page {
   min-height: 100vh;
-  padding: 0 clamp(20px, 6vw, 88px) 64px;
+  padding: 0 20px 64px;
   background:
     radial-gradient(ellipse at 50% 0, rgba(255, 236, 214, 0.48), transparent 42%),
     #fcfbf9;
   color: #322c26;
-}
-
-.restaurants-topbar {
-  width: min(1240px, 100%);
-  height: 88px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #eee9e2;
-}
-
-.restaurants-back,
-.restaurants-brand {
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
-}
-
-.restaurants-back {
-  gap: 9px;
-  color: #77685a;
-  font-size: 14px;
-  font-weight: 650;
-  transition: color 160ms ease;
-}
-
-.restaurants-back:hover,
-.restaurants-return-link:hover {
-  color: #c86d2a;
-}
-
-.restaurants-brand {
-  gap: 10px;
-  color: #3a3028;
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: -0.7px;
-}
-
-.restaurants-brand > span:last-child > span {
-  color: #d77831;
-}
-
-.restaurants-brand-mark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: #fff0df;
-  color: #d77831;
-  font-size: 19px;
-}
-
-.restaurants-back:focus-visible,
-.restaurants-brand:focus-visible,
-.restaurants-return-link:focus-visible {
-  outline: 3px solid #d77831;
-  outline-offset: 4px;
 }
 
 .restaurants-content {
@@ -151,21 +91,18 @@
   transition: color 160ms ease;
 }
 
+.restaurants-return-link:hover {
+  color: #c86d2a;
+}
+
+.restaurants-return-link:focus-visible {
+  outline: 3px solid #d77831;
+  outline-offset: 4px;
+}
+
 @media (max-width: 520px) {
   .restaurants-page {
     padding-inline: 16px;
-  }
-
-  .restaurants-topbar {
-    height: 72px;
-  }
-
-  .restaurants-brand {
-    font-size: 19px;
-  }
-
-  .restaurants-back {
-    font-size: 12px;
   }
 
   .restaurants-content {

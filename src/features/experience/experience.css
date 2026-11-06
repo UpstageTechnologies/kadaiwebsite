@@ -109,14 +109,15 @@
 
 .experience-card {
   position: relative;
+  isolation: isolate;
   min-height: 348px;
   display: flex;
   overflow: hidden;
-  border: 1px solid transparent;
   border-radius: 24px;
-  padding: 32px;
-  color: inherit;
+  padding: 38px;
+  color: #fff;
   text-decoration: none;
+  background: #334536;
   box-shadow: 0 14px 36px rgba(34, 54, 38, 0.08);
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
@@ -133,85 +134,75 @@
   outline-offset: 4px;
 }
 
-.experience-card-shops {
-  background: linear-gradient(125deg, #eef7e9 0%, #e1f0d9 100%);
-  border-color: #deecd7;
+.experience-card::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
 }
 
-.experience-card-restaurants {
-  background: linear-gradient(125deg, #fff4e8 0%, #ffead5 100%);
-  border-color: #f4e2ce;
+.experience-card-shops::after {
+  background: linear-gradient(90deg, rgba(14, 46, 28, 0.78) 0%, rgba(19, 58, 31, 0.52) 48%, rgba(20, 54, 31, 0.08) 100%);
+}
+
+.experience-card-restaurants::after {
+  background: linear-gradient(90deg, rgba(69, 37, 17, 0.78) 0%, rgba(88, 43, 16, 0.5) 48%, rgba(76, 35, 13, 0.08) 100%);
+}
+
+.experience-card-background {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .experience-card-copy {
   position: relative;
   z-index: 1;
-  width: 62%;
+  width: min(390px, 72%);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-}
-
-.experience-card-icon {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 18px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
-  color: #438d32;
-  font-size: 21px;
-}
-
-.experience-card-restaurants .experience-card-icon {
-  color: #d3782d;
+  justify-content: center;
 }
 
 .experience-eyebrow {
-  color: #59814d;
-  font-size: 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.12em;
-}
-
-.experience-card-restaurants .experience-eyebrow {
-  color: #a9652f;
+  letter-spacing: 0.15em;
 }
 
 .experience-card h2 {
-  margin: 8px 0 10px;
-  color: #263c2d;
+  margin: 12px 0 10px;
+  color: #fff;
   font-size: clamp(22px, 2.4vw, 28px);
   line-height: 1.2;
   letter-spacing: -0.7px;
 }
 
-.experience-card-restaurants h2 {
-  color: #4a3527;
-}
-
 .experience-card-copy > p {
   max-width: 270px;
   margin: 0;
-  color: #667568;
+  color: rgba(255, 255, 255, 0.9);
   font-size: 14px;
   line-height: 1.65;
-}
-
-.experience-card-restaurants .experience-card-copy > p {
-  color: #79695b;
 }
 
 .experience-card-action {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-top: auto;
-  padding-top: 24px;
+  margin-top: 25px;
+  padding: 12px 17px;
+  border-radius: 999px;
   color: #fff;
   font-size: 13px;
   font-weight: 750;
+  transition: filter 160ms ease, transform 160ms ease;
 }
 
 .experience-card-action svg {
@@ -219,50 +210,16 @@
 }
 
 .experience-card-shops .experience-card-action {
-  color: #fff;
   background: #4d9137;
-  padding: 12px 16px;
-  border-radius: 999px;
 }
 
 .experience-card-restaurants .experience-card-action {
-  color: #fff;
   background: #d87931;
-  padding: 12px 16px;
-  border-radius: 999px;
 }
 
-.experience-card-art {
-  position: absolute;
-  right: -9px;
-  bottom: -16px;
-  width: 48%;
-  height: 88%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.experience-card-art img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 13px 15px rgba(44, 54, 34, 0.13));
-}
-
-.experience-card-restaurants .experience-card-art {
-  right: -5px;
-  bottom: -8px;
-  width: 45%;
-  height: 82%;
-}
-
-.experience-card-restaurants .experience-card-art img {
-  border-radius: 45% 45% 0 0;
-  object-fit: cover;
-  object-position: center;
-  mix-blend-mode: multiply;
+.experience-card:hover .experience-card-action {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 640px) {
@@ -292,12 +249,12 @@
   }
 
   .experience-card {
-    min-height: 310px;
-    padding: 26px;
+    min-height: 300px;
+    padding: 28px;
   }
 
   .experience-card-copy {
-    width: 66%;
+    width: min(340px, 82%);
   }
 }
 
@@ -320,27 +277,18 @@
   }
 
   .experience-card {
-    min-height: 290px;
+    min-height: 280px;
     padding: 22px;
   }
 
   .experience-card-copy {
-    width: 72%;
-  }
-
-  .experience-card-art {
-    right: -22px;
-    width: 50%;
-  }
-
-  .experience-card-restaurants .experience-card-art {
-    right: -16px;
-    width: 48%;
+    width: 88%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .experience-card,
+  .experience-card-action,
   .experience-logout {
     transition: none;
   }
