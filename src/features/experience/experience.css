@@ -1,0 +1,347 @@
+.experience-page {
+  min-height: 100vh;
+  padding: 0 clamp(20px, 6vw, 88px) 72px;
+  background:
+    radial-gradient(ellipse at 50% 0, rgba(224, 242, 222, 0.48), transparent 40%),
+    #fbfcfa;
+  color: #23332a;
+}
+
+.experience-topbar {
+  width: min(1240px, 100%);
+  height: 88px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e9eee8;
+}
+
+.experience-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #24352a;
+  font-size: 21px;
+  font-weight: 800;
+  text-decoration: none;
+  letter-spacing: -0.7px;
+}
+
+.experience-brand > span:last-child > span {
+  color: #4a942f;
+}
+
+.experience-brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e8f4e3;
+  color: #418a30;
+  font-size: 19px;
+}
+
+.experience-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e1e9df;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: #fff;
+  color: #526357;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.experience-logout:hover {
+  border-color: #c9dbc5;
+  background: #f4f8f2;
+}
+
+.experience-content {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding-top: clamp(52px, 8vh, 86px);
+}
+
+.experience-intro {
+  max-width: 720px;
+  margin: 0 auto 42px;
+  text-align: center;
+}
+
+.experience-welcome {
+  margin: 0 0 14px;
+  color: #4c9635;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+}
+
+.experience-intro h1 {
+  margin: 0;
+  color: #203229;
+  font-size: clamp(34px, 5vw, 52px);
+  font-weight: 780;
+  line-height: 1.12;
+  letter-spacing: -1.8px;
+}
+
+.experience-subtitle {
+  max-width: 610px;
+  margin: 16px auto 0;
+  color: #748078;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.experience-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.experience-card {
+  position: relative;
+  min-height: 348px;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 24px;
+  padding: 32px;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 14px 36px rgba(34, 54, 38, 0.08);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.experience-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 44px rgba(34, 54, 38, 0.13);
+}
+
+.experience-card:focus-visible,
+.experience-brand:focus-visible,
+.experience-logout:focus-visible {
+  outline: 3px solid #3c8232;
+  outline-offset: 4px;
+}
+
+.experience-card-shops {
+  background: linear-gradient(125deg, #eef7e9 0%, #e1f0d9 100%);
+  border-color: #deecd7;
+}
+
+.experience-card-restaurants {
+  background: linear-gradient(125deg, #fff4e8 0%, #ffead5 100%);
+  border-color: #f4e2ce;
+}
+
+.experience-card-copy {
+  position: relative;
+  z-index: 1;
+  width: 62%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.experience-card-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #438d32;
+  font-size: 21px;
+}
+
+.experience-card-restaurants .experience-card-icon {
+  color: #d3782d;
+}
+
+.experience-eyebrow {
+  color: #59814d;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.experience-card-restaurants .experience-eyebrow {
+  color: #a9652f;
+}
+
+.experience-card h2 {
+  margin: 8px 0 10px;
+  color: #263c2d;
+  font-size: clamp(22px, 2.4vw, 28px);
+  line-height: 1.2;
+  letter-spacing: -0.7px;
+}
+
+.experience-card-restaurants h2 {
+  color: #4a3527;
+}
+
+.experience-card-copy > p {
+  max-width: 270px;
+  margin: 0;
+  color: #667568;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.experience-card-restaurants .experience-card-copy > p {
+  color: #79695b;
+}
+
+.experience-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 24px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.experience-card-action svg {
+  font-size: 16px;
+}
+
+.experience-card-shops .experience-card-action {
+  color: #fff;
+  background: #4d9137;
+  padding: 12px 16px;
+  border-radius: 999px;
+}
+
+.experience-card-restaurants .experience-card-action {
+  color: #fff;
+  background: #d87931;
+  padding: 12px 16px;
+  border-radius: 999px;
+}
+
+.experience-card-art {
+  position: absolute;
+  right: -9px;
+  bottom: -16px;
+  width: 48%;
+  height: 88%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.experience-card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 13px 15px rgba(44, 54, 34, 0.13));
+}
+
+.experience-card-restaurants .experience-card-art {
+  right: -5px;
+  bottom: -8px;
+  width: 45%;
+  height: 82%;
+}
+
+.experience-card-restaurants .experience-card-art img {
+  border-radius: 45% 45% 0 0;
+  object-fit: cover;
+  object-position: center;
+  mix-blend-mode: multiply;
+}
+
+@media (max-width: 640px) {
+  .experience-page {
+    padding: 0 20px 44px;
+  }
+
+  .experience-topbar {
+    height: 72px;
+  }
+
+  .experience-content {
+    padding-top: 48px;
+  }
+
+  .experience-intro {
+    margin-bottom: 30px;
+  }
+
+  .experience-subtitle {
+    font-size: 14px;
+  }
+
+  .experience-options {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .experience-card {
+    min-height: 310px;
+    padding: 26px;
+  }
+
+  .experience-card-copy {
+    width: 66%;
+  }
+}
+
+@media (max-width: 420px) {
+  .experience-page {
+    padding-inline: 16px;
+  }
+
+  .experience-brand {
+    font-size: 19px;
+  }
+
+  .experience-logout {
+    padding: 9px 12px;
+  }
+
+  .experience-intro h1 {
+    font-size: 34px;
+    letter-spacing: -1px;
+  }
+
+  .experience-card {
+    min-height: 290px;
+    padding: 22px;
+  }
+
+  .experience-card-copy {
+    width: 72%;
+  }
+
+  .experience-card-art {
+    right: -22px;
+    width: 50%;
+  }
+
+  .experience-card-restaurants .experience-card-art {
+    right: -16px;
+    width: 48%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .experience-card,
+  .experience-logout {
+    transition: none;
+  }
+}

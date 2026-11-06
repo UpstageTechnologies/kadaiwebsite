@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FiPhone, FiArrowLeft } from "react-icons/fi";
+import { FiPhone } from "react-icons/fi";
 import { signOut } from "firebase/auth";
 import {
 auth,
@@ -111,8 +111,8 @@ const validateAndShow = () => {
 
       setSuccess("Login successful!");
 
-      const redirectPath = new URLSearchParams(location.search).get("redirect") || "/";
-      navigate(redirectPath || "/", { replace: true });
+      const redirectPath = new URLSearchParams(location.search).get("redirect") || "/experience";
+      navigate(redirectPath || "/experience", { replace: true });
     } catch (loginError) {
       const code = loginError?.code || "";
       const message = code.startsWith("auth/")
@@ -141,11 +141,6 @@ const validateAndShow = () => {
 
   return (
     <main className="login-page">
-      <button type="button" className="login-back-btn" onClick={() => navigate("/")}>
-        <FiArrowLeft />
-        Back to Home
-      </button>
-
       <div className="login-container">
         <section className="login-info">
           <div className="login-brand">

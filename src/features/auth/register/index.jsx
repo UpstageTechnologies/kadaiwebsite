@@ -658,7 +658,7 @@ const Register = () => {
   return (
     <main className="register-page">
       <button className="register-back" type="button" onClick={leaveRegistration}>
-        <FiArrowLeft /> Back to Home
+        <FiArrowLeft /> Back to login
       </button>
 
       <div className="register-container">

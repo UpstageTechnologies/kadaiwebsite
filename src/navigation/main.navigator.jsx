@@ -1,5 +1,4 @@
-import { Routes, Route } from "react-router-dom";
-import Home from "../features/home";
+import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Products from "../features/products";
 import Cart from "../features/cart";
 import Login from "../features/auth/login";
@@ -10,6 +9,23 @@ import Orders from "../features/orders";
 import LocationPicker from "../features/location-picker";
 import TrackOrder from "../features/track-order";
 import Profile from "../features/profile";
+import Experience from "../features/experience";
+import Restaurants from "../features/restaurants";
+import { useAuth } from "../components/AuthContext";
+
+const EntryRoute = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div className="route-loading" role="status">Loading your account...</div>;
+  return user ? <Navigate to="/experience" replace /> : <Login />;
+};
+
+const ProtectedRoutes = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div className="route-loading" role="status">Loading your account...</div>;
+  return user ? <Outlet /> : <Navigate to="/login" replace />;
+};
 
 /**
  * Main Navigator
@@ -19,7 +35,11 @@ import Profile from "../features/profile";
 const MainNavigator = () => {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<EntryRoute />} />
+      <Route element={<ProtectedRoutes />}>
+        <Route path="/experience" element={<Experience />} />
+        <Route path="/restaurants" element={<Restaurants />} />
+      </Route>
       <Route path="/products" element={<Products />} />
       <Route path="/cart" element={<Cart />} />
       <Route path="/login" element={<Login />} />
@@ -36,7 +56,7 @@ const MainNavigator = () => {
       <Route path="/location-picker" element={<LocationPicker />} />
 
       {/* Fallback route */}
-      <Route path="*" element={<Home />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
