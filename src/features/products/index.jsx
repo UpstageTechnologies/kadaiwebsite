@@ -5,6 +5,7 @@ import {
 } from "react-router-dom";
 
 import {
+  FiArrowLeft,
   FiShoppingBag,
   FiStar,
   FiShoppingCart,
@@ -338,6 +339,14 @@ const Products = () => {
       <main className="products-page">
         <div className="products-header">
           <div>
+            <button
+              type="button"
+              className="products-back-button"
+              onClick={() => navigate("/experience")}
+            >
+              <FiArrowLeft aria-hidden="true" />
+              <span>Back</span>
+            </button>
             <h1>Our Products</h1>
             <p>Find everything you need from your local stores</p>
           </div>

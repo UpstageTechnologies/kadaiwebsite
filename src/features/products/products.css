@@ -16,7 +16,7 @@
 .products-header h1 {
   margin: 0 0 8px;
   font-size: 34px;
-  margin-top: 20PX;
+  margin-top: 0;
   font-weight: 700;
   color: #202a25;
 }
@@ -25,6 +25,39 @@
   margin: 0;
   color: #777;
   font-size: 14px;
+}
+
+.products-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 20px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid #dfe8df;
+  border-radius: 999px;
+  background: #fff;
+  color: #477d35;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.products-back-button:hover {
+  border-color: #b8d2ae;
+  background: #f2f8ef;
+}
+
+.products-back-button:focus-visible {
+  outline: 2px solid #4d9137;
+  outline-offset: 3px;
+}
+
+.products-back-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .product-quantity-control {
