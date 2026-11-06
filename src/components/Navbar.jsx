@@ -1,9 +1,9 @@
-                                                                                                                                                                                                 import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   FiSearch,
   FiShoppingCart,
   FiUser,
-  FiMenu,
+  FiClipboard,
   FiX,
   FiChevronDown,
 } from "react-icons/fi";
@@ -58,7 +58,6 @@ const Navbar = () => {
   const isAuthenticated = Boolean(user);
   const userName = customer?.fullName || customer?.name || user?.displayName || "";
 
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -73,10 +72,9 @@ const Navbar = () => {
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState(false);
 
-  // Close mobile menu when navigating
+  // Close mobile search when navigating
   useEffect(() => {
     const handleNavigation = () => {
-      setIsMobileMenuOpen(false);
       setShowSearch(false);
     };
 
@@ -558,23 +556,13 @@ const Navbar = () => {
           )}
 
 
-          {/* Mobile Menu Toggle */}
-
           <button
             className="mobile-menu-toggle"
-            onClick={() =>
-              setIsMobileMenuOpen(!isMobileMenuOpen)
-            }
-            aria-label="Toggle menu"
-            aria-expanded={isMobileMenuOpen}
+            onClick={() => navigate("/orders")}
+            aria-label="My Orders"
+            title="My Orders"
           >
-
-            {isMobileMenuOpen ? (
-              <FiX size={24} />
-            ) : (
-              <FiMenu size={24} />
-            )}
-
+            <FiClipboard size={24} />
           </button>
 
         </div>
@@ -717,49 +705,6 @@ const Navbar = () => {
             )}
 
           </div>
-
-        </div>
-
-      )}
-
-      {/* Mobile Navigation Menu */}
-
-      {isMobileMenuOpen && (
-
-        <div className="mobile-nav-drawer">
-
-          <nav className="mobile-nav-links">
-
-            <Link 
-              to="/" 
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Home
-            </Link>
-
-            <Link
-              to="/orders"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Orders
-            </Link>
-
-
-            {!isAuthenticated && (
-
-              <button
-                className="mobile-nav-login"
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  navigate("/login");
-                }}
-              >
-                Login
-              </button>
-
-            )}
-
-          </nav>
 
         </div>
 
