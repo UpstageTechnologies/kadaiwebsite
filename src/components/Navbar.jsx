@@ -737,13 +737,6 @@ const Navbar = () => {
               Home
             </Link>
 
-            <Link 
-              to="/products" 
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Products
-            </Link>
-
             <Link
               to="/orders"
               onClick={() => setIsMobileMenuOpen(false)}
