@@ -34,7 +34,7 @@ const Cart = () => {
 
   return (
     <>
-    <Navbar/>
+    <Navbar cartLayout />
     <main className="cart-page">
 
       <div className="cart-header">

@@ -1,8 +1,62 @@
+.cart-navbar-shell {
+  position: relative;
+  z-index: 100;
+  display: grid;
+  grid-template-columns: auto minmax(140px, 1fr) minmax(0, auto) auto;
+  grid-template-areas: "logo search delivery actions";
+  align-items: center;
+  column-gap: clamp(8px, 1vw, 18px);
+  row-gap: 8px;
+  width: min(1200px, calc(100% - 32px));
+  margin: 10px auto 0;
+}
+
+.cart-navbar-shell .navbar.cart-navbar {
+  display: contents;
+}
+
+.cart-navbar-shell .navbar.cart-navbar > .logo {
+  grid-area: logo;
+  order: 0;
+}
+
+.cart-navbar-shell .navbar.cart-navbar > .desktop-search-wrapper {
+  display: block;
+  grid-area: search;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  order: 0;
+}
+
+.cart-navbar-shell .navbar.cart-navbar .desktop-search {
+  width: 100%;
+}
+
+.cart-navbar-shell .navbar.cart-navbar > .nav-actions {
+  grid-area: actions;
+  flex: 0 0 auto;
+  margin: 0;
+  order: 0;
+}
+
+.cart-delivery-row {
+  grid-area: delivery;
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.cart-delivery-row .navbar-location-selector {
+  max-width: min(240px, 100%);
+  min-width: 0;
+}
+
 .cart-page {
   width: 100%;
   min-height: 100vh;
 
-  padding: 10px 6% 70px;
+  padding: 16px 6% 70px;
 
   background: #f8faf9;
 
@@ -11,18 +65,14 @@
 
 .cart-header {
   display: flex;
-
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-
-  gap: 20px;
-
-  margin-bottom: 35px;
+  gap: 8px;
+  margin-bottom: 28px;
 }
 
 .cart-header h1 {
   margin: 0;
-  margin-top: 30px;
 
   font-size: 32px;
   font-weight: 700;
@@ -43,7 +93,7 @@
   align-items: center;
   gap: 8px;
   border: none;
-  margin-top: 30px;
+  margin: 0;
   background: transparent;
   color: #2f7d32;
   font-size: 14px;
@@ -344,14 +394,16 @@
 }
 
 .empty-cart {
-  min-height: 400px;
+  min-height: clamp(300px, 42vh, 400px);
   background: #ffffff;
   border-radius: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: clamp(24px, 5vw, 48px);
   text-align: center;
+  overflow-wrap: anywhere;
   box-shadow:
     0 5px 20px rgba(0, 0, 0, 0.05);
 }
@@ -384,6 +436,23 @@
 
 /* Responsive: 1024px (Tablet Landscape) */
 @media (max-width: 1024px) {
+  .cart-navbar-shell {
+    width: calc(100% - 24px);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "logo search actions"
+      "delivery delivery delivery";
+    column-gap: 10px;
+  }
+
+  .cart-delivery-row {
+    justify-content: flex-end;
+  }
+
+  .cart-delivery-row .navbar-location-selector {
+    max-width: min(420px, 100%);
+  }
+
   .cart-page {
     padding: 10px 5% 50px;
   }
@@ -405,24 +474,50 @@
 
 /* Responsive: 768px (Tablet) */
 @media (max-width: 768px) {
+  .cart-navbar-shell {
+    width: calc(100% - 20px);
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "logo actions"
+      "delivery delivery"
+      "search search";
+    column-gap: 4px;
+    row-gap: 6px;
+  }
+
+  .cart-navbar-shell .navbar.cart-navbar > .desktop-search-wrapper {
+    margin: 0;
+  }
+
+  .cart-navbar-shell .navbar.cart-navbar > .nav-actions {
+    gap: 4px;
+  }
+
+  .cart-delivery-row {
+    justify-content: flex-start;
+  }
+
+  .cart-delivery-row .navbar-location-selector {
+    width: auto;
+    max-width: 100%;
+    min-height: 48px;
+  }
+
   .cart-page {
-    padding: 10px 4% 40px;
+    padding: 14px 4% 40px;
   }
 
   .cart-header {
-    flex-direction: column;
-    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 22px;
   }
 
   .cart-header h1 {
     font-size: 24px;
-    margin-top: 80px;
   }
 
   .back-btn {
-    position: absolute;
-    top: 70px;
-    left: 4%;
+    font-size: 13px;
   }
 
   .cart-layout {
@@ -461,23 +556,36 @@
 
 /* Responsive: 480px (Mobile) */
 @media (max-width: 480px) {
+  .cart-navbar-shell {
+    width: calc(100% - 12px);
+    row-gap: 4px;
+  }
+
+  .cart-navbar-shell .navbar.cart-navbar > .desktop-search-wrapper {
+    margin-bottom: 4px;
+  }
+
+  .cart-delivery-row .navbar-location-selector {
+    min-height: 44px;
+    padding: 4px 2px;
+  }
+
   .cart-page {
-    padding: 8px 3% 30px;
+    padding: 12px 4% 30px;
   }
 
   .cart-header {
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: 6px;
+    margin-bottom: 18px;
   }
 
   .cart-header h1 {
     font-size: 20px;
-    margin-top: 60px;
   }
 
   .back-btn {
     font-size: 12px;
-    margin-top: 10px;
+    padding: 6px 0;
   }
 
   .cart-items-section,
@@ -578,7 +686,8 @@
   }
 
   .empty-cart {
-    min-height: 300px;
+    min-height: clamp(260px, 40vh, 320px);
+    padding: 24px 18px;
   }
 
   .empty-cart-icon {

@@ -45,7 +45,7 @@ const formatRegisteredAddress = (address) => {
     .join(", ");
 };
 
-const Navbar = ({ deliveryAddressBelow = false }) => {
+const Navbar = ({ deliveryAddressBelow = false, cartLayout = false }) => {
   const navigate = useNavigate();
   const { cartCount } = useCart();
   const {
@@ -183,8 +183,8 @@ const Navbar = ({ deliveryAddressBelow = false }) => {
 
   return (
     <>
-      <div className={deliveryAddressBelow ? "products-navbar-shell" : undefined}>
-        <nav className={`navbar${deliveryAddressBelow ? " products-navbar" : ""}`}>
+      <div className={deliveryAddressBelow ? "products-navbar-shell" : cartLayout ? "cart-navbar-shell" : undefined}>
+        <nav className={`navbar${deliveryAddressBelow ? " products-navbar" : cartLayout ? " cart-navbar" : ""}`}>
           <div
             className="logo"
             onClick={() => navigate("/")}
@@ -192,7 +192,7 @@ const Navbar = ({ deliveryAddressBelow = false }) => {
             <span>Kadai</span>App
           </div>
 
-          {!deliveryAddressBelow && deliveryAddressSelector}
+          {!deliveryAddressBelow && !cartLayout && deliveryAddressSelector}
 
           <div className="desktop-search-wrapper">
 
@@ -475,8 +475,8 @@ const Navbar = ({ deliveryAddressBelow = false }) => {
 
         </nav>
 
-        {deliveryAddressBelow && (
-          <div className="products-delivery-row">
+        {(deliveryAddressBelow || cartLayout) && (
+          <div className={cartLayout ? "cart-delivery-row" : "products-delivery-row"}>
             {deliveryAddressSelector}
           </div>
         )}
