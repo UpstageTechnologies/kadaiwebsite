@@ -58,7 +58,6 @@ const Navbar = () => {
   const isAuthenticated = Boolean(user);
   const userName = customer?.fullName || customer?.name || user?.displayName || "";
 
-  const [showSearch, setShowSearch] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const currentProfileAddress = formatRegisteredAddress(customer?.address);
@@ -71,16 +70,6 @@ const Navbar = () => {
   const [categoryNames, setCategoryNames] = useState([]);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState(false);
-
-  // Close mobile search when navigating
-  useEffect(() => {
-    const handleNavigation = () => {
-      setShowSearch(false);
-    };
-
-    window.addEventListener("navigate", handleNavigation);
-    return () => window.removeEventListener("navigate", handleNavigation);
-  }, []);
 
   const handleLogout = async () => {
     setShowProfile(false);
@@ -146,7 +135,6 @@ const Navbar = () => {
 
   const handleSearchProductClick = (id) => {
     setSearchQuery("");
-    setShowSearch(false);
 
     navigate(`/product/${id}`);
   };
@@ -172,111 +160,6 @@ const Navbar = () => {
           onClick={() => navigate("/")}
         >
           <span>Kadai</span>App
-        </div>
-        <div className="desktop-menu">
-
-          <a href="/">Home</a>
-
-
-          {/* Categories */}
-
-          <div className="navbar-category-wrapper">
-
-            <button
-              type="button"
-              className="menu-dropdown category-menu-btn"
-              onClick={() =>
-                setShowCategories(!showCategories)
-              }
-            >
-              Categories
-
-              <FiChevronDown
-                size={13}
-                className={
-                  showCategories
-                    ? "category-arrow active"
-                    : "category-arrow"
-                }
-              />
-            </button>
-
-            {showCategories && (
-              <div className="navbar-category-dropdown">
-
-                {isCategoriesLoading ? (
-                  <div>Loading categories...</div>
-                ) : categoriesError ? (
-                  <div>Unable to load categories</div>
-                ) : categoryItems.map((category) => (
-
-                  <button
-                    key={category.name}
-                    type="button"
-                    className="category-dropdown-item"
-                    onClick={() =>
-                      handleCategoryClick(
-                        category.name
-                      )
-                    }
-                  >
-
-                    <div className="category-dropdown-image">
-
-                      {category.image ? (
-
-                        <img
-                          src={category.image}
-                          alt={category.name}
-                        />
-
-                      ) : (
-
-                        <div className="category-image-placeholder">
-                          <FiShoppingCart />
-                        </div>
-
-                      )}
-
-                    </div>
-
-
-                    {/* Category Name */}
-
-                    <span>
-                      {category.name}
-                    </span>
-
-                  </button>
-
-                ))}
-
-              </div>
-            )}
-
-          </div>
-
-
-          {/* Products */}
-
-          <button
-            type="button"
-            className="menu-dropdown navbar-product-btn"
-            onClick={() => {
-              setShowCategories(false);
-              navigate("/products");
-            }}
-          >
-            Products
-          </button>
-
-
-          {/* Orders */}
-
-          <Link to="/orders" className="menu-dropdown">
-            Orders
-          </Link>
-
         </div>
 
         <div className="desktop-search-wrapper">
@@ -391,18 +274,6 @@ const Navbar = () => {
         </div>
 
         <div className="nav-actions">
-
-          <button
-            className="icon-btn mobile-search-btn"
-            onClick={() =>
-              setShowSearch(!showSearch)
-            }
-            aria-label="Search"
-          >
-            <FiSearch />
-          </button>
-
-
           {/* Cart */}
 
           <button
@@ -574,9 +445,7 @@ const Navbar = () => {
         onClose={() => setShowAddressModal(false)}
       />
 
-      {showSearch && (
-
-        <div className="mobile-search-panel">
+      <div className="mobile-search-panel">
 
           <div className="mobile-search-container">
 
@@ -585,7 +454,6 @@ const Navbar = () => {
               <FiSearch />
 
               <input
-                autoFocus
                 type="text"
                 placeholder="Search....."
                 value={searchQuery}
@@ -610,18 +478,6 @@ const Navbar = () => {
 
               )}
 
-
-              <button
-                type="button"
-                className="mobile-search-close"
-                onClick={() => {
-                  setSearchQuery("");
-                  setShowSearch(false);
-                }}
-                aria-label="Close search"
-              >
-                <FiX />
-              </button>
 
             </div>
 
@@ -707,8 +563,6 @@ const Navbar = () => {
           </div>
 
         </div>
-
-      )}
 
     </>
   );
