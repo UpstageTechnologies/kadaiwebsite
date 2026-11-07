@@ -274,6 +274,15 @@ const Navbar = () => {
         </div>
 
         <div className="nav-actions">
+          <button
+            className="mobile-menu-toggle"
+            onClick={() => navigate("/orders")}
+            aria-label="My Orders"
+            title="My Orders"
+          >
+            <FiPackage />
+          </button>
+
           {/* Cart */}
 
           <button
@@ -298,12 +307,14 @@ const Navbar = () => {
           {!isAuthenticated ? (
 
             <button
-              className="login-btn"
+              className="user-btn profile-login-btn"
               onClick={() =>
                 navigate("/login")
               }
+              aria-label="Profile"
+              title="Profile"
             >
-              Login
+              <FiUser />
             </button>
 
           ) : (
@@ -426,15 +437,6 @@ const Navbar = () => {
 
           )}
 
-
-          <button
-            className="mobile-menu-toggle"
-            onClick={() => navigate("/orders")}
-            aria-label="My Orders"
-            title="My Orders"
-          >
-            <FiPackage />
-          </button>
 
         </div>
 
