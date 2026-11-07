@@ -1,18 +1,19 @@
 import { signOut } from "firebase/auth";
-import { FiArrowUpRight, FiLogOut, FiShoppingBag } from "react-icons/fi";
+import { FiArrowUpRight, FiLogIn, FiLogOut, FiShoppingBag } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../../services/firebase";
+import { useAuth } from "../../components/AuthContext";
 import shopsImage from "../../assets/shops.jpeg";
 import restaurantsImage from "../../assets/restaurants.jpeg";
 import "./experience.css";
 
 const Experience = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
 
   const handleLogout = async () => {
     try {
       if (auth) await signOut(auth);
-      navigate("/login", { replace: true });
     } catch (error) {
       console.error("[AUTH] Logout failed:", error);
     }
@@ -25,10 +26,23 @@ const Experience = () => {
           <span className="experience-brand-mark"><FiShoppingBag /></span>
           <span>Kadai<span>App</span></span>
         </Link>
-        <button className="experience-logout" type="button" onClick={handleLogout}>
-          <FiLogOut aria-hidden="true" />
-          <span>Log out</span>
-        </button>
+        {!loading && (
+          user ? (
+            <button className="experience-logout" type="button" onClick={handleLogout}>
+              <FiLogOut aria-hidden="true" />
+              <span>Log out</span>
+            </button>
+          ) : (
+            <button
+              className="experience-logout"
+              type="button"
+              onClick={() => navigate("/login")}
+            >
+              <FiLogIn aria-hidden="true" />
+              <span>Login</span>
+            </button>
+          )
+        )}
       </header>
 
       <section className="experience-content" aria-labelledby="experience-title">

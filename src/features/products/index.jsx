@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useNavigate,
   useSearchParams,
@@ -13,6 +13,7 @@ import {
 
 import { useCart } from "../../components/CardContext";
 import { useAuth } from "../../components/AuthContext";
+import { useLocation } from "../../components/LocationContext";
 import {
   db,
 } from "../../services/firebase";
@@ -35,8 +36,8 @@ const Products = () => {
     user,
     customer,
     customerError,
-    loading: isAuthLoading,
   } = useAuth();
+  const { location, openLocationSelector } = useLocation();
 
   const {
     cartItems,
@@ -47,6 +48,8 @@ const Products = () => {
   } = useCart();
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const productsContentRef = useRef(null);
+  const [shopSelectionScrollVersion, setShopSelectionScrollVersion] = useState(0);
 
   const searchFromURL = searchParams.get("search") || "";
   const categoryFromURL = searchParams.get("category") || "";
@@ -56,11 +59,13 @@ const Products = () => {
     ? MARKET_MODES.GLOBAL
     : requestedMarketMode === MARKET_MODES.GLOBAL
       ? MARKET_MODES.GLOBAL
-      : DEFAULT_MARKET_MODE;
+      : requestedMarketMode === MARKET_MODES.LOCAL || user
+        ? DEFAULT_MARKET_MODE
+        : MARKET_MODES.GLOBAL;
   const userId = user?.uid || "";
   const customerLocation = useMemo(
-    () => getCustomerActiveLocation(customer),
-    [customer]
+    () => location || getCustomerActiveLocation(customer),
+    [customer, location]
   );
   const locationError = userId ? customerError : "";
   const [sellerState, setSellerState] = useState({
@@ -88,19 +93,6 @@ const Products = () => {
     : productState.marketMode === marketMode
       ? productState.error
       : "";
-
-  useEffect(() => {
-    if (isAuthLoading) return;
-    if (
-      marketMode === MARKET_MODES.LOCAL &&
-      !user
-    ) {
-      navigate(
-        `/login?redirect=${encodeURIComponent("/products?market=local")}`,
-        { replace: true }
-      );
-    }
-  }, [isAuthLoading, marketMode, navigate, user]);
 
   useEffect(() => {
     if (!db) return undefined;
@@ -304,21 +296,23 @@ const Products = () => {
     )
     : [];
   const displayedProducts = selectedShop ? selectedShopProducts : filteredProducts;
-  const isPageLoading = isLoading
-    || isSellerProfilesLoading
-    || (marketMode === MARKET_MODES.LOCAL && isAuthLoading);
+  const isPageLoading = isLoading || isSellerProfilesLoading;
+
+  useEffect(() => {
+    if (!shopSelectionScrollVersion) return;
+
+    productsContentRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [shopSelectionScrollVersion]);
+
+  const handleShopSelection = (selection) => {
+    setSelectedShopSelection(selection);
+    setShopSelectionScrollVersion((version) => version + 1);
+  };
 
   const handleMarketChange = (nextMode) => {
-    if (
-      nextMode === MARKET_MODES.LOCAL &&
-      !user
-    ) {
-      navigate(
-        `/login?redirect=${encodeURIComponent("/products?market=local")}`
-      );
-      return;
-    }
-
     setSelectedShopSelection(null);
 
     const nextSearchParams = new URLSearchParams(searchParams);
@@ -334,7 +328,7 @@ const Products = () => {
 
   return (
     <>
-      <Navbar />
+      <Navbar deliveryAddressBelow />
 
       <main className="products-page">
         <div className="products-header">
@@ -342,10 +336,10 @@ const Products = () => {
             <button
               type="button"
               className="products-back-button"
-              onClick={() => navigate("/experience")}
+              onClick={() => navigate("/")}
             >
               <FiArrowLeft aria-hidden="true" />
-              <span>Back</span>
+              <span>Home</span>
             </button>
             <h1>Our Products</h1>
             <p>Find everything you need from your local stores</p>
@@ -370,6 +364,27 @@ const Products = () => {
 
             {!error && !sellerProfilesError && !locationError
               && !isPageLoading
+              && marketMode === MARKET_MODES.LOCAL
+              && !customerLocation ? (
+                <section className="shop-selector" aria-label="Nearby stores">
+                  <div className="shop-selector-header">
+                    <h3>Nearby Stores</h3>
+                  </div>
+                  <p className="shop-selector-empty">
+                    Set your delivery location to view nearby stores.
+                  </p>
+                  <button
+                    type="button"
+                    className="shop-selector-location-button"
+                    onClick={openLocationSelector}
+                  >
+                    Set delivery location
+                  </button>
+                </section>
+              ) : null}
+
+            {!error && !sellerProfilesError && !locationError
+              && !isPageLoading
               && (marketMode !== MARKET_MODES.LOCAL || customerLocation)
               ? (
                 <section className="shop-selector" aria-label="Select a shop">
@@ -386,13 +401,24 @@ const Products = () => {
                   </div>
                   {eligibleShops.length > 0 ? (
                     <div className="shop-selector-list">
+                      <button
+                        type="button"
+                        className={`shop-selector-item${selectedShopId ? "" : " selected"}`}
+                        aria-pressed={!selectedShopId}
+                        onClick={() => handleShopSelection(null)}
+                      >
+                        <span className="shop-selector-icon">
+                          <FiShoppingBag aria-hidden="true" />
+                        </span>
+                        <span className="shop-selector-name">All Shops</span>
+                      </button>
                       {eligibleShops.map((shop) => (
                         <button
                           type="button"
                           className={`shop-selector-item${selectedShopId === shop.id ? " selected" : ""}`}
                           key={shop.id}
                           aria-pressed={selectedShopId === shop.id}
-                          onClick={() => setSelectedShopSelection({
+                          onClick={() => handleShopSelection({
                             id: shop.id,
                             marketMode,
                           })}
@@ -425,7 +451,7 @@ const Products = () => {
               ) : null}
           </aside>
 
-          <section className="products-content">
+          <section className="products-content" ref={productsContentRef}>
             <div className="products-topbar">
               <div>
                 <h2>
@@ -450,18 +476,6 @@ const Products = () => {
                 <h3>Loading products...</h3>
               </div>
             )}
-
-            {!error && !sellerProfilesError && !locationError
-              && !isPageLoading
-              && marketMode === MARKET_MODES.LOCAL
-              && !customerLocation ? (
-                <div className="no-products">
-                  <h3>Saved city or district needed</h3>
-                  <p>
-                    Add or update your saved address so we can match local shops by city or district.
-                  </p>
-                </div>
-              ) : null}
 
             {!error && !sellerProfilesError && !locationError
               && !isPageLoading

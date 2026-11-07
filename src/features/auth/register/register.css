@@ -502,13 +502,34 @@
 
   .register-container {
     max-width: 100%;
+    min-height: 0;
+    align-content: start;
   }
 
-  .register-info{
+  .register-info {
+    display: block;
+    min-height: 0;
+    padding: 28px 30px 0;
+    background: transparent;
+    color: #19351d;
+  }
+
+  .register-brand {
+    margin-bottom: 0;
+  }
+
+  .register-brand span {
+    color: #4f8611;
+  }
+
+  .register-info h1,
+  .register-info > p,
+  .register-benefits {
     display: none;
   }
+
   .register-card {
-    padding: 40px 30px;
+    padding: 24px 30px;
   }
 
   .register-info h1 {

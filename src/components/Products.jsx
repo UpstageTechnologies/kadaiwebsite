@@ -6,10 +6,12 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiArrowRight,
+  FiMapPin,
 } from "react-icons/fi";
 import "../index.css";
 import { useCart } from "./CardContext";
 import { useAuth } from "./AuthContext";
+import { useLocation } from "./LocationContext";
 import { useNavigate } from "react-router-dom";
 import {
   getCustomerActiveLocation,
@@ -21,7 +23,8 @@ import {
 
 const Products = () => {
   const navigate = useNavigate();
-  const { user, customer, loading: isAuthLoading } = useAuth();
+  const { customer } = useAuth();
+  const { location, openLocationSelector } = useLocation();
 
   const {
     cartItems,
@@ -44,8 +47,8 @@ const Products = () => {
   const [sellerProfilesLoaded, setSellerProfilesLoaded] = useState(false);
   const [selectedShopId, setSelectedShopId] = useState("");
   const customerLocation = useMemo(
-    () => getCustomerActiveLocation(customer),
-    [customer]
+    () => location || getCustomerActiveLocation(customer),
+    [customer, location]
   );
 
   useEffect(() => {
@@ -74,7 +77,7 @@ const Products = () => {
     () => getNearbySellerIds(customerLocation, sellerLocations),
     [customerLocation, sellerLocations]
   );
-  const subscriptionKey = JSON.stringify([user?.uid || "", nearbySellerIds]);
+  const subscriptionKey = JSON.stringify(nearbySellerIds);
   const localProducts = useMemo(
     () => productState.subscriptionKey === subscriptionKey ? productState.products : [],
     [productState.products, productState.subscriptionKey, subscriptionKey]
@@ -82,15 +85,10 @@ const Products = () => {
   const localProductError = productState.subscriptionKey === subscriptionKey
     ? productState.error
     : "";
-  const isLoading = Boolean(user?.uid)
+  const isLoading = Boolean(customerLocation)
     && (productState.subscriptionKey !== subscriptionKey || !sellerProfilesLoaded);
 
   useEffect(() => {
-    const uid = user?.uid || "";
-    if (!uid) {
-      return undefined;
-    }
-
     const unsubscribe = subscribeMarketplaceProducts({
       marketMode: MARKET_MODES.LOCAL,
       sellerIds: nearbySellerIds,
@@ -111,7 +109,7 @@ const Products = () => {
     });
 
     return () => unsubscribe();
-  }, [nearbySellerIds, subscriptionKey, user?.uid]);
+  }, [nearbySellerIds, subscriptionKey]);
 
   const filteredLocalProducts = useMemo(() => {
     if (!nearbySellerIds.length) {
@@ -282,21 +280,17 @@ const Products = () => {
 
       </div>
 
-      {isAuthLoading ? (
-        <div className="no-products" role="status">
-          <h3>Loading nearby products...</h3>
-        </div>
-      ) : !user ? (
+      {!customerLocation ? (
         <div className="no-products">
-          <h3>To view the local products, please log in.</h3>
+          <h3>Set your delivery location to view nearby stores.</h3>
           <button
             type="button"
             className="local-products-login-btn"
-            onClick={() => navigate(`/login?redirect=${encodeURIComponent("/")}`)}
+            onClick={openLocationSelector}
           >
-            Log In
+            Set delivery location
             <span>
-              <FiArrowRight />
+              <FiMapPin />
             </span>
           </button>
         </div>

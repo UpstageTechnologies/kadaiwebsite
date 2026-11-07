@@ -2,13 +2,21 @@ import {
   createContext,
   useCallback,
   useContext,
+  useRef,
   useState,
 } from "react";
 import { FiX } from "react-icons/fi";
 import { doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "./AuthContext";
 import { auth, db } from "../services/firebase";
-import { reverseGeocodeLocation } from "../services/current-location-address.service";
+import { getCustomerActiveLocation } from "../services/marketplace.service";
+import {
+  getActiveLocationStorageKey,
+  getCachedLocation,
+  getCurrentLocationAddress,
+  saveActiveLocation,
+} from "../services/current-location-address.service";
+import LocationSelectionModal from "./LocationSelectionModal";
 
 const openLocationSettings = () => {
   const platform = navigator.userAgent || "";
@@ -68,20 +76,28 @@ const getLocationErrorMessage = (geolocationError) => {
 };
 
 export const LocationProvider = ({ children }) => {
-  const [transientLocation, setTransientLocation] = useState(null);
+  const [transientLocation, setTransientLocation] = useState(() => {
+    const cachedLocation = getCachedLocation();
+    return cachedLocation
+      ? { userId: "", location: cachedLocation }
+      : null;
+  });
+  const [isLocationSelectorOpen, setIsLocationSelectorOpen] = useState(false);
   const [requestState, setRequestState] = useState({
     userId: "",
     status: "idle",
     error: "",
   });
+  const locationRequestId = useRef(0);
   const { user, customer } = useAuth();
   const userId = user?.uid || "";
-  const savedLocation = customer?.currentLocation;
-  const location = savedLocation && typeof savedLocation === "object"
-    ? savedLocation
-    : transientLocation?.userId === userId
-      ? transientLocation.location
-      : null;
+  const savedLocation = getCustomerActiveLocation(customer);
+  const location = transientLocation?.userId === userId
+    ? transientLocation.location
+    : savedLocation && typeof savedLocation === "object"
+      ? savedLocation
+      : getCachedLocation(getActiveLocationStorageKey(userId));
+
   const requestStatus = requestState.userId === userId ? requestState.status : "idle";
   const status = location && requestStatus === "idle" ? "success" : requestStatus;
   const error = requestState.userId === userId ? requestState.error : "";
@@ -90,8 +106,9 @@ export const LocationProvider = ({ children }) => {
     setRequestState({ userId, status: "dismissed", error: "" });
   }, [userId]);
 
-  const requestLocation = useCallback(() => {
+  const requestLocation = useCallback(async () => {
     const requestUid = auth?.currentUser?.uid || "";
+    const requestId = ++locationRequestId.current;
 
     if (!navigator.geolocation) {
       setRequestState({
@@ -99,65 +116,73 @@ export const LocationProvider = ({ children }) => {
         status: "error",
         error: "Location is not supported by this browser. Turn on GPS support or use a browser that allows GPS detection.",
       });
-      return;
+      return null;
     }
 
     setRequestState({ userId: requestUid, status: "loading", error: "" });
+    try {
+      const detectedAddress = await getCurrentLocationAddress();
+      if (requestId !== locationRequestId.current) return null;
 
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        const coordinates = {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-        };
+      const detectedLocation = {
+        ...detectedAddress,
+        lat: detectedAddress.lat ?? detectedAddress.latitude,
+        lon: detectedAddress.lon ?? detectedAddress.longitude,
+        address: detectedAddress.fullAddress || detectedAddress.formattedAddress,
+        detectedAt: new Date().toISOString(),
+      };
 
-        try {
-          const data = await reverseGeocodeLocation(
-            coordinates.latitude,
-            coordinates.longitude
-          );
-          if (!data) {
-            throw new Error("Unable to find an address for this location.");
-          }
-          const detectedLocation = {
-            ...coordinates,
-            lat: coordinates.latitude,
-            lon: coordinates.longitude,
-            address:
-              data.display_name ||
-              `${coordinates.latitude}, ${coordinates.longitude}`,
-            detectedAt: new Date().toISOString(),
-          };
-
-          if (requestUid && auth?.currentUser?.uid !== requestUid) {
-            throw new Error("Your Firebase session changed. Please request your location again.");
-          }
-          if (requestUid && db) {
-            await updateDoc(doc(db, "customers", requestUid), {
-              currentLocation: detectedLocation,
-            });
-          }
-
-          setTransientLocation({ userId: requestUid, location: detectedLocation });
-          setRequestState({ userId: requestUid, status: "success", error: "" });
-        } catch (reverseGeocodeError) {
-          setRequestState({
-            userId: requestUid,
-            status: "error",
-            error: reverseGeocodeError.message
-              || "We could not convert your current location into an address.",
-          });
-        }
-      },
-      (geolocationError) => {
-        setRequestState({
-          userId: requestUid,
-          status: "error",
-          error: getLocationErrorMessage(geolocationError),
+      if (requestUid && auth?.currentUser?.uid !== requestUid) {
+        throw new Error("Your Firebase session changed. Please request your location again.");
+      }
+      if (requestUid && db) {
+        await updateDoc(doc(db, "customers", requestUid), {
+          currentLocation: detectedLocation,
         });
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
+      }
+      if (requestId !== locationRequestId.current) return null;
+
+      saveActiveLocation(
+        detectedLocation,
+        getActiveLocationStorageKey(requestUid)
+      );
+      setTransientLocation({ userId: requestUid, location: detectedLocation });
+      setRequestState({ userId: requestUid, status: "success", error: "" });
+      return detectedLocation;
+    } catch (locationError) {
+      if (requestId !== locationRequestId.current) return null;
+
+      setRequestState({
+        userId: requestUid,
+        status: "error",
+        error: locationError.code
+          ? getLocationErrorMessage(locationError)
+          : locationError.message || "We could not detect your current location. Please choose a location manually.",
+      });
+      return null;
+    }
+  }, []);
+
+  const selectLocation = useCallback((selectedLocation) => {
+    locationRequestId.current += 1;
+    const requestUid = auth?.currentUser?.uid || "";
+    const savedLocation = saveActiveLocation(
+      selectedLocation,
+      getActiveLocationStorageKey(requestUid)
     );
+    setTransientLocation({
+      userId: requestUid,
+      location: savedLocation || selectedLocation,
+    });
+    setRequestState({ userId: requestUid, status: "success", error: "" });
+  }, []);
+
+  const openLocationSelector = useCallback(() => {
+    setIsLocationSelectorOpen(true);
+  }, []);
+
+  const closeLocationSelector = useCallback(() => {
+    setIsLocationSelectorOpen(false);
   }, []);
 
   const handleEnableGPS = useCallback(() => {
@@ -167,9 +192,16 @@ export const LocationProvider = ({ children }) => {
 
   return (
     <LocationContext.Provider
-      value={{ location, status, error, requestLocation }}
+      value={{
+        location,
+        status,
+        error,
+        requestLocation,
+        selectLocation,
+        openLocationSelector,
+      }}
     >
-      {status === "error" && (
+      {status === "error" && !isLocationSelectorOpen && (
         <div className="gps-location-prompt">
           <div className="gps-location-prompt-card error">
             <button
@@ -194,6 +226,18 @@ export const LocationProvider = ({ children }) => {
       )}
 
       {children}
+      <LocationSelectionModal
+        open={isLocationSelectorOpen}
+        onClose={closeLocationSelector}
+        onSelectLocation={(selectedLocation) => {
+          selectLocation(selectedLocation);
+          closeLocationSelector();
+        }}
+        location={location}
+        status={status}
+        error={error}
+        requestLocation={requestLocation}
+      />
     </LocationContext.Provider>
   );
 };

@@ -321,7 +321,7 @@ const Register = () => {
     firebaseSetPhoneOtpInProgress(false);
     setIsResendRecaptchaVisible(false);
     setIsResendVerifierReady(false);
-    navigate("/");
+    navigate("/login", { replace: true });
   };
 
   const createAccount = async () => {

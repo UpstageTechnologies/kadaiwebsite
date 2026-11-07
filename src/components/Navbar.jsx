@@ -6,6 +6,7 @@ import {
   FiX,
   FiChevronDown,
   FiPackage,
+  FiMapPin,
 } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import "../index.css";
@@ -44,15 +45,20 @@ const formatRegisteredAddress = (address) => {
     .join(", ");
 };
 
-const Navbar = () => {
+const Navbar = ({ deliveryAddressBelow = false }) => {
   const navigate = useNavigate();
   const { cartCount } = useCart();
-  const { user, customer, loading: isProfileAddressLoading } = useAuth();
+  const {
+    user,
+    customer,
+    loading: isProfileAddressLoading,
+  } = useAuth();
   const {
     location,
     status: locationStatus,
     error: locationError,
     requestLocation,
+    openLocationSelector,
   } = useLocation();
 
   const isAuthenticated = Boolean(user);
@@ -61,6 +67,13 @@ const Navbar = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const currentProfileAddress = formatRegisteredAddress(customer?.address);
+  const selectedLocationLabel = location
+    ? [
+      location.area,
+      location.city,
+      location.district,
+    ].filter(Boolean).join(", ") || location.address || location.fullAddress
+    : "";
 
   // Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -152,130 +165,149 @@ const Navbar = () => {
     setShowAddressModal(true);
   };
 
+  const deliveryAddressSelector = (
+    <button
+      type="button"
+      className="navbar-location-selector"
+      onClick={openLocationSelector}
+      aria-label="Select delivery location"
+    >
+      <FiMapPin aria-hidden="true" />
+      <span>
+        <small>Deliver to</small>
+        <strong>{selectedLocationLabel || "Select delivery location"}</strong>
+      </span>
+      <FiChevronDown aria-hidden="true" />
+    </button>
+  );
+
   return (
     <>
-      <nav className="navbar">
-        <div
-          className="logo"
-          onClick={() => navigate("/")}
-        >
-          <span>Kadai</span>App
-        </div>
-
-        <div className="desktop-search-wrapper">
-
-          <div className="desktop-search">
-
-            <FiSearch />
-
-            <input
-              type="text"
-              placeholder="Search....."
-              value={searchQuery}
-              onChange={(event) =>
-                setSearchQuery(event.target.value)
-              }
-            />
-
-
-            {searchQuery && (
-              <button
-                type="button"
-                className="search-clear-btn"
-                onClick={() =>
-                  setSearchQuery("")
-                }
-              >
-                <FiX size={15} />
-              </button>
-            )}
-
+      <div className={deliveryAddressBelow ? "products-navbar-shell" : undefined}>
+        <nav className={`navbar${deliveryAddressBelow ? " products-navbar" : ""}`}>
+          <div
+            className="logo"
+            onClick={() => navigate("/")}
+          >
+            <span>Kadai</span>App
           </div>
 
-          {searchQuery.trim() && (
+          {!deliveryAddressBelow && deliveryAddressSelector}
 
-            <div className="search-results-dropdown">
+          <div className="desktop-search-wrapper">
 
-              {searchResults.length > 0 ? (
+            <div className="desktop-search">
 
-                <>
+              <FiSearch />
 
-                  <div className="search-result-title">
-                    Search Results
-                  </div>
-
-
-                  {searchResults.slice(0, 6).map(
-                    (product) => (
-
-                      <button
-                        type="button"
-                        className="search-result-item"
-                        key={product.id}
-                        onClick={() =>
-                          handleSearchProductClick(
-                            product.id
-                          )
-                        }
-                      >
-
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                        />
+              <input
+                type="text"
+                placeholder="Search....."
+                value={searchQuery}
+                onChange={(event) =>
+                  setSearchQuery(event.target.value)
+                }
+              />
 
 
-                        <div className="search-result-info">
-
-                          <strong>
-                            {product.name}
-                          </strong>
-
-                          <span>
-                            {product.category}
-                          </span>
-
-                        </div>
-
-
-                        <div className="search-result-price">
-                          ₹{product.price.toFixed(2)}
-                        </div>
-
-                      </button>
-
-                    )
-                  )}
-
-                </>
-
-              ) : (
-
-                <div className="product-not-found">
-
-                  <FiSearch size={22} />
-
-                  <strong>
-                    Product Not Found
-                  </strong>
-
-                  <span>
-                    No product matches "{searchQuery}"
-                  </span>
-
-                </div>
-
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="search-clear-btn"
+                  onClick={() =>
+                    setSearchQuery("")
+                  }
+                >
+                  <FiX size={15} />
+                </button>
               )}
 
             </div>
 
-          )}
+            {searchQuery.trim() && (
 
-        </div>
+              <div className="search-results-dropdown">
 
-        <div className="nav-actions">
+                {searchResults.length > 0 ? (
+
+                  <>
+
+                    <div className="search-result-title">
+                      Search Results
+                    </div>
+
+
+                    {searchResults.slice(0, 6).map(
+                      (product) => (
+
+                        <button
+                          type="button"
+                          className="search-result-item"
+                          key={product.id}
+                          onClick={() =>
+                            handleSearchProductClick(
+                              product.id
+                            )
+                          }
+                        >
+
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                          />
+
+
+                          <div className="search-result-info">
+
+                            <strong>
+                              {product.name}
+                            </strong>
+
+                            <span>
+                              {product.category}
+                            </span>
+
+                          </div>
+
+
+                          <div className="search-result-price">
+                            ₹{product.price.toFixed(2)}
+                          </div>
+
+                        </button>
+
+                      )
+                    )}
+
+                  </>
+
+                ) : (
+
+                  <div className="product-not-found">
+
+                    <FiSearch size={22} />
+
+                    <strong>
+                      Product Not Found
+                    </strong>
+
+                    <span>
+                      No product matches "{searchQuery}"
+                    </span>
+
+                  </div>
+
+                )}
+
+              </div>
+
+            )}
+
+          </div>
+
+          <div className="nav-actions">
           <button
-            className="mobile-menu-toggle"
+            className="icon-btn orders-btn"
             onClick={() => navigate("/orders")}
             aria-label="My Orders"
             title="My Orders"
@@ -304,20 +336,21 @@ const Navbar = () => {
 
           {/* Login / User */}
 
-          {!isAuthenticated ? (
+          {!isAuthenticated && !isProfileAddressLoading ? (
 
             <button
               className="user-btn profile-login-btn"
               onClick={() =>
                 navigate("/login")
               }
-              aria-label="Profile"
-              title="Profile"
+              aria-label="Login"
+              title="Login"
             >
               <FiUser />
+              <span>Login</span>
             </button>
 
-          ) : (
+          ) : isAuthenticated ? (
 
             <div className="profile-wrapper">
 
@@ -435,137 +468,24 @@ const Navbar = () => {
 
             </div>
 
-          )}
+          ) : null}
 
 
-        </div>
+          </div>
 
-      </nav>
+        </nav>
+
+        {deliveryAddressBelow && (
+          <div className="products-delivery-row">
+            {deliveryAddressSelector}
+          </div>
+        )}
+      </div>
 
       <AddressChangeModal
         open={showAddressModal}
         onClose={() => setShowAddressModal(false)}
       />
-
-      <div className="mobile-search-panel">
-
-          <div className="mobile-search-container">
-
-            <div className="mobile-search-box">
-
-              <FiSearch />
-
-              <input
-                type="text"
-                placeholder="Search....."
-                value={searchQuery}
-                onChange={(event) =>
-                  setSearchQuery(event.target.value)
-                }
-              />
-
-
-              {searchQuery && (
-
-                <button
-                  type="button"
-                  className="mobile-search-clear"
-                  onClick={() =>
-                    setSearchQuery("")
-                  }
-                  aria-label="Clear search"
-                >
-                  <FiX />
-                </button>
-
-              )}
-
-
-            </div>
-
-            {searchQuery.trim() && (
-
-              <div className="mobile-search-results">
-
-                {searchResults.length > 0 ? (
-
-                  <>
-
-                    <div className="search-result-title">
-                      Search Results
-                    </div>
-
-
-                    {searchResults.slice(0, 6).map(
-                      (product) => (
-
-                        <button
-                          type="button"
-                          className="search-result-item"
-                          key={product.id}
-                          onClick={() =>
-                            handleSearchProductClick(
-                              product.id
-                            )
-                          }
-                        >
-
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                          />
-
-
-                          <div className="search-result-info">
-
-                            <strong>
-                              {product.name}
-                            </strong>
-
-                            <span>
-                              {product.category}
-                            </span>
-
-                          </div>
-
-
-                          <div className="search-result-price">
-                            ₹{product.price.toFixed(2)}
-                          </div>
-
-                        </button>
-
-                      )
-                    )}
-
-                  </>
-
-                ) : (
-
-                  <div className="product-not-found">
-
-                    <FiSearch size={22} />
-
-                    <strong>
-                      Product Not Found
-                    </strong>
-
-                    <span>
-                      No product matches "{searchQuery}"
-                    </span>
-
-                  </div>
-
-                )}
-
-              </div>
-
-            )}
-
-          </div>
-
-        </div>
-
     </>
   );
 };

@@ -301,18 +301,37 @@
 
   .login-container {
     max-width: 100%;
+    min-height: 0;
+    align-content: start;
   }
 
-  .login-info{
+  .login-info {
+    display: block;
+    min-height: 0;
+    padding: 28px 30px 0;
+    background: transparent;
+    color: #19351d;
+  }
+
+  .login-brand {
+    margin-bottom: 0;
+  }
+
+  .login-brand span {
+    color: #4f8611;
+  }
+
+  .login-info h1,
+  .login-info > p,
+  .login-benefits {
     display: none;
   }
+
   .login-card {
-    padding: 40px 30px;
+    padding: 24px 30px;
   }
 
   .login-info h1 {
     font-size: 40px;
   }
 }
-
-
