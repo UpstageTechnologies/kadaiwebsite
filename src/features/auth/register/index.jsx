@@ -914,7 +914,7 @@ const Register = () => {
                     </div>
                 </div>
               ) : (
-                <div className="register-form-grid">
+                 <div className="register-form-grid">
                   <div className="register-field">
                     <span>Country</span>
                     <select

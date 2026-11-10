@@ -23,6 +23,11 @@ const MainNavigator = () => {
       <Route path="/" element={<Experience />} />
       <Route path="/experience" element={<Experience />} />
       <Route path="/restaurants" element={<Restaurants />} />
+      <Route path="/restaurants/cart" element={<Restaurants cartMode="cart" />} />
+      <Route path="/restaurants/checkout" element={<Restaurants cartMode="checkout" />} />
+      <Route path="/restaurants/orders" element={<Restaurants cartMode="orders" />} />
+      <Route path="/restaurants/track-order/:orderId" element={<Restaurants cartMode="track-order" />} />
+      <Route path="/restaurants/:restaurantId" element={<Restaurants />} />
       <Route path="/products" element={<Products />} />
       <Route path="/cart" element={<Cart />} />
       <Route path="/login" element={<Login />} />
