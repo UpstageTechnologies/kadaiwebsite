@@ -1,6 +1,8 @@
 ﻿import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   FiArrowLeft,
+  FiChevronRight,
+  FiClipboard,
   FiClock,
   FiCoffee,
   FiMapPin,
@@ -10,11 +12,11 @@ import {
   FiSearch,
   FiShoppingCart,
   FiStar,
+  FiUser,
   FiX,
 } from "react-icons/fi";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -41,17 +43,23 @@ const normalizeRestaurant = (restaurantDoc) => {
 
   const data = restaurantDoc.data?.() || {};
   const locationSource = data.address || data.shopAddress || data.location || data.shopLocation || {};
-  const locationText = [
-    locationSource.area,
-    locationSource.city,
-    locationSource.district,
-    locationSource.state,
-    locationSource.country,
-    locationSource.fullAddress,
-    locationSource.address,
-  ]
-    .filter(Boolean)
-    .join(", ") || "Location unavailable";
+  const addressParts = typeof locationSource === "object"
+    ? [
+      locationSource.area,
+      locationSource.city,
+      locationSource.district,
+      locationSource.state,
+      locationSource.country,
+      locationSource.address,
+    ].filter(Boolean)
+    : [];
+  const stringAddress = typeof locationSource === "string"
+    ? [...new Set(locationSource.split(",").map((part) => part.trim()).filter(Boolean))].join(", ")
+    : "";
+  const locationText = stringAddress ||
+    locationSource.fullAddress ||
+    [...new Set(addressParts)].join(", ") ||
+    "Location unavailable";
 
   return {
     id: restaurantDoc.id,
@@ -298,13 +306,44 @@ const Restaurants = ({ cartMode = "" }) => {
   const { restaurantId } = useParams();
   const { user } = useAuth();
 
-  if (cartMode === "cart") return <RestaurantCartPage navigate={navigate} user={user} />;
+  if (cartMode === "cart") return <RestaurantCartPage navigate={navigate} />;
   if (cartMode === "checkout") return <RestaurantCheckoutPage navigate={navigate} user={user} />;
   if (cartMode === "orders") return <RestaurantOrdersPage navigate={navigate} user={user} />;
   if (cartMode === "track-order") return <RestaurantTrackOrderPage navigate={navigate} user={user} />;
   if (restaurantId) return <RestaurantDetailPage restaurantId={restaurantId} navigate={navigate} user={user} />;
 
   return <RestaurantListPage navigate={navigate} />;
+};
+
+const RestaurantTopbar = ({ navigate }) => {
+  const { cartCount } = useRestaurantCart();
+  const { user } = useAuth();
+
+  return (
+    <header className="restaurants-topbar">
+      <button type="button" className="restaurants-back" onClick={() => navigate(-1)}>
+        <FiArrowLeft aria-hidden="true" />
+        <span>Back</span>
+      </button>
+      <Link className="restaurants-brand" to="/experience" aria-label="KadaiApp experiences">
+        <span className="restaurants-brand-mark"><FiCoffee aria-hidden="true" /></span>
+        <span>Kadai<span>App</span></span>
+      </Link>
+      <nav className="restaurants-brand-area" aria-label="Restaurant navigation">
+        <Link className="restaurant-orders-link" to="/restaurants/orders">
+          <FiClipboard aria-hidden="true" />
+          <span>Orders</span>
+        </Link>
+        <Link className="restaurant-cart-button" to="/restaurants/cart" aria-label={`Restaurant cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}>
+          <FiShoppingCart aria-hidden="true" />
+          <span>{cartCount}</span>
+        </Link>
+        <Link className="restaurant-profile-button" to={user ? "/profile" : "/login"} aria-label="Profile" title="Profile">
+          <FiUser aria-hidden="true" />
+        </Link>
+      </nav>
+    </header>
+  );
 };
 
 const RestaurantListPage = ({ navigate }) => {
@@ -368,16 +407,7 @@ const RestaurantListPage = ({ navigate }) => {
 
   return (
     <main className="restaurants-page">
-      <header className="restaurants-topbar">
-        <button type="button" className="restaurants-back" onClick={() => navigate(-1)}>
-          <FiArrowLeft aria-hidden="true" />
-          <span>Back</span>
-        </button>
-        <Link className="restaurants-brand" to="/experience" aria-label="KadaiApp experiences">
-          <span className="restaurants-brand-mark"><FiCoffee /></span>
-          <span>Kadai<span>App</span></span>
-        </Link>
-      </header>
+      <RestaurantTopbar navigate={navigate} />
 
       <section className="restaurants-content" aria-labelledby="restaurants-title">
         <p className="restaurants-eyebrow">A LITTLE SOMETHING DELICIOUS</p>
@@ -394,7 +424,7 @@ const RestaurantListPage = ({ navigate }) => {
         {categories.length > 1 && (
           <div className="restaurants-category-list" aria-label="Restaurant categories">
             {categories.map((category) => (
-              <button key={category} type="button" className={selectedCategory === category ? "restaurant-chip active" : "restaurant-chip"} onClick={() => setSelectedCategory(category)}>
+              <button key={category} type="button" className={selectedCategory === category ? "restaurant-chip active" : "restaurant-chip"} aria-pressed={selectedCategory === category} onClick={() => setSelectedCategory(category)}>
                 {category}
               </button>
             ))}
@@ -422,21 +452,22 @@ const RestaurantListPage = ({ navigate }) => {
               <Link key={restaurant.id} to={`/restaurants/${restaurant.id}`} className="restaurant-card">
                 <div className="restaurant-card-image-wrap">
                   {restaurant.image ? <img src={restaurant.image} alt={restaurant.name} className="restaurant-card-image" /> : <div className="restaurant-card-placeholder" aria-hidden="true"><FiCoffee /></div>}
+                  {restaurant.isOpen !== undefined && (
+                    <span className={restaurant.isOpen ? "restaurant-status open" : "restaurant-status closed"}>
+                      {restaurant.isOpen ? "Open" : "Closed"}
+                    </span>
+                  )}
                 </div>
                 <div className="restaurant-card-body">
                   <div className="restaurant-card-header">
                     <h2>{restaurant.name}</h2>
-                    {restaurant.isOpen !== undefined && (
-                      <span className={restaurant.isOpen ? "restaurant-status open" : "restaurant-status closed"}>
-                        {restaurant.isOpen ? "Open" : "Closed"}
-                      </span>
-                    )}
                   </div>
                   <p className="restaurant-card-location"><FiMapPin aria-hidden="true" /><span>{restaurant.locationText}</span></p>
                   <p className="restaurant-card-description">{restaurant.description}</p>
                   <div className="restaurant-card-meta">
                     <span><FiStar aria-hidden="true" /> {restaurant.rating.toFixed(1)}</span>
                     <span><FiClock aria-hidden="true" /> {restaurant.deliveryTime}</span>
+                    <span className="restaurant-card-cta">View menu <FiChevronRight aria-hidden="true" /></span>
                   </div>
                 </div>
               </Link>
@@ -458,7 +489,7 @@ const RestaurantListPage = ({ navigate }) => {
 };
 
 const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
-  const { addToCart, cartItems } = useRestaurantCart();
+  const { addToCart } = useRestaurantCart();
   const [restaurant, setRestaurant] = useState(null);
   const [restaurantLoading, setRestaurantLoading] = useState(Boolean(db));
   const [restaurantError, setRestaurantError] = useState("");
@@ -470,6 +501,7 @@ const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
   const [selectedFood, setSelectedFood] = useState(null);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [cartFeedback, setCartFeedback] = useState("");
 
   useEffect(() => {
     if (!db || !restaurantId) {
@@ -567,11 +599,11 @@ const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
 
   const handleQuickAddToCart = async (item) => {
     if (!user) {
-      navigate("/login");
+      navigate(`/login?redirect=${encodeURIComponent(`/restaurants/${restaurantId}`)}`);
       return;
     }
 
-    if (!item?.isAvailable) return;
+    if (!item?.isAvailable || restaurant?.isOpen === false) return;
 
     const choices = getVariantChoices(item.variants || []);
     if (choices.length > 0) {
@@ -579,66 +611,67 @@ const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
       return;
     }
 
-    await addToCart({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      image: item.image,
-      restaurantId,
-      restaurantName: restaurant?.name || "Restaurant",
-      shopId: restaurantId,
-      shopName: restaurant?.name || "Restaurant",
-      quantity: 1,
-      description: item.description,
-      category: item.category,
-      variant: null,
-    });
+    try {
+      await addToCart({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        restaurantId,
+        restaurantName: restaurant?.name || "Restaurant",
+        shopId: restaurantId,
+        shopName: restaurant?.name || "Restaurant",
+        quantity: 1,
+        description: item.description,
+        category: item.category,
+        variant: null,
+      });
+      setCartFeedback(`${item.name} added to your cart.`);
+    } catch (error) {
+      console.error("[RESTAURANT CART] Could not add item:", error);
+      setCartFeedback("We couldn't save that item to your cart. Please try again.");
+    }
   };
 
   const handleAddToCart = async (item) => {
     if (!user) {
-      navigate("/login");
+      navigate(`/login?redirect=${encodeURIComponent(`/restaurants/${restaurantId}`)}`);
       return;
     }
 
-    if (!item.isAvailable) return;
+    if (!item.isAvailable || restaurant?.isOpen === false) return;
 
-    const success = await addToCart({
-      id: selectedVariant ? `${item.id}-${selectedVariant.id}` : item.id,
-      name: `${item.name}${selectedVariant ? ` (${selectedVariant.label || selectedVariant.name})` : ""}`,
-      price: item.price + (selectedVariant ? selectedVariant.price : 0),
-      image: item.image,
-      restaurantId,
-      restaurantName: restaurant?.name || "Restaurant",
-      shopId: restaurantId,
-      shopName: restaurant?.name || "Restaurant",
-      quantity,
-      description: item.description,
-      category: item.category,
-      variant: selectedVariant,
-    });
+    try {
+      const success = await addToCart({
+        id: item.id,
+        name: `${item.name}${selectedVariant ? ` (${selectedVariant.label || selectedVariant.name})` : ""}`,
+        price: item.price + (selectedVariant ? selectedVariant.price : 0),
+        image: item.image,
+        restaurantId,
+        restaurantName: restaurant?.name || "Restaurant",
+        shopId: restaurantId,
+        shopName: restaurant?.name || "Restaurant",
+        quantity,
+        description: item.description,
+        category: item.category,
+        variant: selectedVariant,
+      });
 
-    if (success) closeFoodModal();
+      if (success) {
+        setCartFeedback(`${item.name} added to your cart.`);
+        closeFoodModal();
+      }
+    } catch (error) {
+      console.error("[RESTAURANT CART] Could not add item:", error);
+      setCartFeedback("We couldn't save that item to your cart. Please try again.");
+    }
   };
+
+  const canOrder = restaurant?.isOpen !== false;
 
   return (
     <main className="restaurants-page restaurant-detail-page">
-      <header className="restaurants-topbar">
-        <button type="button" className="restaurants-back" onClick={() => navigate(-1)}>
-          <FiArrowLeft aria-hidden="true" />
-          <span>Back</span>
-        </button>
-        <div className="restaurants-brand-area">
-          <Link className="restaurants-brand" to="/experience" aria-label="KadaiApp experiences">
-            <span className="restaurants-brand-mark"><FiCoffee /></span>
-            <span>Kadai<span>App</span></span>
-          </Link>
-          <button type="button" className="restaurant-cart-button" onClick={() => navigate("/restaurants/cart")}>
-            <FiShoppingCart aria-hidden="true" />
-            <span>{cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</span>
-          </button>
-        </div>
-      </header>
+      <RestaurantTopbar navigate={navigate} />
 
       {restaurantLoading ? (
         <section className="restaurants-content"><div className="restaurants-state"><div className="restaurants-spinner" aria-live="polite" /><p>Loading restaurant details...</p></div></section>
@@ -671,10 +704,11 @@ const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
 
           <section className="restaurant-menu-section" aria-labelledby="restaurant-menu-title">
             <div className="restaurant-menu-heading"><div><p className="restaurants-eyebrow">Menu</p><h2 id="restaurant-menu-title">Popular dishes</h2></div></div>
+            {cartFeedback && <p className={cartFeedback.startsWith("We couldn't") ? "restaurant-cart-feedback error" : "restaurant-cart-feedback"} role="status">{cartFeedback}</p>}
             {categories.length > 1 && (
               <div className="restaurants-category-list restaurant-menu-filters" aria-label="Menu categories">
                 {categories.map((category) => (
-                  <button key={category} type="button" className={selectedCategory === category ? "restaurant-chip active" : "restaurant-chip"} onClick={() => setSelectedCategory(category)}>
+                  <button key={category} type="button" className={selectedCategory === category ? "restaurant-chip active" : "restaurant-chip"} aria-pressed={selectedCategory === category} onClick={() => setSelectedCategory(category)}>
                     {category}
                   </button>
                 ))}
@@ -688,40 +722,42 @@ const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
             ) : filteredMenuItems.length ? (
               <div className="restaurant-menu-grid">
                 {filteredMenuItems.map((item) => (
-                  <div key={item.id} className={item.isAvailable ? "restaurant-menu-card" : "restaurant-menu-card disabled"} onClick={() => item.isAvailable && setSelectedFood(item)} onKeyDown={(event) => {
-                    if ((event.key === "Enter" || event.key === " ") && item.isAvailable) {
-                      event.preventDefault();
-                      setSelectedFood(item);
-                    }
-                  }} role="button" tabIndex={item.isAvailable ? 0 : -1} aria-label={`View ${item.name}`}>
-                    <div className="restaurant-menu-image-wrap">{item.image ? <img src={item.image} alt={item.name} className="restaurant-menu-image" /> : <div className="restaurant-card-placeholder" aria-hidden="true"><FiCoffee /></div>}</div>
-                    <div className="restaurant-menu-card-body">
-                      <div className="restaurant-menu-card-header"><h3>{item.name}</h3>{!item.isAvailable && <span className="restaurant-menu-availability unavailable">Unavailable</span>}</div>
-                      <p className="restaurant-menu-category">{item.category}</p>
-                      {item.description && <p className="restaurant-menu-description">{item.description}</p>}
-                      <div className="restaurant-menu-footer">
-                        <span className="restaurant-price">₹{Number(item.price || 0).toFixed(2)}</span>
-                        <div className="restaurant-menu-actions">
-                          {item.hasVariants && <span className="restaurant-variants">Options</span>}
-                          <button
-                            type="button"
-                            className="restaurant-mini-add-btn"
-                            disabled={!item.isAvailable}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (item.hasVariants) {
-                                setSelectedFood(item);
-                                return;
-                              }
-                              handleQuickAddToCart(item);
-                            }}
-                          >
-                            Add to cart
-                          </button>
-                        </div>
+                  <article key={item.id} className={item.isAvailable ? "restaurant-menu-card" : "restaurant-menu-card disabled"}>
+                    <button
+                      type="button"
+                      className="restaurant-menu-card-main"
+                      disabled={!item.isAvailable || !canOrder}
+                      onClick={() => setSelectedFood(item)}
+                      aria-label={`View ${item.name} details`}
+                    >
+                      <div className="restaurant-menu-image-wrap">{item.image ? <img src={item.image} alt="" className="restaurant-menu-image" /> : <div className="restaurant-card-placeholder" aria-hidden="true"><FiCoffee /></div>}</div>
+                      <div className="restaurant-menu-card-body">
+                        <div className="restaurant-menu-card-header"><h3>{item.name}</h3>{!item.isAvailable && <span className="restaurant-menu-availability unavailable">Unavailable</span>}</div>
+                        <p className="restaurant-menu-category">{item.category}</p>
+                        {item.description && <p className="restaurant-menu-description">{item.description}</p>}
+                      </div>
+                    </button>
+                    <div className="restaurant-menu-footer">
+                      <span className="restaurant-price">₹{Number(item.price || 0).toFixed(2)}</span>
+                      <div className="restaurant-menu-actions">
+                        {getVariantChoices(item.variants).length > 0 && <span className="restaurant-variants">Options</span>}
+                        <button
+                          type="button"
+                          className="restaurant-mini-add-btn"
+                          disabled={!item.isAvailable}
+                          onClick={() => {
+                            if (getVariantChoices(item.variants).length > 0) {
+                              setSelectedFood(item);
+                              return;
+                            }
+                            handleQuickAddToCart(item);
+                          }}
+                        >
+                          {!canOrder ? "Closed" : "Add to cart"}
+                        </button>
                       </div>
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
             ) : (
@@ -745,7 +781,7 @@ const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
                 <span className="restaurant-price">₹{(selectedFood.price + (selectedVariant ? selectedVariant.price : 0)).toFixed(2)}</span>
               </div>
               {selectedFood.description && <p className="restaurant-food-description">{selectedFood.description}</p>}
-              {selectedFood.hasVariants && (
+              {getVariantChoices(selectedFood.variants || []).length > 0 && (
                 <div className="restaurant-food-options">
                   <p className="restaurant-food-options-label">Choose a variant</p>
                   <div className="restaurant-variant-row">
@@ -764,7 +800,7 @@ const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
                   <span>{quantity}</span>
                   <button type="button" onClick={() => setQuantity((current) => current + 1)} aria-label="Increase quantity"><FiPlus aria-hidden="true" /></button>
                 </div>
-                <button type="button" className="restaurant-cart-action" onClick={() => handleAddToCart(selectedFood)} disabled={!selectedFood.isAvailable}><FiShoppingCart aria-hidden="true" />{selectedFood.isAvailable ? "Add to cart" : "Unavailable"}</button>
+                <button type="button" className="restaurant-cart-action" onClick={() => handleAddToCart(selectedFood)} disabled={!selectedFood.isAvailable || !canOrder}><FiShoppingCart aria-hidden="true" />{!canOrder ? "Restaurant closed" : selectedFood.isAvailable ? "Add to cart" : "Unavailable"}</button>
               </div>
             </div>
           </div>
@@ -774,57 +810,71 @@ const RestaurantDetailPage = ({ restaurantId, navigate, user }) => {
   );
 };
 
-const RestaurantCartPage = ({ navigate, user }) => {
+const RestaurantCartPage = ({ navigate }) => {
   const { cartItems, removeFromCart, increaseQuantity, decreaseQuantity, cartSummary, clearCart } = useRestaurantCart();
 
   return (
     <main className="restaurant-cart-page">
-      <header className="restaurants-topbar">
-        <button type="button" className="restaurants-back" onClick={() => navigate(-1)}><FiArrowLeft aria-hidden="true" /><span>Back</span></button>
-        <Link className="restaurants-brand" to="/experience" aria-label="KadaiApp experiences"><span className="restaurants-brand-mark"><FiCoffee /></span><span>Kadai<span>App</span></span></Link>
-      </header>
+      <RestaurantTopbar navigate={navigate} />
 
-      <section className="restaurant-cart-content">
+      <section className="restaurant-cart-content" aria-labelledby="restaurant-cart-title">
         <div className="restaurant-cart-header">
           <div>
             <p className="restaurants-eyebrow">Restaurant cart</p>
-            <h1>Your order</h1>
+            <h1 id="restaurant-cart-title">Your cart</h1>
+            <p className="restaurant-cart-intro">Review your favourites before you check out.</p>
           </div>
-          {cartItems.length > 0 && <button type="button" className="restaurant-mini-action" onClick={() => clearCart()}>Clear cart</button>}
+          {cartItems.length > 0 && (
+            <div className="restaurant-cart-header-actions">
+              <span className="restaurant-cart-count">{cartSummary.itemCount} {cartSummary.itemCount === 1 ? "item" : "items"}</span>
+              <button type="button" className="restaurant-mini-action" onClick={() => clearCart()}>Clear cart</button>
+            </div>
+          )}
         </div>
 
         {cartItems.length === 0 ? (
-          <div className="restaurants-state compact-state"><span className="restaurants-empty-icon"><FiShoppingCart aria-hidden="true" /></span><h2>Your restaurant cart is empty</h2><p>Pick a restaurant and add a few favourites to start your order.</p><button type="button" className="restaurants-return-link restaurants-reset-btn" onClick={() => navigate("/restaurants")}>Explore restaurants</button></div>
+          <div className="restaurant-cart-empty">
+            <span className="restaurants-empty-icon"><FiShoppingCart aria-hidden="true" /></span>
+            <h2>Your cart is waiting for something delicious</h2>
+            <p>Explore local restaurants and add your favourite dishes to get started.</p>
+            <button type="button" className="restaurant-cart-browse-btn" onClick={() => navigate("/restaurants")}>Explore restaurants</button>
+          </div>
         ) : (
           <div className="restaurant-cart-layout">
-            <div className="restaurant-cart-items">
+            <div className="restaurant-cart-items" aria-label="Items in your restaurant cart">
               {cartItems.map((item) => {
                 const itemKey = getRestaurantItemKey(item);
                 return (
                   <div className="restaurant-cart-item" key={itemKey}>
-                    <div className="restaurant-cart-thumb">{item.image ? <img src={item.image} alt={item.name} /> : <FiCoffee />}</div>
+                    <div className="restaurant-cart-thumb">{item.image ? <img src={item.image} alt="" /> : <FiCoffee aria-hidden="true" />}</div>
                     <div className="restaurant-cart-meta">
-                      <div><strong>{item.name}</strong><p>{item.restaurantName || "Restaurant"}</p></div>
+                      <div className="restaurant-cart-item-copy">
+                        <strong>{item.name}</strong>
+                        <p>{item.restaurantName || "Restaurant"}</p>
+                        <span className="restaurant-cart-unit-price">₹{Number(item.price || 0).toFixed(2)} each</span>
+                      </div>
                       <div className="restaurant-cart-price-row">
-                        <span>₹{(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</span>
-                        <div className="restaurant-quantity-picker small-quantity">
-                          <button type="button" onClick={() => decreaseQuantity(itemKey)} aria-label="Decrease quantity"><FiMinus aria-hidden="true" /></button>
-                          <span>{item.quantity}</span>
-                          <button type="button" onClick={() => increaseQuantity(itemKey)} aria-label="Increase quantity"><FiPlus aria-hidden="true" /></button>
+                        <strong>₹{(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</strong>
+                        <div className="restaurant-quantity-picker small-quantity" aria-label={`Quantity for ${item.name}`}>
+                          <button type="button" onClick={() => decreaseQuantity(itemKey)} aria-label={`Decrease ${item.name} quantity`}><FiMinus aria-hidden="true" /></button>
+                          <span aria-live="polite">{item.quantity}</span>
+                          <button type="button" onClick={() => increaseQuantity(itemKey)} aria-label={`Increase ${item.name} quantity`}><FiPlus aria-hidden="true" /></button>
                         </div>
                       </div>
                     </div>
-                    <button type="button" className="restaurant-remove-btn" onClick={() => removeFromCart(itemKey)}>Remove</button>
+                    <button type="button" className="restaurant-remove-btn" onClick={() => removeFromCart(itemKey)} aria-label={`Remove ${item.name} from cart`}>Remove</button>
                   </div>
                 );
               })}
             </div>
-            <aside className="restaurant-cart-summary">
-              <h2>Order summary</h2>
-              <div className="restaurant-summary-row"><span>Subtotal</span><strong>₹{cartSummary.subtotal.toFixed(2)}</strong></div>
-              <div className="restaurant-summary-row"><span>Delivery</span><strong>₹{cartSummary.delivery.toFixed(2)}</strong></div>
+            <aside className="restaurant-cart-summary" aria-labelledby="restaurant-cart-summary-title">
+              <p className="restaurant-summary-kicker">Almost there</p>
+              <h2 id="restaurant-cart-summary-title">Order summary</h2>
+              <div className="restaurant-summary-row"><span>Items ({cartSummary.itemCount})</span><strong>₹{cartSummary.subtotal.toFixed(2)}</strong></div>
+              <div className="restaurant-summary-row"><span>Delivery fee</span><strong>₹{cartSummary.delivery.toFixed(2)}</strong></div>
               <div className="restaurant-summary-row total-row"><span>Total</span><strong>₹{cartSummary.total.toFixed(2)}</strong></div>
-              <button type="button" className="restaurant-cart-checkout-btn" onClick={() => navigate("/restaurants/checkout")}>Proceed to checkout</button>
+              <p className="restaurant-cart-summary-note">Delivery fees are included in your total.</p>
+              <button type="button" className="restaurant-cart-checkout-btn" onClick={() => navigate("/restaurants/checkout")}>Proceed to checkout <span aria-hidden="true">→</span></button>
             </aside>
           </div>
         )}
@@ -867,7 +917,12 @@ const RestaurantCheckoutPage = ({ navigate, user }) => {
     setError("");
 
     try {
-      const orderId = `KADAI-REST-${Date.now().toString().slice(-8)}`;
+      if (!db) {
+        throw new Error("Ordering is unavailable right now. Please try again later.");
+      }
+
+      const orderRef = doc(collection(db, "restaurant_orders"));
+      const orderId = orderRef.id;
       const orderRecord = {
         id: orderId,
         restaurantIds: [...new Set(cartItems.map((item) => item.restaurantId || item.shopId || ""))].filter(Boolean),
@@ -885,7 +940,7 @@ const RestaurantCheckoutPage = ({ navigate, user }) => {
         createdAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, "restaurant_orders"), orderRecord);
+      await setDoc(orderRef, orderRecord);
       await setDoc(doc(db, "users", user.uid, "restaurant_orders", orderId), orderRecord);
       await clearCart();
       navigate(`/restaurants/track-order/${orderId}`);
@@ -899,23 +954,33 @@ const RestaurantCheckoutPage = ({ navigate, user }) => {
 
   return (
     <main className="restaurant-cart-page">
-      <header className="restaurants-topbar">
-        <button type="button" className="restaurants-back" onClick={() => navigate(-1)}><FiArrowLeft aria-hidden="true" /><span>Back</span></button>
-        <Link className="restaurants-brand" to="/experience" aria-label="KadaiApp experiences"><span className="restaurants-brand-mark"><FiCoffee /></span><span>Kadai<span>App</span></span></Link>
-      </header>
+      <RestaurantTopbar navigate={navigate} />
       <section className="restaurant-checkout-shell">
         <div className="restaurant-checkout-box">
           <p className="restaurants-eyebrow">Checkout</p>
           <h1>Complete your restaurant order</h1>
-          <label className="restaurant-checkout-field"><span>Delivery address</span><textarea value={addressDraft} onChange={(event) => setAddressDraft(event.target.value)} rows={4} placeholder="Enter your delivery address" /></label>
-          <div className="restaurant-checkout-summary">
-            <div className="restaurant-summary-row"><span>Items</span><strong>{cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</strong></div>
-            <div className="restaurant-summary-row"><span>Subtotal</span><strong>₹{cartSummary.subtotal.toFixed(2)}</strong></div>
-            <div className="restaurant-summary-row"><span>Delivery</span><strong>₹{cartSummary.delivery.toFixed(2)}</strong></div>
-            <div className="restaurant-summary-row total-row"><span>Total</span><strong>₹{cartSummary.total.toFixed(2)}</strong></div>
-          </div>
-          {error && <p className="restaurant-error-banner">{error}</p>}
-          <button type="button" className="restaurant-cart-checkout-btn" disabled={saving} onClick={handlePlaceOrder}>{saving ? "Placing order..." : "Place order"}</button>
+          {cartItems.length ? (
+            <>
+              <label className="restaurant-checkout-field">
+                <span>Delivery address</span>
+                <textarea value={addressDraft} onChange={(event) => setAddressDraft(event.target.value)} rows={4} placeholder="Enter your delivery address" autoComplete="street-address" />
+              </label>
+              <div className="restaurant-checkout-summary">
+                <h2>Order summary</h2>
+                <div className="restaurant-summary-row"><span>Items ({cartSummary.itemCount})</span><strong>₹{cartSummary.subtotal.toFixed(2)}</strong></div>
+                <div className="restaurant-summary-row"><span>Delivery fee</span><strong>₹{cartSummary.delivery.toFixed(2)}</strong></div>
+                <div className="restaurant-summary-row total-row"><span>Total</span><strong>₹{cartSummary.total.toFixed(2)}</strong></div>
+                <p className="restaurant-checkout-payment-note">Cash on delivery</p>
+              </div>
+              {error && <p className="restaurant-error-banner" role="alert">{error}</p>}
+              <button type="button" className="restaurant-cart-checkout-btn" disabled={saving} onClick={handlePlaceOrder}>{saving ? "Placing order..." : "Place order"} <span aria-hidden="true">→</span></button>
+            </>
+          ) : (
+            <div className="restaurant-checkout-empty">
+              <p>Your restaurant cart is empty. Add some dishes before checking out.</p>
+              <button type="button" className="restaurant-mini-action" onClick={() => navigate("/restaurants")}>Browse restaurants</button>
+            </div>
+          )}
         </div>
       </section>
     </main>
@@ -925,6 +990,7 @@ const RestaurantCheckoutPage = ({ navigate, user }) => {
 const RestaurantOrdersPage = ({ navigate, user }) => {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(Boolean(db) && Boolean(user));
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!db || !user?.uid) {
@@ -936,10 +1002,12 @@ const RestaurantOrdersPage = ({ navigate, user }) => {
       query(collection(db, "users", user.uid, "restaurant_orders"), orderBy("createdAt", "desc")),
       (snapshot) => {
         setOrders(snapshot.docs.map((document) => ({ id: document.id, ...document.data() })));
+        setError("");
         setIsLoading(false);
       },
       (error) => {
         console.error("[RESTAURANT ORDERS] Load failed:", error);
+        setError("We could not load your order history. Please try again later.");
         setIsLoading(false);
       }
     );
@@ -949,23 +1017,24 @@ const RestaurantOrdersPage = ({ navigate, user }) => {
 
   return (
     <main className="restaurant-cart-page">
-      <header className="restaurants-topbar">
-        <button type="button" className="restaurants-back" onClick={() => navigate(-1)}><FiArrowLeft aria-hidden="true" /><span>Back</span></button>
-        <Link className="restaurants-brand" to="/experience" aria-label="KadaiApp experiences"><span className="restaurants-brand-mark"><FiCoffee /></span><span>Kadai<span>App</span></span></Link>
-      </header>
+      <RestaurantTopbar navigate={navigate} />
       <section className="restaurant-orders-shell">
         <div className="restaurant-cart-header">
           <div><p className="restaurants-eyebrow">Order history</p><h1>Restaurant orders</h1></div>
           <button type="button" className="restaurant-mini-action" onClick={() => navigate("/restaurants")}>Browse menu</button>
         </div>
-        {isLoading ? (
+        {!user ? (
+          <div className="restaurants-state compact-state"><span className="restaurants-empty-icon"><FiUser aria-hidden="true" /></span><h2>Sign in to see your orders</h2><p>Your restaurant order history is saved to your account.</p><button type="button" className="restaurant-cart-browse-btn" onClick={() => navigate(`/login?redirect=${encodeURIComponent("/restaurants/orders")}`)}>Sign in</button></div>
+        ) : isLoading ? (
           <div className="restaurants-state compact-state"><div className="restaurants-spinner" aria-live="polite" /><p>Loading order history...</p></div>
+        ) : error ? (
+          <div className="restaurants-state compact-state"><span className="restaurants-empty-icon"><FiPackage aria-hidden="true" /></span><h2>Order history unavailable</h2><p>{error}</p></div>
         ) : orders.length ? (
           <div className="restaurant-order-list">
             {orders.map((order) => (
               <button type="button" key={order.id} className="restaurant-order-card" onClick={() => navigate(`/restaurants/track-order/${order.id}`)}>
                 <div className="restaurant-order-topline"><strong>{order.restaurantName || "Restaurant"}</strong><span>{order.status || "Placed"}</span></div>
-                <p>{order.items?.length || 0} items</p>
+                <p>{(order.items || []).reduce((count, item) => count + Number(item.quantity || 0), 0)} items</p>
                 <div className="restaurant-order-bottomline"><span>₹{Number(order.total || 0).toFixed(2)}</span><span>{order.id}</span></div>
               </button>
             ))}
@@ -982,6 +1051,7 @@ const RestaurantTrackOrderPage = ({ navigate, user }) => {
   const { orderId } = useParams();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!orderId) {
@@ -989,30 +1059,65 @@ const RestaurantTrackOrderPage = ({ navigate, user }) => {
       return undefined;
     }
 
-    const fetchOrder = async () => {
-      try {
-        if (!db) {
+    if (!db) {
+      setLoading(false);
+      setError("Order tracking is unavailable right now. Please try again later.");
+      return undefined;
+    }
+
+    let active = true;
+    let unsubscribeFallback = () => {};
+    const unsubscribeOrder = onSnapshot(
+      doc(db, "restaurant_orders", orderId),
+      async (snapshot) => {
+        if (!active) return;
+
+        if (snapshot.exists()) {
+          setOrder({ id: snapshot.id, ...snapshot.data() });
+          setError("");
           setLoading(false);
           return;
         }
 
-        const orderRef = doc(db, "restaurant_orders", orderId);
-        const snapshot = await getDoc(orderRef);
-        if (snapshot.exists()) {
-          setOrder({ id: snapshot.id, ...snapshot.data() });
-        } else if (user?.uid) {
-          const userSnapshot = await getDoc(doc(db, "users", user.uid, "restaurant_orders", orderId));
-          if (userSnapshot.exists()) setOrder({ id: userSnapshot.id, ...userSnapshot.data() });
+        if (user?.uid) {
+          try {
+            const userSnapshot = await getDoc(doc(db, "users", user.uid, "restaurant_orders", orderId));
+            if (!active) return;
+            if (userSnapshot.exists()) {
+              setOrder({ id: userSnapshot.id, ...userSnapshot.data() });
+              unsubscribeFallback = onSnapshot(
+                doc(db, "users", user.uid, "restaurant_orders", orderId),
+                (fallbackSnapshot) => {
+                  if (fallbackSnapshot.exists()) setOrder({ id: fallbackSnapshot.id, ...fallbackSnapshot.data() });
+                },
+                (listenerError) => {
+                  console.error("[RESTAURANT ORDER TRACK] Listener failed:", listenerError);
+                  if (active) setError("We could not load this order right now. Please try again later.");
+                }
+              );
+            }
+          } catch (loadError) {
+            console.error("[RESTAURANT ORDER TRACK] Load failed:", loadError);
+            if (active) setError("We could not load this order right now. Please try again later.");
+          }
         }
-      } catch (error) {
-        console.error("[RESTAURANT ORDER TRACK] Load failed:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchOrder();
-    return undefined;
+        if (active) setLoading(false);
+      },
+      (listenerError) => {
+        console.error("[RESTAURANT ORDER TRACK] Listener failed:", listenerError);
+        if (active) {
+          setError("We could not load this order right now. Please try again later.");
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      unsubscribeOrder();
+      unsubscribeFallback();
+    };
   }, [orderId, user?.uid]);
 
   const statusSteps = ["Placed", "Preparing", "Out for delivery", "Delivered"];
@@ -1020,13 +1125,12 @@ const RestaurantTrackOrderPage = ({ navigate, user }) => {
 
   return (
     <main className="restaurant-cart-page">
-      <header className="restaurants-topbar">
-        <button type="button" className="restaurants-back" onClick={() => navigate(-1)}><FiArrowLeft aria-hidden="true" /><span>Back</span></button>
-        <Link className="restaurants-brand" to="/experience" aria-label="KadaiApp experiences"><span className="restaurants-brand-mark"><FiCoffee /></span><span>Kadai<span>App</span></span></Link>
-      </header>
+      <RestaurantTopbar navigate={navigate} />
       <section className="restaurant-checkout-shell">
         {loading ? (
           <div className="restaurants-state compact-state"><div className="restaurants-spinner" aria-live="polite" /><p>Loading order details...</p></div>
+        ) : error ? (
+          <div className="restaurants-state compact-state"><span className="restaurants-empty-icon"><FiPackage aria-hidden="true" /></span><h2>Tracking unavailable</h2><p>{error}</p><button type="button" className="restaurants-return-link restaurants-reset-btn" onClick={() => navigate("/restaurants/orders")}>Order history</button></div>
         ) : order ? (
           <div className="restaurant-order-track-box">
             <p className="restaurants-eyebrow">Tracking</p>

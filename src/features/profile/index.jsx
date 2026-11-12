@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  FiArrowLeft,
   FiArrowRight,
   FiEdit2,
   FiLogOut,
@@ -11,7 +12,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import { signOut, updateProfile } from "firebase/auth";
 
-import Navbar from "../../components/Navbar";
 import AddressChangeModal from "../../components/AddressChangeModal";
 import { useAuth } from "../../components/AuthContext";
 import { auth } from "../../services/firebase";
@@ -56,6 +56,16 @@ const Profile = () => {
   const phoneNumber = customer?.mobile || user?.phoneNumber || "Not available";
   const deliveryAddress = formatAddress(customer?.address) || "No delivery address saved.";
   const profileInitial = (customerName || phoneNumber || "K").trim().charAt(0).toUpperCase();
+
+  const handleBack = () => {
+    const historyIndex = window.history.state?.idx;
+    if (Number.isInteger(historyIndex) && historyIndex > 0) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/experience", { replace: true });
+  };
 
   const handleSaveName = async (event) => {
     event.preventDefault();
@@ -102,8 +112,11 @@ const Profile = () => {
 
   return (
     <>
-      <Navbar />
       <main className="profile-page">
+        <button type="button" className="profile-back-button" onClick={handleBack}>
+          <FiArrowLeft aria-hidden="true" />
+          <span>Back</span>
+        </button>
         <header className="profile-page-header">
           <div>
             <span>YOUR ACCOUNT</span>
