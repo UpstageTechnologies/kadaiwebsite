@@ -38,6 +38,17 @@ const parseNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const isRestaurantSeller = (sellerData) => {
+  const typeFields = ["shopType", "businessType"].filter((field) =>
+    Object.prototype.hasOwnProperty.call(sellerData, field)
+  );
+
+  return typeFields.length > 0 && typeFields.every((field) =>
+    typeof sellerData[field] === "string" &&
+    sellerData[field].trim().toLowerCase() === "restaurant"
+  );
+};
+
 const normalizeRestaurant = (restaurantDoc) => {
   if (!restaurantDoc) return null;
 
@@ -365,6 +376,7 @@ const RestaurantListPage = ({ navigate }) => {
       restaurantsQuery,
       (snapshot) => {
         const nextRestaurants = snapshot.docs
+          .filter((sellerDoc) => isRestaurantSeller(sellerDoc.data() || {}))
           .map(normalizeRestaurant)
           .filter(Boolean)
           .sort((left, right) => right.rating - left.rating);
