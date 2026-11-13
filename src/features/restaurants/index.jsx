@@ -359,8 +359,12 @@ const RestaurantTopbar = ({ navigate }) => {
 };
 
 const RestaurantListPage = ({ navigate }) => {
-  const { customer } = useAuth();
+  const { customer, loading: customerLoading, customerError } = useAuth();
+  const savedCity = typeof customer?.address?.city === "string"
+    ? customer.address.city.trim()
+    : "";
   const [restaurants, setRestaurants] = useState([]);
+  const [restaurantsCity, setRestaurantsCity] = useState("");
   const [loading, setLoading] = useState(Boolean(db));
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -373,6 +377,29 @@ const RestaurantListPage = ({ navigate }) => {
       return undefined;
     }
 
+    if (customerLoading) return undefined;
+
+    if (customerError) {
+      setRestaurants([]);
+      setRestaurantsCity("");
+      setLoading(false);
+      setError(customerError);
+      return undefined;
+    }
+
+    if (!savedCity) {
+      setRestaurants([]);
+      setRestaurantsCity("");
+      setLoading(false);
+      setError("");
+      return undefined;
+    }
+
+    setRestaurants([]);
+    setRestaurantsCity("");
+    setLoading(true);
+    setError("");
+
     const restaurantsQuery = query(collection(db, "users"), where("role", "==", "seller"));
     const unsubscribe = onSnapshot(
       restaurantsQuery,
@@ -381,7 +408,7 @@ const RestaurantListPage = ({ navigate }) => {
           .filter((sellerDoc) => isRestaurantSeller(sellerDoc.data() || {}))
           .map((sellerDoc) => [sellerDoc.id, sellerDoc.data() || {}]);
         const localRestaurantIds = getNearbySellerIds(
-          customer?.address,
+          { city: savedCity },
           Object.fromEntries(restaurantDocs)
         );
         const nextRestaurants = snapshot.docs
@@ -391,32 +418,41 @@ const RestaurantListPage = ({ navigate }) => {
           .sort((left, right) => right.rating - left.rating);
 
         setRestaurants(nextRestaurants);
+        setRestaurantsCity(savedCity);
         setLoading(false);
         setError("");
       },
       (listenerError) => {
         console.error("[RESTAURANT] Load error:", listenerError);
+        setRestaurantsCity(savedCity);
         setError("We could not load restaurants right now. Please try again later.");
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [customer?.address]);
+  }, [customerError, customerLoading, savedCity]);
 
+  const isLoading = customerLoading
+    || loading
+    || Boolean(db && savedCity && restaurantsCity !== savedCity);
+  const cityRestaurants = useMemo(
+    () => restaurantsCity === savedCity ? restaurants : [],
+    [restaurants, restaurantsCity, savedCity]
+  );
 
   const categories = useMemo(() => {
     const set = new Set(["All"]);
-    restaurants.forEach((restaurant) => {
+    cityRestaurants.forEach((restaurant) => {
       if (restaurant.category) set.add(restaurant.category);
     });
     return [...set];
-  }, [restaurants]);
+  }, [cityRestaurants]);
 
   const filteredRestaurants = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
 
-    return restaurants.filter((restaurant) => {
+    return cityRestaurants.filter((restaurant) => {
       const matchesSearch = !searchValue ||
         restaurant.name.toLowerCase().includes(searchValue) ||
         restaurant.locationText.toLowerCase().includes(searchValue) ||
@@ -425,7 +461,7 @@ const RestaurantListPage = ({ navigate }) => {
       const matchesCategory = selectedCategory === "All" || restaurant.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [restaurants, search, selectedCategory]);
+  }, [cityRestaurants, search, selectedCategory]);
 
   return (
     <main className="restaurants-page">
@@ -453,7 +489,7 @@ const RestaurantListPage = ({ navigate }) => {
           </div>
         )}
 
-        {loading ? (
+        {isLoading ? (
           <div className="restaurants-state">
             <div className="restaurants-spinner" aria-live="polite" />
             <p>Loading restaurants...</p>
@@ -466,6 +502,16 @@ const RestaurantListPage = ({ navigate }) => {
             <Link to="/experience" className="restaurants-return-link">
               <FiArrowLeft aria-hidden="true" />
               Back to experiences
+            </Link>
+          </div>
+        ) : !savedCity ? (
+          <div className="restaurants-state">
+            <span className="restaurants-empty-icon"><FiMapPin aria-hidden="true" /></span>
+            <h2>Update your profile address</h2>
+            <p>Add a city to your saved profile address to see restaurants in your area.</p>
+            <Link to="/profile" className="restaurants-return-link">
+              <FiMapPin aria-hidden="true" />
+              Update profile address
             </Link>
           </div>
         ) : filteredRestaurants.length ? (
