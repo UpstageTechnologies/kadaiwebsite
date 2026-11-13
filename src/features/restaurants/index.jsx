@@ -29,6 +29,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../services/firebase";
 import { useAuth } from "../../components/AuthContext";
+import { getNearbySellerIds } from "../../services/marketplace.service";
 import "./restaurants.css";
 
 const RESTAURANT_CART_STORAGE_KEY = "kadai_restaurant_cart";
@@ -358,6 +359,7 @@ const RestaurantTopbar = ({ navigate }) => {
 };
 
 const RestaurantListPage = ({ navigate }) => {
+  const { customer } = useAuth();
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(Boolean(db));
   const [error, setError] = useState("");
@@ -375,8 +377,15 @@ const RestaurantListPage = ({ navigate }) => {
     const unsubscribe = onSnapshot(
       restaurantsQuery,
       (snapshot) => {
-        const nextRestaurants = snapshot.docs
+        const restaurantDocs = snapshot.docs
           .filter((sellerDoc) => isRestaurantSeller(sellerDoc.data() || {}))
+          .map((sellerDoc) => [sellerDoc.id, sellerDoc.data() || {}]);
+        const localRestaurantIds = getNearbySellerIds(
+          customer?.address,
+          Object.fromEntries(restaurantDocs)
+        );
+        const nextRestaurants = snapshot.docs
+          .filter((sellerDoc) => localRestaurantIds.includes(sellerDoc.id))
           .map(normalizeRestaurant)
           .filter(Boolean)
           .sort((left, right) => right.rating - left.rating);
@@ -393,7 +402,7 @@ const RestaurantListPage = ({ navigate }) => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [customer?.address]);
 
   const categories = useMemo(() => {
     const set = new Set(["All"]);
