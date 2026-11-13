@@ -363,6 +363,8 @@ const getLocationMatchContext = (source = {}) => {
   };
 };
 
+export const getMarketplaceCity = (source = {}) => getLocationMatchContext(source).city;
+
 const getLocationFieldNames = (source = {}) => {
   const locationFieldPattern = /country|state|district|city|town|village|municipality|locality|area|road|street|pincode|postal|postcode|zip|latitude|longitude|coordinates|location|address/i;
   const fieldNames = new Set();

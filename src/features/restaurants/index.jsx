@@ -29,7 +29,11 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../services/firebase";
 import { useAuth } from "../../components/AuthContext";
-import { getNearbySellerIds } from "../../services/marketplace.service";
+import {
+  getCustomerActiveLocation,
+  getMarketplaceCity,
+  getNearbySellerIds,
+} from "../../services/marketplace.service";
 import "./restaurants.css";
 
 const RESTAURANT_CART_STORAGE_KEY = "kadai_restaurant_cart";
@@ -360,9 +364,8 @@ const RestaurantTopbar = ({ navigate }) => {
 
 const RestaurantListPage = ({ navigate }) => {
   const { customer, loading: customerLoading, customerError } = useAuth();
-  const savedCity = typeof customer?.address?.city === "string"
-    ? customer.address.city.trim()
-    : "";
+  const savedAddress = useMemo(() => getCustomerActiveLocation(customer), [customer]);
+  const savedCity = getMarketplaceCity(savedAddress || {});
   const [restaurants, setRestaurants] = useState([]);
   const [restaurantsCity, setRestaurantsCity] = useState("");
   const [loading, setLoading] = useState(Boolean(db));
@@ -408,7 +411,7 @@ const RestaurantListPage = ({ navigate }) => {
           .filter((sellerDoc) => isRestaurantSeller(sellerDoc.data() || {}))
           .map((sellerDoc) => [sellerDoc.id, sellerDoc.data() || {}]);
         const localRestaurantIds = getNearbySellerIds(
-          { city: savedCity },
+          savedAddress,
           Object.fromEntries(restaurantDocs)
         );
         const nextRestaurants = snapshot.docs
@@ -431,7 +434,7 @@ const RestaurantListPage = ({ navigate }) => {
     );
 
     return () => unsubscribe();
-  }, [customerError, customerLoading, savedCity]);
+  }, [customerError, customerLoading, savedAddress, savedCity]);
 
   const isLoading = customerLoading
     || loading
