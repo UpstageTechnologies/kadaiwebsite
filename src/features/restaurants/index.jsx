@@ -404,6 +404,7 @@ const RestaurantListPage = ({ navigate }) => {
     return () => unsubscribe();
   }, [customer?.address]);
 
+
   const categories = useMemo(() => {
     const set = new Set(["All"]);
     restaurants.forEach((restaurant) => {
