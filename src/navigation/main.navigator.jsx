@@ -11,7 +11,6 @@ import TrackOrder from "../features/track-order";
 import Profile from "../features/profile";
 import Experience from "../features/experience";
 import Restaurants from "../features/restaurants";
-import DeleteAccount from "../features/delete-account";
 
 /**
  * Main Navigator
@@ -23,7 +22,6 @@ const MainNavigator = () => {
     <Routes>
       <Route path="/" element={<Experience />} />
       <Route path="/experience" element={<Experience />} />
-      <Route path="/delete-account" element={<DeleteAccount />} />
       <Route path="/restaurants" element={<Restaurants />} />
       <Route path="/restaurants/cart" element={<Restaurants cartMode="cart" />} />
       <Route path="/restaurants/checkout" element={<Restaurants cartMode="checkout" />} />
